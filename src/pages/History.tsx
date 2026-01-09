@@ -18,7 +18,6 @@ import { cn } from "@/lib/utils";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 
 const History = () => {
-  const [activeTab, setActiveTab] = useState("history");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "success" | "failed">("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -203,7 +202,7 @@ const History = () => {
         </motion.div>
       </main>
 
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <BottomNav />
     </div>
   );
 };
