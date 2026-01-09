@@ -22,8 +22,19 @@ const Auth = () => {
     email: "",
     password: "",
     fullName: "",
+    referralCode: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Check for referral code in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const refCode = params.get("ref");
+    if (refCode) {
+      setFormData((prev) => ({ ...prev, referralCode: refCode }));
+      setIsLogin(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (user && !isLoading) {
@@ -88,6 +99,12 @@ const Auth = () => {
           }
           return;
         }
+        
+        // Store referral code for processing on first deposit
+        if (formData.referralCode) {
+          localStorage.setItem("pendingReferralCode", formData.referralCode.toUpperCase());
+        }
+        
         toast.success("Account created successfully!");
         navigate("/dashboard");
       }
@@ -128,23 +145,37 @@ const Auth = () => {
         <div className="glass-card rounded-3xl p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input
+                      id="fullName"
+                      type="text"
+                      placeholder="John Doe"
+                      value={formData.fullName}
+                      onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                      className="pl-10 h-12 rounded-xl"
+                    />
+                  </div>
+                  {errors.fullName && (
+                    <p className="text-sm text-destructive">{errors.fullName}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="referralCode">Referral Code (Optional)</Label>
                   <Input
-                    id="fullName"
+                    id="referralCode"
                     type="text"
-                    placeholder="John Doe"
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    className="pl-10 h-12 rounded-xl"
+                    placeholder="Enter referral code"
+                    value={formData.referralCode}
+                    onChange={(e) => setFormData({ ...formData, referralCode: e.target.value.toUpperCase() })}
+                    className="h-12 rounded-xl uppercase"
                   />
                 </div>
-                {errors.fullName && (
-                  <p className="text-sm text-destructive">{errors.fullName}</p>
-                )}
-              </div>
+              </>
             )}
 
             <div className="space-y-2">

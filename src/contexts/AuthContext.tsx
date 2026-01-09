@@ -8,6 +8,7 @@ interface Profile {
   full_name: string | null;
   phone_number: string | null;
   avatar_url: string | null;
+  referral_code: string | null;
 }
 
 interface AuthContextType {

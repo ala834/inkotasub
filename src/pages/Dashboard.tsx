@@ -53,7 +53,7 @@ const Dashboard = () => {
           <WalletCard
             balance={wallet?.balance || 0}
             onFundWallet={() => navigate("/fund-wallet")}
-            onTransfer={() => console.log("Transfer")}
+            onTransfer={() => navigate("/transfer")}
           />
         </div>
 

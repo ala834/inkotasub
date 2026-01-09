@@ -118,6 +118,17 @@ serve(async (req) => {
         throw txError;
       }
 
+      // Create notification for user
+      await supabase.from("notifications").insert({
+        user_id: userId,
+        title: "Payment Received",
+        message: `Your wallet has been credited with ₦${amountInNaira.toLocaleString()}`,
+        type: "success",
+      });
+
+      // Check for pending referral - process referral reward
+      // This would be called from frontend after first deposit
+      
       // Mark webhook as processed
       await supabase
         .from("webhooks_log")
