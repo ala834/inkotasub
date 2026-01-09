@@ -1,1 +1,7 @@
 project_id = "fxgarugfgeeksiytslhr"
+
+[functions.transfer-funds]
+verify_jwt = false
+
+[functions.process-referral]
+verify_jwt = false
