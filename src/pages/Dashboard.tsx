@@ -1,18 +1,35 @@
-import { useState } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import WalletCard from "@/components/wallet/WalletCard";
 import ServicesGrid from "@/components/services/ServicesGrid";
 import TransactionsList from "@/components/transactions/TransactionsList";
 import PromoBanner from "@/components/common/PromoBanner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useWallet } from "@/hooks/useWallet";
 
 const Dashboard = () => {
-  const [activeTab, setActiveTab] = useState("home");
+  const navigate = useNavigate();
+  const { profile, user } = useAuth();
+  const { wallet } = useWallet();
 
-  // Mock user data - will be replaced with real data from Supabase
-  const mockBalance = 45750.5;
-  const userName = "Chinedu";
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  };
+
+  const getFirstName = () => {
+    if (profile?.full_name) {
+      return profile.full_name.split(" ")[0];
+    }
+    if (user?.email) {
+      return user.email.split("@")[0];
+    }
+    return "User";
+  };
 
   return (
     <div className="min-h-screen gradient-hero pb-24">
@@ -25,17 +42,17 @@ const Dashboard = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-6"
         >
-          <p className="text-muted-foreground">Good afternoon,</p>
+          <p className="text-muted-foreground">{getGreeting()},</p>
           <h1 className="text-2xl font-display font-bold text-foreground">
-            {userName} 👋
+            {getFirstName()} 👋
           </h1>
         </motion.div>
 
         {/* Wallet Card */}
         <div className="mb-6">
           <WalletCard
-            balance={mockBalance}
-            onFundWallet={() => console.log("Fund wallet")}
+            balance={wallet?.balance || 0}
+            onFundWallet={() => navigate("/fund-wallet")}
             onTransfer={() => console.log("Transfer")}
           />
         </div>
@@ -56,7 +73,7 @@ const Dashboard = () => {
         </div>
       </main>
 
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <BottomNav />
     </div>
   );
 };

@@ -1,26 +1,33 @@
-import { Home, Wallet, History, Settings, LayoutGrid } from "lucide-react";
+import { Home, Wallet, History, User, LayoutGrid } from "lucide-react";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const navItems = [
-  { icon: Home, label: "Home", id: "home" },
-  { icon: LayoutGrid, label: "Services", id: "services" },
-  { icon: Wallet, label: "Wallet", id: "wallet" },
-  { icon: History, label: "History", id: "history" },
-  { icon: Settings, label: "Settings", id: "settings" },
+  { icon: Home, label: "Home", id: "home", path: "/dashboard" },
+  { icon: LayoutGrid, label: "Services", id: "services", path: "/airtime" },
+  { icon: Wallet, label: "Wallet", id: "wallet", path: "/fund-wallet" },
+  { icon: History, label: "History", id: "history", path: "/history" },
+  { icon: User, label: "Profile", id: "profile", path: "/profile" },
 ];
 
-interface BottomNavProps {
-  activeTab?: string;
-  onTabChange?: (tab: string) => void;
-}
+const BottomNav = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
 
-const BottomNav = ({ activeTab = "home", onTabChange }: BottomNavProps) => {
-  const [active, setActive] = useState(activeTab);
+  const getActiveTab = () => {
+    const path = location.pathname;
+    if (path === "/dashboard") return "home";
+    if (["/airtime", "/data", "/electricity", "/cable-tv"].includes(path)) return "services";
+    if (path === "/fund-wallet") return "wallet";
+    if (path === "/history") return "history";
+    if (path === "/profile") return "profile";
+    return "home";
+  };
 
-  const handleTabChange = (id: string) => {
-    setActive(id);
-    onTabChange?.(id);
+  const activeTab = getActiveTab();
+
+  const handleTabChange = (path: string) => {
+    navigate(path);
   };
 
   return (
@@ -28,11 +35,11 @@ const BottomNav = ({ activeTab = "home", onTabChange }: BottomNavProps) => {
       <div className="container mx-auto max-w-lg">
         <div className="flex items-center justify-around py-2">
           {navItems.map((item) => {
-            const isActive = active === item.id;
+            const isActive = activeTab === item.id;
             return (
               <button
                 key={item.id}
-                onClick={() => handleTabChange(item.id)}
+                onClick={() => handleTabChange(item.path)}
                 className="relative flex flex-col items-center gap-1 px-3 py-2 min-w-[64px]"
               >
                 {isActive && (
