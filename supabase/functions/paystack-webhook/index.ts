@@ -126,8 +126,81 @@ serve(async (req) => {
         type: "success",
       });
 
-      // Check for pending referral - process referral reward
-      // This would be called from frontend after first deposit
+      // Auto-process referral reward on first deposit
+      // Check if this is the user's first successful credit transaction
+      const { count: successfulCredits } = await supabase
+        .from("transactions")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("type", "credit")
+        .eq("status", "success");
+
+      console.log("User successful credits count:", successfulCredits);
+
+      // If this is the first successful deposit, check for pending referral
+      if (successfulCredits === 1) {
+        // Check if there's an unrewarded referral for this user
+        const { data: pendingReferral } = await supabase
+          .from("referrals")
+          .select("*, referrer:referrer_id(user_id)")
+          .eq("referred_id", userId)
+          .eq("rewarded", false)
+          .single();
+
+        if (pendingReferral) {
+          console.log("Processing pending referral for user:", userId);
+          
+          // Calculate reward (5% of first deposit)
+          const rewardPercentage = pendingReferral.reward_percentage || 5;
+          const rewardAmount = amountInNaira * (rewardPercentage / 100);
+
+          // Get referrer's wallet
+          const { data: referrerWallet } = await supabase
+            .from("wallets")
+            .select("*")
+            .eq("user_id", pendingReferral.referrer_id)
+            .single();
+
+          if (referrerWallet) {
+            const referrerNewBalance = parseFloat(referrerWallet.balance) + rewardAmount;
+
+            // Credit referrer's wallet
+            await supabase
+              .from("wallets")
+              .update({ balance: referrerNewBalance, updated_at: new Date().toISOString() })
+              .eq("user_id", pendingReferral.referrer_id);
+
+            // Create transaction for referral bonus
+            await supabase.from("transactions").insert({
+              user_id: pendingReferral.referrer_id,
+              type: "credit",
+              amount: rewardAmount,
+              balance_before: referrerWallet.balance,
+              balance_after: referrerNewBalance,
+              status: "success",
+              reference: `REF-${Date.now()}`,
+              description: "Referral bonus",
+              metadata: { referred_user_id: userId, deposit_amount: amountInNaira }
+            });
+
+            // Update referral record as rewarded
+            await supabase
+              .from("referrals")
+              .update({ rewarded: true, reward_amount: rewardAmount })
+              .eq("id", pendingReferral.id);
+
+            // Notify referrer
+            await supabase.from("notifications").insert({
+              user_id: pendingReferral.referrer_id,
+              title: "Referral Bonus!",
+              message: `You earned ₦${rewardAmount.toLocaleString()} from your referral's first deposit!`,
+              type: "success"
+            });
+
+            console.log(`Referral reward processed: ${pendingReferral.referrer_id} earned ₦${rewardAmount}`);
+          }
+        }
+      }
       
       // Mark webhook as processed
       await supabase

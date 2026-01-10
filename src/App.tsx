@@ -17,6 +17,7 @@ import Electricity from "./pages/Electricity";
 import CableTV from "./pages/CableTV";
 import Transfer from "./pages/Transfer";
 import Referrals from "./pages/Referrals";
+import Notifications from "./pages/Notifications";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/cable-tv" element={<ProtectedRoute><CableTV /></ProtectedRoute>} />
             <Route path="/transfer" element={<ProtectedRoute><Transfer /></ProtectedRoute>} />
             <Route path="/referrals" element={<ProtectedRoute><Referrals /></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
