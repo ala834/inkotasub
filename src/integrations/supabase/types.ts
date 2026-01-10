@@ -200,6 +200,57 @@ export type Database = {
         }
         Relationships: []
       }
+      virtual_accounts: {
+        Row: {
+          account_name: string
+          account_number: string
+          bank_code: string | null
+          bank_name: string
+          created_at: string
+          customer_code: string | null
+          customer_id: string | null
+          dva_id: string | null
+          id: string
+          is_active: boolean | null
+          metadata: Json | null
+          provider: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          bank_code?: string | null
+          bank_name: string
+          created_at?: string
+          customer_code?: string | null
+          customer_id?: string | null
+          dva_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          provider?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          bank_code?: string | null
+          bank_name?: string
+          created_at?: string
+          customer_code?: string | null
+          customer_id?: string | null
+          dva_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          provider?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       vtu_orders: {
         Row: {
           amount: number
