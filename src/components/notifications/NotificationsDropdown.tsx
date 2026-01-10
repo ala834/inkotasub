@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Bell, Check, CheckCheck } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Bell, Check, CheckCheck, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -11,6 +12,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { cn } from "@/lib/utils";
 
 const NotificationsDropdown = () => {
+  const navigate = useNavigate();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -114,6 +116,20 @@ const NotificationsDropdown = () => {
             </div>
           )}
         </ScrollArea>
+        <div className="p-2 border-t">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-center gap-2"
+            onClick={() => {
+              setIsOpen(false);
+              navigate("/notifications");
+            }}
+          >
+            View all notifications
+            <ExternalLink className="h-3 w-3" />
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   );
