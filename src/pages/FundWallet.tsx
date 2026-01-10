@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import VirtualAccountCard from "@/components/wallet/VirtualAccountCard";
 
 const FundWallet = () => {
   const navigate = useNavigate();
@@ -119,6 +120,8 @@ const FundWallet = () => {
             </div>
           </div>
 
+          {/* Virtual Account Card */}
+          <VirtualAccountCard />
           {/* Payment Method */}
           <div className="glass-card rounded-2xl p-4">
             <p className="text-muted-foreground text-sm mb-3">Payment Method</p>

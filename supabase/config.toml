@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.process-referral]
 verify_jwt = false
+
+[functions.create-virtual-account]
+verify_jwt = false
+
+[functions.paystack-webhook]
+verify_jwt = false

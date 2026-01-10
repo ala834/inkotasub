@@ -1,43 +1,38 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Phone, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import NetworkBadge from "@/components/common/NetworkBadge";
-
-const networks = [
-  { id: "mtn", name: "MTN", color: "bg-yellow-500" },
-  { id: "airtel", name: "Airtel", color: "bg-red-500" },
-  { id: "glo", name: "Glo", color: "bg-green-500" },
-  { id: "9mobile", name: "9Mobile", color: "bg-green-700" },
-];
+import PhoneInputWithNetwork from "@/components/common/PhoneInputWithNetwork";
 
 const quickAmounts = [50, 100, 200, 500, 1000, 2000, 5000];
 
 const Airtime = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { wallet } = useWallet();
-  const [selectedNetwork, setSelectedNetwork] = useState("");
+  const [detectedNetwork, setDetectedNetwork] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const handleNetworkDetected = useCallback((network: string | null) => {
+    setDetectedNetwork(network);
+  }, []);
+
   const handlePurchase = async () => {
-    if (!selectedNetwork || !phoneNumber || !amount) {
+    if (!detectedNetwork || !phoneNumber || !amount) {
       toast.error("Please fill all fields");
       return;
     }
 
-    if (phoneNumber.length !== 11) {
-      toast.error("Please enter a valid 11-digit phone number");
+    if (phoneNumber.length !== 11 && !phoneNumber.startsWith("+234")) {
+      toast.error("Please enter a valid phone number");
       return;
     }
 
@@ -51,7 +46,7 @@ const Airtime = () => {
     try {
       const { data, error } = await supabase.functions.invoke("purchase-airtime", {
         body: {
-          network: selectedNetwork,
+          network: detectedNetwork,
           phoneNumber,
           amount: amountNum,
         },
@@ -112,42 +107,13 @@ const Airtime = () => {
             </Button>
           </div>
 
-          {/* Network Selection */}
+          {/* Phone Number with Auto Network Detection */}
           <div className="glass-card rounded-2xl p-4">
-            <Label className="text-muted-foreground mb-3 block">Select Network</Label>
-            <div className="grid grid-cols-4 gap-3">
-              {networks.map((net) => (
-                <button
-                  key={net.id}
-                  onClick={() => setSelectedNetwork(net.id)}
-                  className={cn(
-                    "p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2",
-                    selectedNetwork === net.id
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:border-primary/50"
-                  )}
-                >
-                  <NetworkBadge network={net.id as "mtn" | "airtel" | "glo" | "9mobile"} size="lg" />
-                  <span className="text-xs font-medium">{net.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Phone Number */}
-          <div className="glass-card rounded-2xl p-4">
-            <Label htmlFor="phone">Phone Number</Label>
-            <div className="relative mt-2">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input
-                id="phone"
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 11))}
-                placeholder="08012345678"
-                className="pl-10 h-12 rounded-xl"
-              />
-            </div>
+            <PhoneInputWithNetwork
+              value={phoneNumber}
+              onChange={setPhoneNumber}
+              onNetworkDetected={handleNetworkDetected}
+            />
           </div>
 
           {/* Amount */}
@@ -183,7 +149,7 @@ const Airtime = () => {
           {/* Submit */}
           <Button
             onClick={handlePurchase}
-            disabled={isLoading || !selectedNetwork || !phoneNumber || !amount}
+            disabled={isLoading || !detectedNetwork || !phoneNumber || !amount}
             className="w-full h-14 rounded-xl gradient-primary text-primary-foreground font-semibold text-lg"
           >
             {isLoading ? (
