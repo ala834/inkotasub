@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Calendar, Filter, Search } from "lucide-react";
+import { Filter, Search } from "lucide-react";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,15 @@ import { useTransactions, Transaction } from "@/hooks/useTransactions";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import TransactionDetailsDialog from "@/components/transactions/TransactionDetailsDialog";
 
 const History = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "success" | "failed">("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const { transactions, isLoading } = useTransactions({
     status: statusFilter,
@@ -45,14 +48,19 @@ const History = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "success":
-        return "text-green-500 bg-green-500/10";
+        return "text-success bg-success/10";
       case "pending":
-        return "text-yellow-500 bg-yellow-500/10";
+        return "text-warning bg-warning/10";
       case "failed":
-        return "text-red-500 bg-red-500/10";
+        return "text-destructive bg-destructive/10";
       default:
         return "text-muted-foreground bg-muted";
     }
+  };
+
+  const handleTransactionClick = (transaction: Transaction) => {
+    setSelectedTransaction(transaction);
+    setDetailsOpen(true);
   };
 
   return (
@@ -144,11 +152,12 @@ const History = () => {
               </div>
             ) : (
               filteredTransactions.map((transaction) => (
-                <motion.div
+                <motion.button
                   key={transaction.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="glass-card rounded-2xl p-4"
+                  onClick={() => handleTransactionClick(transaction)}
+                  className="glass-card rounded-2xl p-4 w-full text-left hover:bg-accent/50 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -156,14 +165,14 @@ const History = () => {
                         className={cn(
                           "w-10 h-10 rounded-full flex items-center justify-center",
                           transaction.type === "credit"
-                            ? "bg-green-500/10"
-                            : "bg-red-500/10"
+                            ? "bg-success/10"
+                            : "bg-destructive/10"
                         )}
                       >
                         {transaction.type === "credit" ? (
-                          <ArrowDownLeft className="h-5 w-5 text-green-500" />
+                          <ArrowDownLeft className="h-5 w-5 text-success" />
                         ) : (
-                          <ArrowUpRight className="h-5 w-5 text-red-500" />
+                          <ArrowUpRight className="h-5 w-5 text-destructive" />
                         )}
                       </div>
                       <div>
@@ -179,7 +188,7 @@ const History = () => {
                       <p
                         className={cn(
                           "font-semibold",
-                          transaction.type === "credit" ? "text-green-500" : "text-red-500"
+                          transaction.type === "credit" ? "text-success" : "text-destructive"
                         )}
                       >
                         {transaction.type === "credit" ? "+" : "-"}
@@ -195,7 +204,7 @@ const History = () => {
                       </span>
                     </div>
                   </div>
-                </motion.div>
+                </motion.button>
               ))
             )}
           </div>
@@ -203,6 +212,12 @@ const History = () => {
       </main>
 
       <BottomNav />
+
+      <TransactionDetailsDialog
+        transaction={selectedTransaction}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+      />
     </div>
   );
 };
