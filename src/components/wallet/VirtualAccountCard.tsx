@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, Copy, Check, Loader2, RefreshCw, Info } from "lucide-react";
+import { Building2, Copy, Check, Loader2, Info, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -7,8 +7,9 @@ import { useVirtualAccount } from "@/hooks/useVirtualAccount";
 import { cn } from "@/lib/utils";
 
 const VirtualAccountCard = () => {
-  const { virtualAccount, isLoading, isCreating, createVirtualAccount } = useVirtualAccount();
+  const { virtualAccount, isLoading, isCreating, isUnavailable, createVirtualAccount } = useVirtualAccount();
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [hasAttemptedCreate, setHasAttemptedCreate] = useState(false);
 
   const handleCopy = async (text: string, field: string) => {
     try {
@@ -22,11 +23,15 @@ const VirtualAccountCard = () => {
   };
 
   const handleCreateAccount = async () => {
+    setHasAttemptedCreate(true);
     try {
       await createVirtualAccount();
       toast.success("Virtual account created successfully!");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create account");
+      // Error is already handled in the hook
+      if (!isUnavailable) {
+        toast.error(error instanceof Error ? error.message : "Failed to create account");
+      }
     }
   };
 
@@ -35,6 +40,35 @@ const VirtualAccountCard = () => {
       <Card className="glass-card">
         <CardContent className="p-6 flex items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show unavailable message if DVA feature is not enabled
+  if (isUnavailable || (hasAttemptedCreate && !virtualAccount)) {
+    return (
+      <Card className="glass-card border-dashed border-warning/30">
+        <CardContent className="p-6">
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-warning/10 flex items-center justify-center mx-auto">
+              <AlertCircle className="h-8 w-8 text-warning" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg">Virtual Account Coming Soon</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Dedicated virtual accounts are being set up. For now, please use
+                card payment or bank transfer below to fund your wallet.
+              </p>
+            </div>
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-muted/50 text-left">
+              <Info className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-muted-foreground">
+                Once virtual accounts are enabled, you'll be able to fund your wallet 
+                by transferring directly to a dedicated account number.
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     );
@@ -85,7 +119,7 @@ const VirtualAccountCard = () => {
           <span className={cn(
             "text-xs px-2 py-1 rounded-full",
             virtualAccount.is_active 
-              ? "bg-green-500/10 text-green-600" 
+              ? "bg-success/10 text-success" 
               : "bg-destructive/10 text-destructive"
           )}>
             {virtualAccount.is_active ? "Active" : "Inactive"}
@@ -116,7 +150,7 @@ const VirtualAccountCard = () => {
             className="h-10 w-10"
           >
             {copiedField === "Account number" ? (
-              <Check className="h-4 w-4 text-green-500" />
+              <Check className="h-4 w-4 text-success" />
             ) : (
               <Copy className="h-4 w-4" />
             )}
@@ -136,7 +170,7 @@ const VirtualAccountCard = () => {
             className="h-10 w-10 flex-shrink-0"
           >
             {copiedField === "Account name" ? (
-              <Check className="h-4 w-4 text-green-500" />
+              <Check className="h-4 w-4 text-success" />
             ) : (
               <Copy className="h-4 w-4" />
             )}
