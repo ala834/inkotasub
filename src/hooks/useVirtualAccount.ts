@@ -20,6 +20,7 @@ export const useVirtualAccount = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isUnavailable, setIsUnavailable] = useState(false);
 
   const fetchVirtualAccount = useCallback(async () => {
     if (!user) {
@@ -62,10 +63,25 @@ export const useVirtualAccount = () => {
         return data.account;
       }
 
+      // Check if DVA is unavailable for this business
+      if (data?.error?.includes("Dedicated NUBAN is not available") || 
+          data?.error?.includes("feature_unavailable") ||
+          data?.unavailable) {
+        setIsUnavailable(true);
+        throw new Error("Virtual accounts are not yet available. Please use card or bank transfer to fund your wallet.");
+      }
+
       throw new Error(data?.error || "Failed to create virtual account");
     } catch (err) {
       console.error("Error creating virtual account:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to create account";
+      
+      // Check if it's the unavailable error
+      if (errorMessage.includes("Dedicated NUBAN is not available") || 
+          errorMessage.includes("not available")) {
+        setIsUnavailable(true);
+      }
+      
       setError(errorMessage);
       throw err;
     } finally {
@@ -110,6 +126,7 @@ export const useVirtualAccount = () => {
     isLoading,
     isCreating,
     error,
+    isUnavailable,
     createVirtualAccount,
     refetch: fetchVirtualAccount,
   };

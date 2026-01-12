@@ -132,6 +132,20 @@ serve(async (req) => {
     console.log("Paystack DVA response:", JSON.stringify(createDVAData));
 
     if (!createDVAData.status) {
+      // Check if DVA feature is not available for this business
+      if (createDVAData.message?.includes("Dedicated NUBAN is not available") ||
+          createDVAData.code === "feature_unavailable") {
+        console.log("DVA feature not available for this business");
+        return new Response(JSON.stringify({ 
+          success: false,
+          unavailable: true,
+          error: "Virtual accounts are not yet available. Please use card or bank transfer to fund your wallet."
+        }), {
+          status: 200, // Return 200 so frontend can handle gracefully
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // Check if it's because DVA already exists
       if (createDVAData.message?.includes("already has a dedicated")) {
         // Fetch existing DVA
