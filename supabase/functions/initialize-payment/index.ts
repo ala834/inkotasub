@@ -47,27 +47,39 @@ serve(async (req) => {
 
     const reference = `INK_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Initialize Paystack transaction
-    const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${Deno.env.get("PAYSTACK_SECRET_KEY")}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        amount: Math.round(amount * 100), // Paystack expects amount in kobo
-        email,
-        reference,
-        callback_url: `${req.headers.get("origin")}/payment-callback`,
-        channels: paymentMethod === "bank" ? ["bank_transfer", "bank"] : ["card"],
-        metadata: {
-          user_id: userId,
-          custom_fields: [
-            { display_name: "User ID", variable_name: "user_id", value: userId },
-          ],
+      // Determine payment channels based on selected method
+      let channels: string[];
+      if (paymentMethod === "bank") {
+        channels = ["bank_transfer", "bank", "ussd"];
+      } else if (paymentMethod === "ussd") {
+        channels = ["ussd"];
+      } else {
+        channels = ["card"];
+      }
+
+      // Initialize Paystack transaction
+      const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Deno.env.get("PAYSTACK_SECRET_KEY")}`,
+          "Content-Type": "application/json",
         },
-      }),
-    });
+        body: JSON.stringify({
+          amount: Math.round(amount * 100), // Paystack expects amount in kobo
+          email,
+          reference,
+          callback_url: `${req.headers.get("origin")}/payment-callback`,
+          channels,
+          metadata: {
+            user_id: userId,
+            payment_method: paymentMethod,
+            custom_fields: [
+              { display_name: "User ID", variable_name: "user_id", value: userId },
+              { display_name: "Payment Method", variable_name: "payment_method", value: paymentMethod },
+            ],
+          },
+        }),
+      });
 
     const paystackData = await paystackResponse.json();
 

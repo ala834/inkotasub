@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, CreditCard, Building2, Wallet } from "lucide-react";
+import { ArrowLeft, CreditCard, Building2, Wallet, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ const FundWallet = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [amount, setAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "bank">("card");
+  const [paymentMethod, setPaymentMethod] = useState<"card" | "bank" | "ussd">("card");
   const [isLoading, setIsLoading] = useState(false);
 
   const quickAmounts = [1000, 2000, 5000, 10000, 20000, 50000];
@@ -125,22 +125,22 @@ const FundWallet = () => {
           {/* Payment Method */}
           <div className="glass-card rounded-2xl p-4">
             <p className="text-muted-foreground text-sm mb-3">Payment Method</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => setPaymentMethod("card")}
                 className={cn(
-                  "p-4 rounded-xl border-2 transition-all",
+                  "p-3 rounded-xl border-2 transition-all",
                   paymentMethod === "card"
                     ? "border-primary bg-primary/10"
                     : "border-border hover:border-primary/50"
                 )}
               >
                 <CreditCard className={cn(
-                  "h-6 w-6 mx-auto mb-2",
+                  "h-5 w-5 mx-auto mb-1.5",
                   paymentMethod === "card" ? "text-primary" : "text-muted-foreground"
                 )} />
                 <p className={cn(
-                  "text-sm font-medium",
+                  "text-xs font-medium",
                   paymentMethod === "card" ? "text-primary" : "text-muted-foreground"
                 )}>
                   Card
@@ -149,24 +149,49 @@ const FundWallet = () => {
               <button
                 onClick={() => setPaymentMethod("bank")}
                 className={cn(
-                  "p-4 rounded-xl border-2 transition-all",
+                  "p-3 rounded-xl border-2 transition-all",
                   paymentMethod === "bank"
                     ? "border-primary bg-primary/10"
                     : "border-border hover:border-primary/50"
                 )}
               >
                 <Building2 className={cn(
-                  "h-6 w-6 mx-auto mb-2",
+                  "h-5 w-5 mx-auto mb-1.5",
                   paymentMethod === "bank" ? "text-primary" : "text-muted-foreground"
                 )} />
                 <p className={cn(
-                  "text-sm font-medium",
+                  "text-xs font-medium",
                   paymentMethod === "bank" ? "text-primary" : "text-muted-foreground"
                 )}>
                   Bank Transfer
                 </p>
               </button>
+              <button
+                onClick={() => setPaymentMethod("ussd")}
+                className={cn(
+                  "p-3 rounded-xl border-2 transition-all",
+                  paymentMethod === "ussd"
+                    ? "border-primary bg-primary/10"
+                    : "border-border hover:border-primary/50"
+                )}
+              >
+                <Smartphone className={cn(
+                  "h-5 w-5 mx-auto mb-1.5",
+                  paymentMethod === "ussd" ? "text-primary" : "text-muted-foreground"
+                )} />
+                <p className={cn(
+                  "text-xs font-medium",
+                  paymentMethod === "ussd" ? "text-primary" : "text-muted-foreground"
+                )}>
+                  USSD
+                </p>
+              </button>
             </div>
+            <p className="text-xs text-muted-foreground mt-3 text-center">
+              {paymentMethod === "card" && "Pay securely with your debit/credit card"}
+              {paymentMethod === "bank" && "Transfer from your bank app or internet banking"}
+              {paymentMethod === "ussd" && "Pay using USSD code on any phone"}
+            </p>
           </div>
 
           {/* Submit Button */}

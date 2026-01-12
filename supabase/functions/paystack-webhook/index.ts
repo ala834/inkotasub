@@ -258,10 +258,27 @@ serve(async (req) => {
           }
         }
 
-        description = "Bank transfer funding";
-      } else {
-        // Regular card/bank payment with metadata
+        description = "Bank transfer funding (DVA)";
+      } else if (channel === "bank_transfer" || channel === "bank") {
+        // Standard Paystack bank transfer checkout
         userId = metadata?.user_id;
+        description = "Bank transfer funding";
+        console.log("Bank transfer checkout:", { reference, amountInNaira, channel });
+      } else if (channel === "ussd") {
+        // USSD payment
+        userId = metadata?.user_id;
+        description = "USSD funding";
+        console.log("USSD payment:", { reference, amountInNaira, channel });
+      } else if (channel === "card") {
+        // Card payment
+        userId = metadata?.user_id;
+        description = "Card funding";
+        console.log("Card payment:", { reference, amountInNaira, channel });
+      } else {
+        // Fallback for other channels
+        userId = metadata?.user_id;
+        description = `Wallet funding via ${channel}`;
+        console.log("Other payment channel:", { reference, amountInNaira, channel });
       }
 
       if (!userId) {
