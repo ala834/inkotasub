@@ -38,6 +38,51 @@ serve(async (req) => {
     const userId = claims.claims.sub;
     const { network, phoneNumber, amount } = await req.json();
 
+    const adminSupabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Get user profile to check if agent
+    const { data: profile } = await adminSupabase
+      .from("profiles")
+      .select("is_agent")
+      .eq("user_id", userId)
+      .single();
+    
+    const isAgent = profile?.is_agent || false;
+    const userType = isAgent ? 'agent' : 'user';
+
+    // Get pricing config for airtime
+    const { data: pricingConfigs } = await adminSupabase
+      .from("pricing_config")
+      .select("*")
+      .eq("service_type", "airtime")
+      .eq("is_active", true)
+      .eq("user_type", userType);
+
+    // Find applicable pricing config
+    const config = pricingConfigs?.find(
+      c => c.network === network.toUpperCase() && !c.plan_id
+    ) || pricingConfigs?.find(
+      c => !c.network && !c.plan_id
+    );
+
+    // Calculate cost price (what we pay SUBPADI)
+    let costPrice = amount;
+    let sellingPrice = amount;
+    
+    if (config) {
+      if (config.profit_type === 'percentage') {
+        // amount is the selling price, calculate cost price
+        costPrice = Math.round(amount / (1 + config.profit_value / 100));
+      } else {
+        costPrice = amount - config.profit_value;
+      }
+    }
+
+    const profit = sellingPrice - costPrice;
+
     // Get wallet balance
     const { data: wallet, error: walletError } = await supabase
       .from("wallets")
@@ -50,7 +95,7 @@ serve(async (req) => {
     }
 
     const currentBalance = parseFloat(wallet.balance as unknown as string);
-    if (currentBalance < amount) {
+    if (currentBalance < sellingPrice) {
       return new Response(
         JSON.stringify({ error: "Insufficient balance", success: false }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -58,13 +103,7 @@ serve(async (req) => {
     }
 
     const reference = `AIR_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const newBalance = currentBalance - amount;
-
-    // Use admin client for wallet update
-    const adminSupabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const newBalance = currentBalance - sellingPrice;
 
     // Create transaction first
     const { data: transaction, error: txError } = await adminSupabase
@@ -72,7 +111,7 @@ serve(async (req) => {
       .insert({
         user_id: userId,
         type: "debit",
-        amount,
+        amount: sellingPrice,
         balance_before: currentBalance,
         balance_after: newBalance,
         status: "pending",
@@ -102,7 +141,7 @@ serve(async (req) => {
           api_key: subpadiApiKey,
           network: network.toUpperCase(),
           phone: phoneNumber,
-          amount: amount,
+          amount: costPrice, // Send cost price to SUBPADI
         }),
       });
 
@@ -126,14 +165,16 @@ serve(async (req) => {
         .update({ status: "success" })
         .eq("id", transaction.id);
 
-      // Create VTU order
+      // Create VTU order with profit tracking
       await adminSupabase.from("vtu_orders").insert({
         user_id: userId,
         transaction_id: transaction.id,
         service_type: "airtime",
         provider: network.toUpperCase(),
         recipient: phoneNumber,
-        amount,
+        amount: sellingPrice,
+        cost_price: costPrice,
+        profit: profit,
         status: "success",
         api_response: apiResponse,
       });

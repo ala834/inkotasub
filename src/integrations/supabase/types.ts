@@ -44,12 +44,52 @@ export type Database = {
         }
         Relationships: []
       }
+      pricing_config: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          network: string | null
+          plan_id: string | null
+          profit_type: string
+          profit_value: number
+          service_type: string
+          updated_at: string
+          user_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          network?: string | null
+          plan_id?: string | null
+          profit_type?: string
+          profit_value?: number
+          service_type: string
+          updated_at?: string
+          user_type?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          network?: string | null
+          plan_id?: string | null
+          profit_type?: string
+          profit_value?: number
+          service_type?: string
+          updated_at?: string
+          user_type?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
           created_at: string
           full_name: string | null
           id: string
+          is_agent: boolean | null
           phone_number: string | null
           referral_code: string
           updated_at: string
@@ -60,6 +100,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          is_agent?: boolean | null
           phone_number?: string | null
           referral_code?: string
           updated_at?: string
@@ -70,6 +111,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          is_agent?: boolean | null
           phone_number?: string | null
           referral_code?: string
           updated_at?: string

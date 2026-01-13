@@ -38,6 +38,51 @@ serve(async (req) => {
     const userId = claims.claims.sub;
     const { disco, meterNumber, meterType, amount, customerName } = await req.json();
 
+    const adminSupabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Get user profile to check if agent
+    const { data: profile } = await adminSupabase
+      .from("profiles")
+      .select("is_agent")
+      .eq("user_id", userId)
+      .single();
+    
+    const isAgent = profile?.is_agent || false;
+    const userType = isAgent ? 'agent' : 'user';
+
+    // Get pricing config for electricity
+    const { data: pricingConfigs } = await adminSupabase
+      .from("pricing_config")
+      .select("*")
+      .eq("service_type", "electricity")
+      .eq("is_active", true)
+      .eq("user_type", userType);
+
+    // Find applicable pricing config
+    const config = pricingConfigs?.find(
+      c => c.network === disco.toUpperCase() && !c.plan_id
+    ) || pricingConfigs?.find(
+      c => !c.network && !c.plan_id
+    );
+
+    // Calculate selling price (add service fee)
+    let costPrice = amount;
+    let serviceCharge = 0;
+    
+    if (config) {
+      if (config.profit_type === 'percentage') {
+        serviceCharge = Math.round(amount * config.profit_value / 100);
+      } else {
+        serviceCharge = config.profit_value;
+      }
+    }
+
+    const sellingPrice = amount + serviceCharge;
+    const profit = serviceCharge;
+
     // Get wallet
     const { data: wallet } = await supabase
       .from("wallets")
@@ -48,7 +93,7 @@ serve(async (req) => {
     if (!wallet) throw new Error("Wallet not found");
 
     const currentBalance = parseFloat(wallet.balance as unknown as string);
-    if (currentBalance < amount) {
+    if (currentBalance < sellingPrice) {
       return new Response(
         JSON.stringify({ error: "Insufficient balance", success: false }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -56,12 +101,7 @@ serve(async (req) => {
     }
 
     const reference = `ELEC_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const newBalance = currentBalance - amount;
-
-    const adminSupabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const newBalance = currentBalance - sellingPrice;
 
     // Create transaction
     const { data: transaction, error: txError } = await adminSupabase
@@ -69,12 +109,13 @@ serve(async (req) => {
       .insert({
         user_id: userId,
         type: "debit",
-        amount,
+        amount: sellingPrice,
         balance_before: currentBalance,
         balance_after: newBalance,
         status: "pending",
         reference,
         description: `Electricity - ${disco.toUpperCase()} - ${meterNumber}`,
+        metadata: { serviceCharge, unitAmount: amount },
       })
       .select()
       .single();
@@ -101,13 +142,21 @@ serve(async (req) => {
       service_type: "electricity",
       provider: disco.toUpperCase(),
       recipient: meterNumber,
-      amount,
+      amount: sellingPrice,
+      cost_price: costPrice,
+      profit: profit,
       status: "success",
       api_response: { token: electricityToken, customerName, meterType },
     });
 
     return new Response(
-      JSON.stringify({ success: true, token: electricityToken, message: "Electricity purchased successfully" }),
+      JSON.stringify({ 
+        success: true, 
+        token: electricityToken, 
+        message: "Electricity purchased successfully",
+        serviceCharge,
+        totalAmount: sellingPrice,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
