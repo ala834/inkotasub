@@ -9,6 +9,7 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   RefreshCw,
+  DollarSign,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AdminUsersTab from "@/components/admin/AdminUsersTab";
 import AdminTransactionsTab from "@/components/admin/AdminTransactionsTab";
 import AdminWalletsTab from "@/components/admin/AdminWalletsTab";
+import AdminPricingTab from "@/components/admin/AdminPricingTab";
 
 interface DashboardStats {
   totalUsers: number;
@@ -173,7 +175,7 @@ const AdminDashboard = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="users" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 h-12 rounded-xl">
+          <TabsList className="grid w-full grid-cols-4 h-12 rounded-xl">
             <TabsTrigger value="users" className="rounded-lg">
               Users
             </TabsTrigger>
@@ -182,6 +184,9 @@ const AdminDashboard = () => {
             </TabsTrigger>
             <TabsTrigger value="wallets" className="rounded-lg">
               Wallets
+            </TabsTrigger>
+            <TabsTrigger value="pricing" className="rounded-lg">
+              Pricing
             </TabsTrigger>
           </TabsList>
 
@@ -195,6 +200,10 @@ const AdminDashboard = () => {
 
           <TabsContent value="wallets">
             <AdminWalletsTab />
+          </TabsContent>
+
+          <TabsContent value="pricing">
+            <AdminPricingTab />
           </TabsContent>
         </Tabs>
       </main>
