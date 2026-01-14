@@ -1,202 +1,126 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
+  LayoutDashboard,
   Users,
   Wallet,
-  TrendingUp,
   Activity,
   Settings,
-  ArrowUpRight,
-  ArrowDownLeft,
   RefreshCw,
   DollarSign,
   UserCheck,
+  ShoppingCart,
+  ArrowLeft,
+  Shield,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import AdminUsersTab from "@/components/admin/AdminUsersTab";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import AdminAnalyticsTab from "@/components/admin/AdminAnalyticsTab";
+import AdminUserManagementTab from "@/components/admin/AdminUserManagementTab";
+import AdminAgentsTab from "@/components/admin/AdminAgentsTab";
 import AdminTransactionsTab from "@/components/admin/AdminTransactionsTab";
+import AdminVTUOrdersTab from "@/components/admin/AdminVTUOrdersTab";
 import AdminWalletsTab from "@/components/admin/AdminWalletsTab";
 import AdminPricingTab from "@/components/admin/AdminPricingTab";
-import AdminAgentsTab from "@/components/admin/AdminAgentsTab";
-
-interface DashboardStats {
-  totalUsers: number;
-  totalBalance: number;
-  totalTransactions: number;
-  totalProfit: number;
-}
+import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
-  const [stats, setStats] = useState<DashboardStats>({
-    totalUsers: 0,
-    totalBalance: 0,
-    totalTransactions: 0,
-    totalProfit: 0,
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  const { signOut, isAdmin, isLoading: authLoading } = useAuth();
 
+  // Redirect non-admins
   useEffect(() => {
-    fetchStats();
-  }, []);
-
-  const fetchStats = async () => {
-    setIsLoading(true);
-    try {
-      // Fetch users count
-      const { count: usersCount } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true });
-
-      // Fetch total wallet balance
-      const { data: wallets } = await supabase.from("wallets").select("balance");
-      const totalBalance = wallets?.reduce((sum, w) => sum + parseFloat(w.balance as unknown as string), 0) || 0;
-
-      // Fetch transactions count
-      const { count: txCount } = await supabase
-        .from("transactions")
-        .select("*", { count: "exact", head: true });
-
-      // Fetch profit from VTU orders
-      const { data: orders } = await supabase.from("vtu_orders").select("profit");
-      const totalProfit = orders?.reduce((sum, o) => sum + (parseFloat(o.profit as unknown as string) || 0), 0) || 0;
-
-      setStats({
-        totalUsers: usersCount || 0,
-        totalBalance,
-        totalTransactions: txCount || 0,
-        totalProfit,
-      });
-    } catch (error) {
-      console.error("Failed to fetch stats:", error);
-    } finally {
-      setIsLoading(false);
+    if (!authLoading && !isAdmin) {
+      navigate("/dashboard");
     }
-  };
+  }, [isAdmin, authLoading, navigate]);
 
   const handleLogout = async () => {
     await signOut();
     navigate("/auth");
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency: "NGN",
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  const statCards = [
-    {
-      title: "Total Users",
-      value: stats.totalUsers.toLocaleString(),
-      icon: Users,
-      color: "bg-blue-500",
-    },
-    {
-      title: "Total Balance",
-      value: formatCurrency(stats.totalBalance),
-      icon: Wallet,
-      color: "bg-green-500",
-    },
-    {
-      title: "Transactions",
-      value: stats.totalTransactions.toLocaleString(),
-      icon: Activity,
-      color: "bg-purple-500",
-    },
-    {
-      title: "Total Profit",
-      value: formatCurrency(stats.totalProfit),
-      icon: TrendingUp,
-      color: "bg-orange-500",
-    },
+  const tabs = [
+    { value: "analytics", label: "Dashboard", icon: LayoutDashboard },
+    { value: "users", label: "Users", icon: Users },
+    { value: "agents", label: "Agents", icon: UserCheck },
+    { value: "transactions", label: "Transactions", icon: Activity },
+    { value: "orders", label: "VTU Orders", icon: ShoppingCart },
+    { value: "wallets", label: "Wallets", icon: Wallet },
+    { value: "pricing", label: "Pricing", icon: DollarSign },
+    { value: "settings", label: "Settings", icon: Settings },
   ];
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen gradient-hero flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen gradient-hero">
       {/* Header */}
       <header className="sticky top-0 z-50 glass-card border-b border-border/50 px-4 py-3">
         <div className="container mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">I</span>
-            </div>
-            <span className="font-display font-bold text-lg">
-              Admin Dashboard
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
-              onClick={fetchStats}
+              onClick={() => navigate("/dashboard")}
               className="rounded-full"
             >
-              <RefreshCw className={`h-5 w-5 ${isLoading ? "animate-spin" : ""}`} />
+              <ArrowLeft className="h-5 w-5" />
             </Button>
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              Logout
-            </Button>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center">
+                <Shield className="h-4 w-4 text-primary-foreground" />
+              </div>
+              <span className="font-display font-bold text-lg">
+                Admin Panel
+              </span>
+            </div>
           </div>
+          <Button variant="outline" size="sm" onClick={handleLogout}>
+            Logout
+          </Button>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {statCards.map((stat, index) => (
-            <motion.div
-              key={stat.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="glass-card rounded-2xl p-4"
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-10 h-10 rounded-xl ${stat.color} flex items-center justify-center`}
+        <Tabs defaultValue="analytics" className="space-y-6">
+          {/* Scrollable Tab Navigation */}
+          <ScrollArea className="w-full whitespace-nowrap">
+            <TabsList className="inline-flex h-12 items-center justify-start rounded-xl bg-muted p-1 w-auto min-w-full">
+              {tabs.map((tab) => (
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium"
                 >
-                  <stat.icon className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">{stat.title}</p>
-                  <p className="font-bold text-lg">{stat.value}</p>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+                  <tab.icon className="h-4 w-4" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <ScrollBar orientation="horizontal" className="invisible" />
+          </ScrollArea>
 
-        {/* Tabs */}
-        <Tabs defaultValue="users" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5 h-12 rounded-xl">
-            <TabsTrigger value="users" className="rounded-lg">
-              Users
-            </TabsTrigger>
-            <TabsTrigger value="agents" className="rounded-lg">
-              Agents
-            </TabsTrigger>
-            <TabsTrigger value="transactions" className="rounded-lg">
-              Transactions
-            </TabsTrigger>
-            <TabsTrigger value="wallets" className="rounded-lg">
-              Wallets
-            </TabsTrigger>
-            <TabsTrigger value="pricing" className="rounded-lg">
-              Pricing
-            </TabsTrigger>
-          </TabsList>
+          <TabsContent value="analytics">
+            <AdminAnalyticsTab />
+          </TabsContent>
 
           <TabsContent value="users">
-            <AdminUsersTab />
+            <AdminUserManagementTab />
           </TabsContent>
 
           <TabsContent value="agents">
@@ -207,12 +131,20 @@ const AdminDashboard = () => {
             <AdminTransactionsTab />
           </TabsContent>
 
+          <TabsContent value="orders">
+            <AdminVTUOrdersTab />
+          </TabsContent>
+
           <TabsContent value="wallets">
             <AdminWalletsTab />
           </TabsContent>
 
           <TabsContent value="pricing">
             <AdminPricingTab />
+          </TabsContent>
+
+          <TabsContent value="settings">
+            <AdminSettingsTab />
           </TabsContent>
         </Tabs>
       </main>
