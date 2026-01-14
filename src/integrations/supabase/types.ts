@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -92,6 +119,7 @@ export type Database = {
           is_agent: boolean | null
           phone_number: string | null
           referral_code: string
+          suspended_at: string | null
           updated_at: string
           user_id: string
         }
@@ -103,6 +131,7 @@ export type Database = {
           is_agent?: boolean | null
           phone_number?: string | null
           referral_code?: string
+          suspended_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -114,6 +143,7 @@ export type Database = {
           is_agent?: boolean | null
           phone_number?: string | null
           referral_code?: string
+          suspended_at?: string | null
           updated_at?: string
           user_id?: string
         }
