@@ -6,7 +6,7 @@ import {
   GraduationCap, 
   CreditCard,
   Gift,
-  MoreHorizontal
+  Headphones
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -20,7 +20,7 @@ const services = [
   { icon: CreditCard, label: "Transfer", color: "linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)", path: "/transfer" },
   { icon: Gift, label: "Referrals", color: "linear-gradient(135deg, #F43F5E 0%, #E11D48 100%)", path: "/referrals" },
   { icon: GraduationCap, label: "Exam Cards", color: "linear-gradient(135deg, #EC4899 0%, #BE185D 100%)", path: "#" },
-  { icon: MoreHorizontal, label: "More", color: "linear-gradient(135deg, #6B7280 0%, #4B5563 100%)", path: "#" },
+  { icon: Headphones, label: "Support", color: "linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%)", path: "/support" },
 ];
 
 const ServicesGrid = () => {
