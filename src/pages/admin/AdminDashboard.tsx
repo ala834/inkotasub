@@ -12,6 +12,7 @@ import {
   ShoppingCart,
   ArrowLeft,
   Shield,
+  TrendingUp,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import AdminVTUOrdersTab from "@/components/admin/AdminVTUOrdersTab";
 import AdminWalletsTab from "@/components/admin/AdminWalletsTab";
 import AdminPricingTab from "@/components/admin/AdminPricingTab";
 import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
+import AdminProfitAnalyticsTab from "@/components/admin/AdminProfitAnalyticsTab";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -46,6 +48,7 @@ const AdminDashboard = () => {
 
   const tabs = [
     { value: "analytics", label: "Dashboard", icon: LayoutDashboard },
+    { value: "profit", label: "Profit Analytics", icon: TrendingUp },
     { value: "users", label: "Users", icon: Users },
     { value: "agents", label: "Agents", icon: UserCheck },
     { value: "transactions", label: "Transactions", icon: Activity },
@@ -117,6 +120,10 @@ const AdminDashboard = () => {
 
           <TabsContent value="analytics">
             <AdminAnalyticsTab />
+          </TabsContent>
+
+          <TabsContent value="profit">
+            <AdminProfitAnalyticsTab />
           </TabsContent>
 
           <TabsContent value="users">
