@@ -67,7 +67,8 @@ const AdminSettingsTab = () => {
   const settingLabels: Record<string, { label: string; type: "text" | "textarea" | "url" | "email" }> = {
     app_name: { label: "Application Name", type: "text" },
     support_email: { label: "Support Email", type: "email" },
-    support_phone: { label: "Support Phone", type: "text" },
+    support_phone: { label: "Support Phone (Call)", type: "text" },
+    whatsapp_number: { label: "WhatsApp Number", type: "text" },
     logo_url: { label: "Logo URL", type: "url" },
     terms_url: { label: "Terms of Service URL", type: "url" },
     privacy_url: { label: "Privacy Policy URL", type: "url" },
@@ -150,23 +151,34 @@ const AdminSettingsTab = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
+              <Label htmlFor="whatsapp_number">WhatsApp Number</Label>
+              <Input
+                id="whatsapp_number"
+                value={formData.whatsapp_number || ""}
+                onChange={(e) => handleChange("whatsapp_number", e.target.value)}
+                placeholder="+2349034226643"
+              />
+              <p className="text-xs text-muted-foreground">Used for wa.me links</p>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="support_email">Support Email</Label>
               <Input
                 id="support_email"
                 type="email"
                 value={formData.support_email || ""}
                 onChange={(e) => handleChange("support_email", e.target.value)}
-                placeholder="support@yourapp.com"
+                placeholder="inkotasub123@gmail.com"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="support_phone">Support Phone</Label>
+              <Label htmlFor="support_phone">Support Phone (Call)</Label>
               <Input
                 id="support_phone"
                 value={formData.support_phone || ""}
                 onChange={(e) => handleChange("support_phone", e.target.value)}
-                placeholder="+234 XXX XXX XXXX"
+                placeholder="+2349034226643"
               />
+              <p className="text-xs text-muted-foreground">Used for tel: links</p>
             </div>
           </CardContent>
         </Card>
