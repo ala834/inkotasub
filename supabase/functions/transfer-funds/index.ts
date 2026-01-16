@@ -34,7 +34,58 @@ serve(async (req) => {
       });
     }
 
-    const { recipient_identifier, amount, description } = await req.json();
+    const { recipient_identifier, amount, description, transactionPin } = await req.json();
+
+    // Get sender's profile to validate PIN
+    const { data: senderProfile } = await supabase
+      .from('profiles')
+      .select('transaction_pin, failed_pin_attempts, pin_locked_until, full_name')
+      .eq('user_id', user.id)
+      .single();
+
+    // Check PIN lockout
+    if (senderProfile?.pin_locked_until && new Date(senderProfile.pin_locked_until) > new Date()) {
+      return new Response(
+        JSON.stringify({ error: 'Account locked due to too many failed PIN attempts. Try again later.', success: false }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate transaction PIN if set
+    if (senderProfile?.transaction_pin) {
+      if (!transactionPin) {
+        return new Response(
+          JSON.stringify({ error: 'Transaction PIN required', requiresPin: true, success: false }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (senderProfile.transaction_pin !== transactionPin) {
+        const newAttempts = (senderProfile.failed_pin_attempts || 0) + 1;
+        const lockUntil = newAttempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null;
+        
+        await supabase
+          .from('profiles')
+          .update({ failed_pin_attempts: newAttempts, pin_locked_until: lockUntil })
+          .eq('user_id', user.id);
+
+        return new Response(
+          JSON.stringify({ 
+            error: newAttempts >= 5 ? 'Account locked for 30 minutes' : 'Invalid transaction PIN', 
+            attemptsRemaining: Math.max(0, 5 - newAttempts),
+            success: false 
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (senderProfile.failed_pin_attempts > 0) {
+        await supabase
+          .from('profiles')
+          .update({ failed_pin_attempts: 0, pin_locked_until: null })
+          .eq('user_id', user.id);
+      }
+    }
 
     // Validate inputs
     if (!recipient_identifier || !amount) {
@@ -47,6 +98,13 @@ serve(async (req) => {
     const transferAmount = parseFloat(amount);
     if (isNaN(transferAmount) || transferAmount <= 0) {
       return new Response(JSON.stringify({ error: 'Invalid amount' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (transferAmount < 100) {
+      return new Response(JSON.stringify({ error: 'Minimum transfer amount is ₦100' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -105,7 +163,8 @@ serve(async (req) => {
       });
     }
 
-    if (senderWallet.balance < transferAmount) {
+    const currentBalance = parseFloat(senderWallet.balance);
+    if (currentBalance < transferAmount) {
       return new Response(JSON.stringify({ error: 'Insufficient balance' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -126,28 +185,45 @@ serve(async (req) => {
       });
     }
 
-    const reference = `TRF-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const reference = `TRF_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Check for duplicate transaction
+    const { data: existingTx } = await supabase
+      .from('transactions')
+      .select('id')
+      .eq('reference', reference)
+      .single();
+
+    if (existingTx) {
+      return new Response(JSON.stringify({ error: 'Duplicate transaction detected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Debit sender
-    const senderNewBalance = parseFloat(senderWallet.balance) - transferAmount;
+    const senderNewBalance = currentBalance - transferAmount;
     await supabase
       .from('wallets')
       .update({ balance: senderNewBalance, updated_at: new Date().toISOString() })
       .eq('user_id', user.id);
 
     // Credit recipient
-    const recipientNewBalance = parseFloat(recipientWallet.balance) + transferAmount;
+    const recipientCurrentBalance = parseFloat(recipientWallet.balance);
+    const recipientNewBalance = recipientCurrentBalance + transferAmount;
     await supabase
       .from('wallets')
       .update({ balance: recipientNewBalance, updated_at: new Date().toISOString() })
       .eq('user_id', recipientProfile.user_id);
 
+    const senderName = senderProfile?.full_name || user.email;
+
     // Create sender transaction (debit)
     await supabase.from('transactions').insert({
       user_id: user.id,
-      type: 'transfer',
-      amount: -transferAmount,
-      balance_before: senderWallet.balance,
+      type: 'debit',
+      amount: transferAmount,
+      balance_before: currentBalance,
       balance_after: senderNewBalance,
       status: 'success',
       reference,
@@ -160,12 +236,12 @@ serve(async (req) => {
       user_id: recipientProfile.user_id,
       type: 'credit',
       amount: transferAmount,
-      balance_before: recipientWallet.balance,
+      balance_before: recipientCurrentBalance,
       balance_after: recipientNewBalance,
       status: 'success',
       reference,
-      description: `Transfer from ${user.email}`,
-      metadata: { sender_id: user.id, sender_email: user.email }
+      description: `Transfer from ${senderName}`,
+      metadata: { sender_id: user.id, sender_name: senderName }
     });
 
     // Create notifications
@@ -179,7 +255,7 @@ serve(async (req) => {
       {
         user_id: recipientProfile.user_id,
         title: 'Money Received',
-        message: `You received ₦${transferAmount.toLocaleString()} from ${user.email}`,
+        message: `You received ₦${transferAmount.toLocaleString()} from ${senderName}`,
         type: 'success'
       }
     ]);

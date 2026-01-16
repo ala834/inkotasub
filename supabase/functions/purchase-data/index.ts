@@ -36,20 +36,64 @@ serve(async (req) => {
     }
 
     const userId = claims.claims.sub;
-    const { network, phoneNumber, planId, amount } = await req.json();
+    const { network, phoneNumber, planId, amount, transactionPin } = await req.json();
 
     const adminSupabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Get user profile to check if agent
+    // Get user profile to check if agent and validate PIN
     const { data: profile } = await adminSupabase
       .from("profiles")
-      .select("is_agent")
+      .select("is_agent, transaction_pin, failed_pin_attempts, pin_locked_until")
       .eq("user_id", userId)
       .single();
     
+    // Check PIN lockout
+    if (profile?.pin_locked_until && new Date(profile.pin_locked_until) > new Date()) {
+      return new Response(
+        JSON.stringify({ error: "Account locked due to too many failed PIN attempts. Try again later.", success: false }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate transaction PIN if set
+    if (profile?.transaction_pin) {
+      if (!transactionPin) {
+        return new Response(
+          JSON.stringify({ error: "Transaction PIN required", requiresPin: true, success: false }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      if (profile.transaction_pin !== transactionPin) {
+        const newAttempts = (profile.failed_pin_attempts || 0) + 1;
+        const lockUntil = newAttempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null;
+        
+        await adminSupabase
+          .from("profiles")
+          .update({ failed_pin_attempts: newAttempts, pin_locked_until: lockUntil })
+          .eq("user_id", userId);
+
+        return new Response(
+          JSON.stringify({ 
+            error: newAttempts >= 5 ? "Account locked for 30 minutes" : "Invalid transaction PIN", 
+            attemptsRemaining: Math.max(0, 5 - newAttempts),
+            success: false 
+          }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (profile.failed_pin_attempts > 0) {
+        await adminSupabase
+          .from("profiles")
+          .update({ failed_pin_attempts: 0, pin_locked_until: null })
+          .eq("user_id", userId);
+      }
+    }
+
     const isAgent = profile?.is_agent || false;
     const userType = isAgent ? 'agent' : 'user';
 

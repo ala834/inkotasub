@@ -40,8 +40,47 @@ serve(async (req) => {
       }
     }
 
-    // Get base plans
-    const basePlans = getBasePlans(provider);
+    // Call SUBPADI API to get real cable plans
+    const subpadiApiKey = Deno.env.get("SUBPADI_API_KEY");
+    const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
+
+    let basePlans = [];
+
+    if (subpadiApiKey && subpadiToken) {
+      try {
+        console.log("Fetching cable plans from SUBPADI for provider:", provider);
+        
+        const response = await fetch("https://subpadi.com/api/cable/plans", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${subpadiToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            api_key: subpadiApiKey,
+            provider: provider.toUpperCase(),
+          }),
+        });
+
+        const apiResponse = await response.json();
+        console.log("SUBPADI cable plans response:", apiResponse);
+
+        if (apiResponse?.status === "success" && apiResponse?.data?.plans) {
+          basePlans = apiResponse.data.plans.map((plan: any) => ({
+            id: plan.plan_id || plan.id,
+            name: plan.name || plan.plan_name,
+            amount: parseFloat(plan.amount || plan.price),
+          }));
+        } else {
+          basePlans = getFallbackPlans(provider);
+        }
+      } catch (apiError) {
+        console.error("SUBPADI API error:", apiError);
+        basePlans = getFallbackPlans(provider);
+      }
+    } else {
+      basePlans = getFallbackPlans(provider);
+    }
     
     // Get pricing config from database
     const adminSupabase = createClient(
@@ -60,16 +99,16 @@ serve(async (req) => {
       .eq("user_type", userType);
 
     // Apply pricing to each plan
-    const pricedPlans = basePlans.map(plan => {
+    const pricedPlans = basePlans.map((plan: any) => {
       const costPrice = plan.amount;
       
       // Find the most specific pricing config
-      let config = pricingConfigs?.find(
-        c => c.network === provider.toUpperCase() && c.plan_id === plan.id
+      const config = pricingConfigs?.find(
+        (c: any) => c.network === provider.toUpperCase() && c.plan_id === plan.id
       ) || pricingConfigs?.find(
-        c => c.network === provider.toUpperCase() && !c.plan_id
+        (c: any) => c.network === provider.toUpperCase() && !c.plan_id
       ) || pricingConfigs?.find(
-        c => !c.network && !c.plan_id
+        (c: any) => !c.network && !c.plan_id
       );
 
       let finalPrice = costPrice;
@@ -101,32 +140,32 @@ serve(async (req) => {
   }
 });
 
-function getBasePlans(provider: string) {
-  // Base costs from SUBPADI
-  if (provider === "dstv") {
+function getFallbackPlans(provider: string) {
+  // Fallback plans based on current pricing (updated regularly)
+  if (provider.toLowerCase() === "dstv") {
     return [
-      { id: "padi", name: "DStv Padi", amount: 2400 },
-      { id: "yanga", name: "DStv Yanga", amount: 3400 },
-      { id: "confam", name: "DStv Confam", amount: 6000 },
-      { id: "compact", name: "DStv Compact", amount: 10200 },
-      { id: "compact_plus", name: "DStv Compact Plus", amount: 16200 },
-      { id: "premium", name: "DStv Premium", amount: 24000 },
+      { id: "dstv_padi", name: "DStv Padi", amount: 2500 },
+      { id: "dstv_yanga", name: "DStv Yanga", amount: 3500 },
+      { id: "dstv_confam", name: "DStv Confam", amount: 6200 },
+      { id: "dstv_compact", name: "DStv Compact", amount: 10500 },
+      { id: "dstv_compact_plus", name: "DStv Compact Plus", amount: 16600 },
+      { id: "dstv_premium", name: "DStv Premium", amount: 24500 },
     ];
-  } else if (provider === "gotv") {
+  } else if (provider.toLowerCase() === "gotv") {
     return [
-      { id: "smallie", name: "GOtv Smallie", amount: 1050 },
-      { id: "jinja", name: "GOtv Jinja", amount: 2150 },
-      { id: "jolli", name: "GOtv Jolli", amount: 3200 },
-      { id: "max", name: "GOtv Max", amount: 4700 },
-      { id: "supa", name: "GOtv Supa", amount: 6200 },
+      { id: "gotv_smallie", name: "GOtv Smallie", amount: 1100 },
+      { id: "gotv_jinja", name: "GOtv Jinja", amount: 2250 },
+      { id: "gotv_jolli", name: "GOtv Jolli", amount: 3300 },
+      { id: "gotv_max", name: "GOtv Max", amount: 4850 },
+      { id: "gotv_supa", name: "GOtv Supa", amount: 6400 },
     ];
   } else {
     return [
-      { id: "nova", name: "StarTimes Nova", amount: 1150 },
-      { id: "basic", name: "StarTimes Basic", amount: 1900 },
-      { id: "smart", name: "StarTimes Smart", amount: 2700 },
-      { id: "classic", name: "StarTimes Classic", amount: 2900 },
-      { id: "super", name: "StarTimes Super", amount: 5300 },
+      { id: "startimes_nova", name: "StarTimes Nova", amount: 1200 },
+      { id: "startimes_basic", name: "StarTimes Basic", amount: 2000 },
+      { id: "startimes_smart", name: "StarTimes Smart", amount: 2800 },
+      { id: "startimes_classic", name: "StarTimes Classic", amount: 3000 },
+      { id: "startimes_super", name: "StarTimes Super", amount: 5500 },
     ];
   }
 }
