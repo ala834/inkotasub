@@ -114,36 +114,45 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          failed_pin_attempts: number | null
           full_name: string | null
           id: string
           is_agent: boolean | null
           phone_number: string | null
+          pin_locked_until: string | null
           referral_code: string
           suspended_at: string | null
+          transaction_pin: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          failed_pin_attempts?: number | null
           full_name?: string | null
           id?: string
           is_agent?: boolean | null
           phone_number?: string | null
+          pin_locked_until?: string | null
           referral_code?: string
           suspended_at?: string | null
+          transaction_pin?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
+          failed_pin_attempts?: number | null
           full_name?: string | null
           id?: string
           is_agent?: boolean | null
           phone_number?: string | null
+          pin_locked_until?: string | null
           referral_code?: string
           suspended_at?: string | null
+          transaction_pin?: string | null
           updated_at?: string
           user_id?: string
         }

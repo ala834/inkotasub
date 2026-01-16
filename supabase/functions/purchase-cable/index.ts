@@ -36,20 +36,67 @@ serve(async (req) => {
     }
 
     const userId = claims.claims.sub;
-    const { provider, smartCardNumber, planId, amount, customerName } = await req.json();
+    const { provider, smartCardNumber, planId, amount, customerName, transactionPin } = await req.json();
 
     const adminSupabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Get user profile to check if agent
+    // Get user profile to check if agent and validate PIN
     const { data: profile } = await adminSupabase
       .from("profiles")
-      .select("is_agent")
+      .select("is_agent, transaction_pin, failed_pin_attempts, pin_locked_until")
       .eq("user_id", userId)
       .single();
     
+    // Check PIN lockout
+    if (profile?.pin_locked_until && new Date(profile.pin_locked_until) > new Date()) {
+      return new Response(
+        JSON.stringify({ error: "Account locked due to too many failed PIN attempts. Try again later.", success: false }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate transaction PIN if set
+    if (profile?.transaction_pin) {
+      if (!transactionPin) {
+        return new Response(
+          JSON.stringify({ error: "Transaction PIN required", requiresPin: true, success: false }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      if (profile.transaction_pin !== transactionPin) {
+        const newAttempts = (profile.failed_pin_attempts || 0) + 1;
+        const lockUntil = newAttempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null;
+        
+        await adminSupabase
+          .from("profiles")
+          .update({ 
+            failed_pin_attempts: newAttempts,
+            pin_locked_until: lockUntil 
+          })
+          .eq("user_id", userId);
+
+        return new Response(
+          JSON.stringify({ 
+            error: newAttempts >= 5 ? "Account locked for 30 minutes" : "Invalid transaction PIN", 
+            attemptsRemaining: Math.max(0, 5 - newAttempts),
+            success: false 
+          }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (profile.failed_pin_attempts > 0) {
+        await adminSupabase
+          .from("profiles")
+          .update({ failed_pin_attempts: 0, pin_locked_until: null })
+          .eq("user_id", userId);
+      }
+    }
+
     const isAgent = profile?.is_agent || false;
     const userType = isAgent ? 'agent' : 'user';
 
@@ -102,6 +149,21 @@ serve(async (req) => {
     }
 
     const reference = `CABLE_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Check for duplicate transaction
+    const { data: existingTx } = await adminSupabase
+      .from("transactions")
+      .select("id")
+      .eq("reference", reference)
+      .single();
+
+    if (existingTx) {
+      return new Response(
+        JSON.stringify({ error: "Duplicate transaction detected", success: false }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const newBalance = currentBalance - sellingPrice;
 
     // Create transaction
@@ -116,40 +178,122 @@ serve(async (req) => {
         status: "pending",
         reference,
         description: `${provider.toUpperCase()} Subscription - ${smartCardNumber}`,
+        metadata: { planId, customerName },
       })
       .select()
       .single();
 
     if (txError) throw txError;
 
-    // Simulate successful subscription
-    await adminSupabase
-      .from("wallets")
-      .update({ balance: newBalance })
-      .eq("user_id", userId);
+    // Call SUBPADI API for cable subscription
+    const subpadiApiKey = Deno.env.get("SUBPADI_API_KEY");
+    const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
 
-    await adminSupabase
-      .from("transactions")
-      .update({ status: "success" })
-      .eq("id", transaction.id);
+    if (!subpadiApiKey || !subpadiToken) {
+      await adminSupabase
+        .from("transactions")
+        .update({ status: "failed" })
+        .eq("id", transaction.id);
+      
+      return new Response(
+        JSON.stringify({ error: "Service temporarily unavailable", success: false }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    await adminSupabase.from("vtu_orders").insert({
-      user_id: userId,
-      transaction_id: transaction.id,
-      service_type: "cable",
-      provider: provider.toUpperCase(),
-      recipient: smartCardNumber,
-      amount: sellingPrice,
-      cost_price: costPrice,
-      profit: profit,
-      status: "success",
-      api_response: { planId, customerName },
-    });
+    // Map provider to SUBPADI format
+    const providerMapping: Record<string, string> = {
+      "dstv": "DSTV",
+      "gotv": "GOTV",
+      "startimes": "STARTIMES",
+    };
 
-    return new Response(
-      JSON.stringify({ success: true, message: "Subscription successful" }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    const providerCode = providerMapping[provider.toLowerCase()] || provider.toUpperCase();
+
+    let apiSuccess = false;
+    let apiResponse = null;
+
+    try {
+      console.log("Calling SUBPADI cable API:", { provider: providerCode, smartCardNumber, planId });
+      
+      const response = await fetch("https://subpadi.com/api/cable", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${subpadiToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          api_key: subpadiApiKey,
+          provider: providerCode,
+          smartcard_number: smartCardNumber,
+          plan_id: planId,
+          phone: "08012345678",
+        }),
+      });
+
+      apiResponse = await response.json();
+      console.log("SUBPADI cable response:", apiResponse);
+      
+      apiSuccess = apiResponse?.status === "success" || apiResponse?.code === "000";
+    } catch (apiError: unknown) {
+      console.error("SUBPADI API error:", apiError);
+      apiResponse = { error: apiError instanceof Error ? apiError.message : "API error" };
+    }
+
+    if (apiSuccess) {
+      await adminSupabase
+        .from("wallets")
+        .update({ balance: newBalance })
+        .eq("user_id", userId);
+
+      await adminSupabase
+        .from("transactions")
+        .update({ status: "success" })
+        .eq("id", transaction.id);
+
+      await adminSupabase.from("vtu_orders").insert({
+        user_id: userId,
+        transaction_id: transaction.id,
+        service_type: "cable",
+        provider: providerCode,
+        recipient: smartCardNumber,
+        amount: sellingPrice,
+        cost_price: costPrice,
+        profit: profit,
+        status: "success",
+        api_response: { planId, customerName, ...apiResponse },
+      });
+
+      // Create notification
+      await adminSupabase.from("notifications").insert({
+        user_id: userId,
+        title: "Cable Subscription Successful",
+        message: `Your ${providerCode} subscription for ${smartCardNumber} has been activated.`,
+        type: "success",
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Subscription successful" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    } else {
+      await adminSupabase
+        .from("transactions")
+        .update({ status: "failed" })
+        .eq("id", transaction.id);
+
+      await adminSupabase.from("notifications").insert({
+        user_id: userId,
+        title: "Cable Subscription Failed",
+        message: `Failed to subscribe ${smartCardNumber}. ${apiResponse?.message || "Please try again."}`,
+        type: "error",
+      });
+
+      return new Response(
+        JSON.stringify({ success: false, message: apiResponse?.message || "Subscription failed. Please try again." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
   } catch (error: unknown) {
     console.error("Error:", error);
     return new Response(
