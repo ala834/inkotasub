@@ -6,6 +6,7 @@ import BottomNav from "@/components/layout/BottomNav";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface SupportSettings {
   whatsapp_number: string;
@@ -14,6 +15,7 @@ interface SupportSettings {
 }
 
 const Support = () => {
+  const { user, profile } = useAuth();
   const [settings, setSettings] = useState<SupportSettings>({
     whatsapp_number: "+2349034226643",
     support_email: "inkotasub123@gmail.com",
@@ -49,20 +51,36 @@ const Support = () => {
   };
 
   const formatWhatsAppNumber = (number: string) => {
-    // Remove all non-numeric characters except +
     return number.replace(/[^0-9]/g, "");
   };
 
+  const notifyAdmins = async (contactMethod: "whatsapp" | "email" | "call") => {
+    try {
+      await supabase.functions.invoke("notify-admin-support", {
+        body: {
+          contact_method: contactMethod,
+          user_email: user?.email,
+          user_name: profile?.full_name,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to notify admins:", error);
+    }
+  };
+
   const handleWhatsApp = () => {
+    notifyAdmins("whatsapp");
     const formattedNumber = formatWhatsAppNumber(settings.whatsapp_number);
     window.open(`https://wa.me/${formattedNumber}`, "_blank");
   };
 
   const handleEmail = () => {
+    notifyAdmins("email");
     window.location.href = `mailto:${settings.support_email}`;
   };
 
   const handleCall = () => {
+    notifyAdmins("call");
     window.location.href = `tel:${settings.support_phone}`;
   };
 

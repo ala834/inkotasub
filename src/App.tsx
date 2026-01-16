@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
 import History from "./pages/History";
 import FundWallet from "./pages/FundWallet";
 import Airtime from "./pages/Airtime";
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
             <Route path="/fund-wallet" element={<ProtectedRoute><FundWallet /></ProtectedRoute>} />
             <Route path="/airtime" element={<ProtectedRoute><Airtime /></ProtectedRoute>} />

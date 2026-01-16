@@ -1,4 +1,4 @@
-import { Home, Wallet, History, User, LayoutGrid } from "lucide-react";
+import { Home, Wallet, History, Settings, LayoutGrid } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -7,7 +7,7 @@ const navItems = [
   { icon: LayoutGrid, label: "Services", id: "services", path: "/airtime" },
   { icon: Wallet, label: "Wallet", id: "wallet", path: "/fund-wallet" },
   { icon: History, label: "History", id: "history", path: "/history" },
-  { icon: User, label: "Profile", id: "profile", path: "/profile" },
+  { icon: Settings, label: "Settings", id: "settings", path: "/settings" },
 ];
 
 const BottomNav = () => {
@@ -20,7 +20,7 @@ const BottomNav = () => {
     if (["/airtime", "/data", "/electricity", "/cable-tv"].includes(path)) return "services";
     if (path === "/fund-wallet") return "wallet";
     if (path === "/history") return "history";
-    if (path === "/profile") return "profile";
+    if (path === "/settings" || path === "/profile") return "settings";
     return "home";
   };
 
