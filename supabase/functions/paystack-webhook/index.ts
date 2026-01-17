@@ -292,6 +292,82 @@ serve(async (req) => {
       await processWalletCredit(supabase, userId, amountInNaira, reference, description);
     }
 
+    // Handle successful transfer (Payouts/Disbursements)
+    if (event.event === "transfer.success") {
+      const { reference, amount, recipient } = event.data;
+      const amountInNaira = amount / 100;
+      
+      console.log("Transfer success:", { reference, amountInNaira, recipient: recipient?.name });
+
+      // Update transaction status if exists
+      const { data: existingTx } = await supabase
+        .from("transactions")
+        .select("id, status")
+        .eq("reference", reference)
+        .single();
+
+      if (existingTx && existingTx.status !== "success") {
+        await supabase
+          .from("transactions")
+          .update({ status: "success" })
+          .eq("reference", reference);
+        
+        console.log("Transfer transaction marked as success:", reference);
+      }
+    }
+
+    // Handle failed transfer
+    if (event.event === "transfer.failed" || event.event === "transfer.reversed") {
+      const { reference, amount, reason } = event.data;
+      const amountInNaira = amount / 100;
+      
+      console.log("Transfer failed/reversed:", { reference, amountInNaira, reason });
+
+      // Find the transaction and refund if needed
+      const { data: tx } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("reference", reference)
+        .single();
+
+      if (tx && tx.status !== "failed") {
+        // Refund the user
+        const { data: wallet } = await supabase
+          .from("wallets")
+          .select("balance")
+          .eq("user_id", tx.user_id)
+          .single();
+
+        if (wallet) {
+          const currentBalance = parseFloat(wallet.balance as unknown as string);
+          const newBalance = currentBalance + amountInNaira;
+
+          await supabase
+            .from("wallets")
+            .update({ balance: newBalance })
+            .eq("user_id", tx.user_id);
+
+          await supabase
+            .from("transactions")
+            .update({ 
+              status: "failed",
+              metadata: { ...tx.metadata, failure_reason: reason }
+            })
+            .eq("reference", reference);
+
+          // Notify user
+          await supabase.from("notifications").insert({
+            user_id: tx.user_id,
+            title: "Transfer Failed",
+            message: `Your transfer of ₦${amountInNaira.toLocaleString()} failed. Amount has been refunded.`,
+            type: "error",
+          });
+
+          console.log("Transfer refunded:", reference);
+        }
+      }
+    }
+
     return new Response(JSON.stringify({ received: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
