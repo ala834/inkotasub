@@ -17,3 +17,30 @@ verify_jwt = false
 
 [functions.notify-admin-support]
 verify_jwt = false
+
+[functions.initialize-payment]
+verify_jwt = false
+
+[functions.purchase-airtime]
+verify_jwt = false
+
+[functions.purchase-data]
+verify_jwt = false
+
+[functions.purchase-electricity]
+verify_jwt = false
+
+[functions.purchase-cable]
+verify_jwt = false
+
+[functions.get-data-plans]
+verify_jwt = false
+
+[functions.get-cable-plans]
+verify_jwt = false
+
+[functions.validate-meter]
+verify_jwt = false
+
+[functions.validate-smartcard]
+verify_jwt = false

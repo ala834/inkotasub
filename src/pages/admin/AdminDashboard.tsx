@@ -13,6 +13,8 @@ import {
   ArrowLeft,
   Shield,
   TrendingUp,
+  Webhook,
+  Building2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -29,6 +31,8 @@ import AdminWalletsTab from "@/components/admin/AdminWalletsTab";
 import AdminPricingTab from "@/components/admin/AdminPricingTab";
 import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 import AdminProfitAnalyticsTab from "@/components/admin/AdminProfitAnalyticsTab";
+import AdminWebhooksTab from "@/components/admin/AdminWebhooksTab";
+import AdminVirtualAccountsTab from "@/components/admin/AdminVirtualAccountsTab";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -54,6 +58,8 @@ const AdminDashboard = () => {
     { value: "transactions", label: "Transactions", icon: Activity },
     { value: "orders", label: "VTU Orders", icon: ShoppingCart },
     { value: "wallets", label: "Wallets", icon: Wallet },
+    { value: "virtual-accounts", label: "Virtual Accounts", icon: Building2 },
+    { value: "webhooks", label: "Webhooks", icon: Webhook },
     { value: "pricing", label: "Pricing", icon: DollarSign },
     { value: "settings", label: "Settings", icon: Settings },
   ];
@@ -144,6 +150,14 @@ const AdminDashboard = () => {
 
           <TabsContent value="wallets">
             <AdminWalletsTab />
+          </TabsContent>
+
+          <TabsContent value="virtual-accounts">
+            <AdminVirtualAccountsTab />
+          </TabsContent>
+
+          <TabsContent value="webhooks">
+            <AdminWebhooksTab />
           </TabsContent>
 
           <TabsContent value="pricing">
