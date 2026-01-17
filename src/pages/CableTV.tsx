@@ -5,17 +5,11 @@ import { ArrowLeft, Tv, Loader2, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import PinEntryDialog from "@/components/common/PinEntryDialog";
 
 const providers = [
   { id: "dstv", name: "DSTV", color: "bg-blue-600" },
@@ -41,6 +35,7 @@ const CableTV = () => {
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [isValidated, setIsValidated] = useState(false);
+  const [showPinDialog, setShowPinDialog] = useState(false);
 
   useEffect(() => {
     if (provider) {
@@ -123,16 +118,28 @@ const CableTV = () => {
     }
   };
 
-  const handlePurchase = async () => {
+  const validateForm = () => {
     if (!isValidated || !selectedPlan) {
       toast.error("Please validate smart card and select a plan");
-      return;
+      return false;
     }
 
     if (wallet && selectedPlan.amount > wallet.balance) {
       toast.error("Insufficient wallet balance");
-      return;
+      return false;
     }
+
+    return true;
+  };
+
+  const handlePurchaseClick = () => {
+    if (validateForm()) {
+      setShowPinDialog(true);
+    }
+  };
+
+  const handlePurchaseWithPin = async (pin: string) => {
+    if (!selectedPlan) return;
 
     setIsLoading(true);
     try {
@@ -143,6 +150,7 @@ const CableTV = () => {
           planId: selectedPlan.id,
           amount: selectedPlan.amount,
           customerName,
+          transaction_pin: pin,
         },
       });
 
@@ -155,11 +163,13 @@ const CableTV = () => {
         throw new Error(data?.message || "Subscription failed");
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to subscribe");
+      throw new Error(error.message || "Failed to subscribe");
     } finally {
       setIsLoading(false);
     }
   };
+
+  const selectedProvider = providers.find(p => p.id === provider);
 
   return (
     <div className="min-h-screen gradient-hero pb-6">
@@ -301,7 +311,7 @@ const CableTV = () => {
 
           {/* Submit */}
           <Button
-            onClick={handlePurchase}
+            onClick={handlePurchaseClick}
             disabled={isLoading || !isValidated || !selectedPlan}
             className="w-full h-14 rounded-xl gradient-primary text-primary-foreground font-semibold text-lg"
           >
@@ -315,6 +325,17 @@ const CableTV = () => {
           </Button>
         </motion.div>
       </main>
+
+      {/* PIN Entry Dialog */}
+      <PinEntryDialog
+        open={showPinDialog}
+        onOpenChange={setShowPinDialog}
+        onSubmit={handlePurchaseWithPin}
+        title="Confirm Subscription"
+        description="Enter your PIN to subscribe"
+        amount={selectedPlan?.amount || 0}
+        serviceName={`${selectedProvider?.name || provider} - ${selectedPlan?.name || ""}`}
+      />
     </div>
   );
 };

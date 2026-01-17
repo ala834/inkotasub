@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import PinEntryDialog from "@/components/common/PinEntryDialog";
 
 const discos = [
   { id: "ikeja", name: "Ikeja Electric (IE)" },
@@ -41,6 +42,7 @@ const Electricity = () => {
   const [isValidating, setIsValidating] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [isValidated, setIsValidated] = useState(false);
+  const [showPinDialog, setShowPinDialog] = useState(false);
 
   const handleValidate = async () => {
     if (!disco || !meterNumber) {
@@ -72,17 +74,29 @@ const Electricity = () => {
     }
   };
 
-  const handlePurchase = async () => {
+  const validateForm = () => {
     if (!isValidated || !amount) {
       toast.error("Please validate meter and enter amount");
-      return;
+      return false;
     }
 
     const amountNum = parseFloat(amount);
     if (wallet && amountNum > wallet.balance) {
       toast.error("Insufficient wallet balance");
-      return;
+      return false;
     }
+
+    return true;
+  };
+
+  const handlePurchaseClick = () => {
+    if (validateForm()) {
+      setShowPinDialog(true);
+    }
+  };
+
+  const handlePurchaseWithPin = async (pin: string) => {
+    const amountNum = parseFloat(amount);
 
     setIsLoading(true);
     try {
@@ -93,6 +107,7 @@ const Electricity = () => {
           meterType,
           amount: amountNum,
           customerName,
+          transaction_pin: pin,
         },
       });
 
@@ -105,11 +120,13 @@ const Electricity = () => {
         throw new Error(data?.message || "Purchase failed");
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to purchase electricity");
+      throw new Error(error.message || "Failed to purchase electricity");
     } finally {
       setIsLoading(false);
     }
   };
+
+  const selectedDisco = discos.find(d => d.id === disco);
 
   return (
     <div className="min-h-screen gradient-hero pb-6">
@@ -250,7 +267,7 @@ const Electricity = () => {
 
           {/* Submit */}
           <Button
-            onClick={handlePurchase}
+            onClick={handlePurchaseClick}
             disabled={isLoading || !isValidated || !amount}
             className="w-full h-14 rounded-xl gradient-primary text-primary-foreground font-semibold text-lg"
           >
@@ -262,6 +279,17 @@ const Electricity = () => {
           </Button>
         </motion.div>
       </main>
+
+      {/* PIN Entry Dialog */}
+      <PinEntryDialog
+        open={showPinDialog}
+        onOpenChange={setShowPinDialog}
+        onSubmit={handlePurchaseWithPin}
+        title="Confirm Payment"
+        description="Enter your PIN to pay electricity bill"
+        amount={parseFloat(amount) || 0}
+        serviceName={`${selectedDisco?.name || disco} - ${meterType}`}
+      />
     </div>
   );
 };

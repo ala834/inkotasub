@@ -10,6 +10,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import PhoneInputWithNetwork from "@/components/common/PhoneInputWithNetwork";
+import PinEntryDialog from "@/components/common/PinEntryDialog";
 
 const quickAmounts = [50, 100, 200, 500, 1000, 2000, 5000];
 
@@ -20,27 +21,40 @@ const Airtime = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showPinDialog, setShowPinDialog] = useState(false);
 
   const handleNetworkDetected = useCallback((network: string | null) => {
     setDetectedNetwork(network);
   }, []);
 
-  const handlePurchase = async () => {
+  const validateForm = () => {
     if (!detectedNetwork || !phoneNumber || !amount) {
       toast.error("Please fill all fields");
-      return;
+      return false;
     }
 
     if (phoneNumber.length !== 11 && !phoneNumber.startsWith("+234")) {
       toast.error("Please enter a valid phone number");
-      return;
+      return false;
     }
 
     const amountNum = parseFloat(amount);
     if (wallet && amountNum > wallet.balance) {
       toast.error("Insufficient wallet balance");
-      return;
+      return false;
     }
+
+    return true;
+  };
+
+  const handlePurchaseClick = () => {
+    if (validateForm()) {
+      setShowPinDialog(true);
+    }
+  };
+
+  const handlePurchaseWithPin = async (pin: string) => {
+    const amountNum = parseFloat(amount);
 
     setIsLoading(true);
     try {
@@ -49,6 +63,7 @@ const Airtime = () => {
           network: detectedNetwork,
           phoneNumber,
           amount: amountNum,
+          transaction_pin: pin,
         },
       });
 
@@ -61,7 +76,7 @@ const Airtime = () => {
         throw new Error(data?.message || "Purchase failed");
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to purchase airtime");
+      throw new Error(error.message || "Failed to purchase airtime");
     } finally {
       setIsLoading(false);
     }
@@ -148,7 +163,7 @@ const Airtime = () => {
 
           {/* Submit */}
           <Button
-            onClick={handlePurchase}
+            onClick={handlePurchaseClick}
             disabled={isLoading || !detectedNetwork || !phoneNumber || !amount}
             className="w-full h-14 rounded-xl gradient-primary text-primary-foreground font-semibold text-lg"
           >
@@ -160,6 +175,17 @@ const Airtime = () => {
           </Button>
         </motion.div>
       </main>
+
+      {/* PIN Entry Dialog */}
+      <PinEntryDialog
+        open={showPinDialog}
+        onOpenChange={setShowPinDialog}
+        onSubmit={handlePurchaseWithPin}
+        title="Confirm Purchase"
+        description="Enter your PIN to buy airtime"
+        amount={parseFloat(amount) || 0}
+        serviceName={`${detectedNetwork?.toUpperCase()} Airtime`}
+      />
     </div>
   );
 };
