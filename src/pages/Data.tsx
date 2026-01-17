@@ -9,6 +9,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import PhoneInputWithNetwork from "@/components/common/PhoneInputWithNetwork";
+import PinEntryDialog from "@/components/common/PinEntryDialog";
 
 interface DataPlan {
   id: string;
@@ -26,6 +27,7 @@ const Data = () => {
   const [dataPlans, setDataPlans] = useState<DataPlan[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingPlans, setLoadingPlans] = useState(false);
+  const [showPinDialog, setShowPinDialog] = useState(false);
 
   const handleNetworkDetected = useCallback((network: string | null) => {
     if (network !== detectedNetwork) {
@@ -70,21 +72,33 @@ const Data = () => {
     { id: "6", name: "10GB", amount: 2500, validity: "30 Days" },
   ];
 
-  const handlePurchase = async () => {
+  const validateForm = () => {
     if (!detectedNetwork || !phoneNumber || !selectedPlan) {
       toast.error("Please fill all fields");
-      return;
+      return false;
     }
 
     if (phoneNumber.length !== 11 && !phoneNumber.startsWith("+234")) {
       toast.error("Please enter a valid phone number");
-      return;
+      return false;
     }
 
     if (wallet && selectedPlan.amount > wallet.balance) {
       toast.error("Insufficient wallet balance");
-      return;
+      return false;
     }
+
+    return true;
+  };
+
+  const handlePurchaseClick = () => {
+    if (validateForm()) {
+      setShowPinDialog(true);
+    }
+  };
+
+  const handlePurchaseWithPin = async (pin: string) => {
+    if (!selectedPlan) return;
 
     setIsLoading(true);
     try {
@@ -94,6 +108,7 @@ const Data = () => {
           phoneNumber,
           planId: selectedPlan.id,
           amount: selectedPlan.amount,
+          transaction_pin: pin,
         },
       });
 
@@ -106,7 +121,7 @@ const Data = () => {
         throw new Error(data?.message || "Purchase failed");
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to purchase data");
+      throw new Error(error.message || "Failed to purchase data");
     } finally {
       setIsLoading(false);
     }
@@ -199,7 +214,7 @@ const Data = () => {
 
           {/* Submit */}
           <Button
-            onClick={handlePurchase}
+            onClick={handlePurchaseClick}
             disabled={isLoading || !detectedNetwork || !phoneNumber || !selectedPlan}
             className="w-full h-14 rounded-xl gradient-primary text-primary-foreground font-semibold text-lg"
           >
@@ -213,6 +228,17 @@ const Data = () => {
           </Button>
         </motion.div>
       </main>
+
+      {/* PIN Entry Dialog */}
+      <PinEntryDialog
+        open={showPinDialog}
+        onOpenChange={setShowPinDialog}
+        onSubmit={handlePurchaseWithPin}
+        title="Confirm Purchase"
+        description="Enter your PIN to buy data"
+        amount={selectedPlan?.amount || 0}
+        serviceName={`${detectedNetwork?.toUpperCase()} ${selectedPlan?.name} Data`}
+      />
     </div>
   );
 };

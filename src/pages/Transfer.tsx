@@ -11,6 +11,7 @@ import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import { useWallet } from "@/hooks/useWallet";
 import { supabase } from "@/integrations/supabase/client";
+import PinEntryDialog from "@/components/common/PinEntryDialog";
 
 const Transfer = () => {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ const Transfer = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [recipientInfo, setRecipientInfo] = useState<{ name: string; phone: string } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [showPinDialog, setShowPinDialog] = useState(false);
 
   const searchRecipient = async () => {
     if (!recipient.trim()) {
@@ -66,32 +68,43 @@ const Transfer = () => {
     }
   };
 
-  const handleTransfer = async () => {
+  const validateForm = () => {
     if (!recipient.trim()) {
       toast.error("Enter recipient phone or email");
-      return;
+      return false;
     }
 
     const transferAmount = parseFloat(amount);
     if (isNaN(transferAmount) || transferAmount <= 0) {
       toast.error("Enter a valid amount");
-      return;
+      return false;
     }
 
     if (transferAmount > (wallet?.balance || 0)) {
       toast.error("Insufficient balance");
-      return;
+      return false;
     }
+
+    return true;
+  };
+
+  const handleTransferClick = () => {
+    if (validateForm()) {
+      setShowPinDialog(true);
+    }
+  };
+
+  const handleTransferWithPin = async (pin: string) => {
+    const transferAmount = parseFloat(amount);
 
     setIsLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
       const { data, error } = await supabase.functions.invoke("transfer-funds", {
         body: {
           recipient_identifier: recipient.trim(),
           amount: transferAmount,
           description: description.trim() || undefined,
+          transaction_pin: pin,
         },
       });
 
@@ -103,7 +116,7 @@ const Transfer = () => {
       navigate("/dashboard");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Transfer failed";
-      toast.error(message);
+      throw new Error(message);
     } finally {
       setIsLoading(false);
     }
@@ -232,7 +245,7 @@ const Transfer = () => {
 
           {/* Transfer Button */}
           <Button
-            onClick={handleTransfer}
+            onClick={handleTransferClick}
             disabled={isLoading || !recipient || !amount}
             className="w-full h-12 text-lg"
           >
@@ -249,6 +262,17 @@ const Transfer = () => {
       </main>
 
       <BottomNav />
+
+      {/* PIN Entry Dialog */}
+      <PinEntryDialog
+        open={showPinDialog}
+        onOpenChange={setShowPinDialog}
+        onSubmit={handleTransferWithPin}
+        title="Confirm Transfer"
+        description="Enter your PIN to send money"
+        amount={parseFloat(amount) || 0}
+        serviceName={`Transfer to ${recipientInfo?.name || recipient}`}
+      />
     </div>
   );
 };
