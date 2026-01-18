@@ -4,8 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Save, RefreshCw, Upload } from "lucide-react";
+import { Save, RefreshCw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 interface AppSetting {
@@ -100,6 +101,81 @@ const AdminSettingsTab = () => {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
+        {/* System Controls Card */}
+        <Card className="glass-card border-0 md:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-orange-500" />
+              System Controls
+            </CardTitle>
+            <CardDescription>Critical system settings</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <div>
+                <Label className="text-base font-medium">Maintenance Mode</Label>
+                <p className="text-sm text-muted-foreground">
+                  Temporarily disable user access to the app
+                </p>
+              </div>
+              <Switch
+                checked={formData.maintenance_mode === "true"}
+                onCheckedChange={(checked) => handleChange("maintenance_mode", checked ? "true" : "false")}
+              />
+            </div>
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <div>
+                <Label className="text-base font-medium">Disable Registration</Label>
+                <p className="text-sm text-muted-foreground">
+                  Stop new users from signing up
+                </p>
+              </div>
+              <Switch
+                checked={formData.disable_registration === "true"}
+                onCheckedChange={(checked) => handleChange("disable_registration", checked ? "true" : "false")}
+              />
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Min Wallet Funding (₦)</Label>
+                <Input
+                  type="number"
+                  value={formData.min_wallet_funding || ""}
+                  onChange={(e) => handleChange("min_wallet_funding", e.target.value)}
+                  placeholder="100"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Max Wallet Funding (₦)</Label>
+                <Input
+                  type="number"
+                  value={formData.max_wallet_funding || ""}
+                  onChange={(e) => handleChange("max_wallet_funding", e.target.value)}
+                  placeholder="1000000"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Min Transfer Amount (₦)</Label>
+                <Input
+                  type="number"
+                  value={formData.min_transfer_amount || ""}
+                  onChange={(e) => handleChange("min_transfer_amount", e.target.value)}
+                  placeholder="100"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Max Transfer Amount (₦)</Label>
+                <Input
+                  type="number"
+                  value={formData.max_transfer_amount || ""}
+                  onChange={(e) => handleChange("max_transfer_amount", e.target.value)}
+                  placeholder="500000"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Branding Card */}
         <Card className="glass-card border-0">
           <CardHeader>
