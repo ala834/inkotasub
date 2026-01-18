@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Search, Wallet, Plus, Minus } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -11,7 +14,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 
 interface WalletWithProfile {
   id: string;
@@ -23,12 +25,14 @@ interface WalletWithProfile {
 }
 
 const AdminWalletsTab = () => {
+  const { user: currentAdmin } = useAuth();
   const [wallets, setWallets] = useState<WalletWithProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedWallet, setSelectedWallet] = useState<WalletWithProfile | null>(null);
   const [adjustmentType, setAdjustmentType] = useState<"credit" | "debit">("credit");
   const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
   const [isAdjusting, setIsAdjusting] = useState(false);
 
   useEffect(() => {
@@ -58,7 +62,10 @@ const AdminWalletsTab = () => {
   };
 
   const handleAdjustWallet = async () => {
-    if (!selectedWallet || !amount) return;
+    if (!selectedWallet || !amount || !reason.trim()) {
+      toast.error("Please provide amount and reason");
+      return;
+    }
 
     setIsAdjusting(true);
     try {
@@ -70,6 +77,7 @@ const AdminWalletsTab = () => {
 
       if (newBalance < 0) {
         toast.error("Insufficient balance");
+        setIsAdjusting(false);
         return;
       }
 
@@ -80,7 +88,7 @@ const AdminWalletsTab = () => {
 
       if (error) throw error;
 
-      // Create transaction record
+      // Create transaction record with reason
       await supabase.from("transactions").insert({
         user_id: selectedWallet.user_id,
         type: adjustmentType,
@@ -88,12 +96,34 @@ const AdminWalletsTab = () => {
         balance_before: selectedWallet.balance,
         balance_after: newBalance,
         status: "success",
-        description: `Admin ${adjustmentType === "credit" ? "credit" : "debit"} adjustment`,
+        description: `Admin ${adjustmentType === "credit" ? "credit" : "debit"}: ${reason}`,
+        metadata: { admin_id: currentAdmin?.id, reason },
+      });
+
+      // Log admin activity
+      if (currentAdmin) {
+        await supabase.from("admin_activity_log").insert({
+          admin_id: currentAdmin.id,
+          action: `wallet_${adjustmentType}`,
+          target_user_id: selectedWallet.user_id,
+          target_type: "wallet",
+          target_id: selectedWallet.id,
+          details: { amount: amountNum, reason, new_balance: newBalance },
+        } as any);
+      }
+
+      // Create notification for user
+      await supabase.from("notifications").insert({
+        user_id: selectedWallet.user_id,
+        title: adjustmentType === "credit" ? "Wallet Credited" : "Wallet Debited",
+        message: `Your wallet has been ${adjustmentType === "credit" ? "credited with" : "debited by"} ₦${amountNum.toLocaleString()}. Reason: ${reason}`,
+        type: adjustmentType === "credit" ? "success" : "warning",
       });
 
       toast.success(`Wallet ${adjustmentType === "credit" ? "credited" : "debited"} successfully`);
       setSelectedWallet(null);
       setAmount("");
+      setReason("");
       fetchWallets();
     } catch (error) {
       toast.error("Failed to adjust wallet");
@@ -196,7 +226,7 @@ const AdminWalletsTab = () => {
               </p>
             </div>
             <div className="space-y-2">
-              <Label>Amount (₦)</Label>
+              <Label>Amount (₦) *</Label>
               <Input
                 type="number"
                 value={amount}
@@ -205,14 +235,27 @@ const AdminWalletsTab = () => {
                 className="h-12 rounded-xl"
               />
             </div>
+            <div className="space-y-2">
+              <Label>Reason *</Label>
+              <Textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Enter reason for this adjustment..."
+                rows={2}
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectedWallet(null)}>
+            <Button variant="outline" onClick={() => {
+              setSelectedWallet(null);
+              setAmount("");
+              setReason("");
+            }}>
               Cancel
             </Button>
             <Button
               onClick={handleAdjustWallet}
-              disabled={isAdjusting || !amount}
+              disabled={isAdjusting || !amount || !reason.trim()}
               className={adjustmentType === "credit" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
             >
               {isAdjusting ? "Processing..." : adjustmentType === "credit" ? "Credit" : "Debit"}

@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -26,7 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, RefreshCw, User, MoreVertical, Ban, CheckCircle, Eye, Wallet } from "lucide-react";
+import { Search, RefreshCw, User, MoreVertical, Ban, CheckCircle, Eye, Wallet, KeyRound, History } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -39,18 +42,26 @@ interface UserProfile {
   is_agent: boolean | null;
   suspended_at: string | null;
   created_at: string;
+  transaction_pin: string | null;
   wallet?: {
     balance: number;
   };
   transaction_count?: number;
+  email?: string;
 }
 
 const AdminUserManagementTab = () => {
+  const { user: currentAdmin } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showPinResetDialog, setShowPinResetDialog] = useState(false);
+  const [pinResetUser, setPinResetUser] = useState<UserProfile | null>(null);
+  const [pinResetReason, setPinResetReason] = useState("");
+  const [showTransactionsDialog, setShowTransactionsDialog] = useState(false);
+  const [userTransactions, setUserTransactions] = useState<any[]>([]);
 
   useEffect(() => {
     fetchUsers();
@@ -100,6 +111,21 @@ const AdminUserManagementTab = () => {
     }
   };
 
+  const logAdminActivity = async (action: string, targetUserId: string, details?: object) => {
+    if (!currentAdmin) return;
+    try {
+      await supabase.from("admin_activity_log").insert({
+        admin_id: currentAdmin.id,
+        action,
+        target_user_id: targetUserId,
+        target_type: "user",
+        details: details as any,
+      } as any);
+    } catch (error) {
+      console.error("Failed to log admin activity:", error);
+    }
+  };
+
   const handleSuspendUser = async (userId: string, suspend: boolean) => {
     setIsUpdating(true);
     try {
@@ -118,6 +144,7 @@ const AdminUserManagementTab = () => {
         )
       );
 
+      await logAdminActivity(suspend ? "suspend_user" : "unsuspend_user", userId);
       toast.success(suspend ? "User suspended successfully" : "User unsuspended successfully");
     } catch (error) {
       console.error("Failed to update user:", error);
@@ -125,6 +152,62 @@ const AdminUserManagementTab = () => {
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  const handleResetPin = async () => {
+    if (!pinResetUser || !pinResetReason.trim()) {
+      toast.error("Please provide a reason for PIN reset");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ 
+          transaction_pin: null, 
+          failed_pin_attempts: 0, 
+          pin_locked_until: null 
+        })
+        .eq("user_id", pinResetUser.user_id);
+
+      if (error) throw error;
+
+      await logAdminActivity("reset_transaction_pin", pinResetUser.user_id, { reason: pinResetReason });
+
+      // Create notification for user
+      await supabase.from("notifications").insert({
+        user_id: pinResetUser.user_id,
+        title: "Transaction PIN Reset",
+        message: "Your transaction PIN has been reset by an administrator. Please set a new PIN in your settings.",
+        type: "warning",
+      });
+
+      toast.success("Transaction PIN reset successfully");
+      setShowPinResetDialog(false);
+      setPinResetUser(null);
+      setPinResetReason("");
+      fetchUsers();
+    } catch (error) {
+      console.error("Failed to reset PIN:", error);
+      toast.error("Failed to reset PIN");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleViewTransactions = async (userProfile: UserProfile) => {
+    setSelectedUser(userProfile);
+    setShowTransactionsDialog(true);
+    
+    const { data } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("user_id", userProfile.user_id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    setUserTransactions(data || []);
   };
 
   const formatCurrency = (amount: number) => {
@@ -259,6 +342,20 @@ const AdminUserManagementTab = () => {
                             <Eye className="h-4 w-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleViewTransactions(user)}>
+                            <History className="h-4 w-4 mr-2" />
+                            Transaction History
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setPinResetUser(user);
+                              setShowPinResetDialog(true);
+                            }}
+                          >
+                            <KeyRound className="h-4 w-4 mr-2" />
+                            Reset PIN
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {user.suspended_at ? (
                             <DropdownMenuItem
@@ -373,6 +470,95 @@ const AdminUserManagementTab = () => {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelectedUser(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* PIN Reset Dialog */}
+      <Dialog open={showPinResetDialog} onOpenChange={setShowPinResetDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Transaction PIN</DialogTitle>
+            <DialogDescription>
+              Reset the transaction PIN for {pinResetUser?.full_name || "this user"}. They will need to set a new PIN.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+              <p className="text-sm text-destructive">
+                This action cannot be undone. The user will be notified and required to set a new PIN.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pin-reset-reason">Reason for Reset *</Label>
+              <Textarea
+                id="pin-reset-reason"
+                value={pinResetReason}
+                onChange={(e) => setPinResetReason(e.target.value)}
+                placeholder="Enter the reason for resetting this user's PIN..."
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowPinResetDialog(false);
+              setPinResetUser(null);
+              setPinResetReason("");
+            }}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleResetPin}
+              disabled={isUpdating || !pinResetReason.trim()}
+            >
+              {isUpdating ? "Resetting..." : "Reset PIN"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Transactions Dialog */}
+      <Dialog open={showTransactionsDialog} onOpenChange={setShowTransactionsDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Transaction History</DialogTitle>
+            <DialogDescription>
+              Recent transactions for {selectedUser?.full_name || "user"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            {userTransactions.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No transactions found</p>
+            ) : (
+              userTransactions.map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div>
+                    <p className="font-medium text-sm">{tx.description || tx.type}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(tx.created_at), "MMM d, yyyy HH:mm")}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-bold ${tx.type === "credit" ? "text-green-500" : "text-red-500"}`}>
+                      {tx.type === "credit" ? "+" : "-"}₦{parseFloat(tx.amount).toLocaleString()}
+                    </p>
+                    <Badge variant={tx.status === "success" ? "default" : "destructive"} className="text-xs">
+                      {tx.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTransactionsDialog(false)}>
               Close
             </Button>
           </DialogFooter>
