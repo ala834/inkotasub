@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -31,6 +31,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const virtualAccountCreationAttempted = useRef<Set<string>>(new Set());
 
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase
@@ -55,6 +56,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsAdmin(!!data);
   };
 
+  const ensureVirtualAccount = async (userId: string, accessToken: string) => {
+    // Prevent multiple attempts for the same user in this session
+    if (virtualAccountCreationAttempted.current.has(userId)) {
+      return;
+    }
+    virtualAccountCreationAttempted.current.add(userId);
+
+    try {
+      // Check if user already has a virtual account
+      const { data: existingAccount } = await supabase
+        .from("virtual_accounts")
+        .select("id")
+        .eq("user_id", userId)
+        .single();
+
+      if (existingAccount) {
+        console.log("User already has virtual account");
+        return;
+      }
+
+      console.log("Creating virtual account for new user...");
+      
+      // Call the create-virtual-account edge function
+      const { data, error } = await supabase.functions.invoke("create-virtual-account", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (error) {
+        console.error("Failed to create virtual account:", error);
+        return;
+      }
+
+      if (data?.unavailable) {
+        console.log("Virtual accounts not available for this business");
+        return;
+      }
+
+      if (data?.success) {
+        console.log("Virtual account created successfully:", data.account?.account_number);
+      }
+    } catch (error) {
+      console.error("Error ensuring virtual account:", error);
+    }
+  };
+
   const refreshProfile = async () => {
     if (user) {
       await fetchProfile(user.id);
@@ -71,6 +119,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setTimeout(() => {
             fetchProfile(session.user.id);
             checkAdminRole(session.user.id);
+            
+            // Auto-create virtual account on sign-in (covers both signup and login)
+            if (event === "SIGNED_IN") {
+              ensureVirtualAccount(session.user.id, session.access_token);
+            }
           }, 0);
         } else {
           setProfile(null);
@@ -86,6 +139,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (session?.user) {
         fetchProfile(session.user.id);
         checkAdminRole(session.user.id);
+        // Also try to ensure virtual account on page load (for users who signed up before this feature)
+        ensureVirtualAccount(session.user.id, session.access_token);
       }
       setIsLoading(false);
     });
