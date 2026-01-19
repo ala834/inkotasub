@@ -16,6 +16,7 @@ import {
   Webhook,
   Building2,
   ClipboardList,
+  Package,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import AdminProfitAnalyticsTab from "@/components/admin/AdminProfitAnalyticsTab"
 import AdminWebhooksTab from "@/components/admin/AdminWebhooksTab";
 import AdminVirtualAccountsTab from "@/components/admin/AdminVirtualAccountsTab";
 import AdminActivityLogTab from "@/components/admin/AdminActivityLogTab";
+import AdminServicesTab from "@/components/admin/AdminServicesTab";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -55,6 +57,7 @@ const AdminDashboard = () => {
   const tabs = [
     { value: "analytics", label: "Dashboard", icon: LayoutDashboard },
     { value: "profit", label: "Profit Analytics", icon: TrendingUp },
+    { value: "services", label: "Services", icon: Package },
     { value: "users", label: "Users", icon: Users },
     { value: "agents", label: "Agents", icon: UserCheck },
     { value: "transactions", label: "Transactions", icon: Activity },
@@ -133,6 +136,10 @@ const AdminDashboard = () => {
 
           <TabsContent value="profit">
             <AdminProfitAnalyticsTab />
+          </TabsContent>
+
+          <TabsContent value="services">
+            <AdminServicesTab />
           </TabsContent>
 
           <TabsContent value="users">

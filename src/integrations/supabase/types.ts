@@ -107,6 +107,54 @@ export type Database = {
         }
         Relationships: []
       }
+      price_change_log: {
+        Row: {
+          admin_id: string
+          change_type: string
+          created_at: string
+          id: string
+          new_value: Json | null
+          old_value: Json | null
+          plan_id: string | null
+          pricing_config_id: string | null
+        }
+        Insert: {
+          admin_id: string
+          change_type: string
+          created_at?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          plan_id?: string | null
+          pricing_config_id?: string | null
+        }
+        Update: {
+          admin_id?: string
+          change_type?: string
+          created_at?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          plan_id?: string | null
+          pricing_config_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_change_log_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "service_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_change_log_pricing_config_id_fkey"
+            columns: ["pricing_config_id"]
+            isOneToOne: false
+            referencedRelation: "pricing_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pricing_config: {
         Row: {
           created_at: string
@@ -251,6 +299,51 @@ export type Database = {
           reward_amount?: number | null
           reward_percentage?: number
           rewarded?: boolean
+        }
+        Relationships: []
+      }
+      service_plans: {
+        Row: {
+          base_price: number
+          created_at: string
+          id: string
+          is_enabled: boolean
+          is_manual: boolean
+          last_synced_at: string | null
+          network: string
+          plan_id: string
+          plan_name: string
+          service_type: string
+          updated_at: string
+          validity: string | null
+        }
+        Insert: {
+          base_price?: number
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          is_manual?: boolean
+          last_synced_at?: string | null
+          network: string
+          plan_id: string
+          plan_name: string
+          service_type: string
+          updated_at?: string
+          validity?: string | null
+        }
+        Update: {
+          base_price?: number
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          is_manual?: boolean
+          last_synced_at?: string | null
+          network?: string
+          plan_id?: string
+          plan_name?: string
+          service_type?: string
+          updated_at?: string
+          validity?: string | null
         }
         Relationships: []
       }
