@@ -242,6 +242,42 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_config: {
+        Row: {
+          created_at: string | null
+          fallback_enabled: boolean | null
+          fallback_provider: string | null
+          id: string
+          is_active: boolean | null
+          network: string | null
+          primary_provider: string
+          service_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          fallback_enabled?: boolean | null
+          fallback_provider?: string | null
+          id?: string
+          is_active?: boolean | null
+          network?: string | null
+          primary_provider?: string
+          service_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          fallback_enabled?: boolean | null
+          fallback_provider?: string | null
+          id?: string
+          is_active?: boolean | null
+          network?: string | null
+          primary_provider?: string
+          service_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       push_subscriptions: {
         Row: {
           auth: string
@@ -467,9 +503,13 @@ export type Database = {
           api_response: Json | null
           cost_price: number | null
           created_at: string
+          fallback_attempted: boolean | null
+          fallback_provider: string | null
+          fallback_response: Json | null
           id: string
           profit: number | null
           provider: string
+          provider_used: string | null
           recipient: string
           service_type: Database["public"]["Enums"]["service_type"]
           status: Database["public"]["Enums"]["transaction_status"]
@@ -481,9 +521,13 @@ export type Database = {
           api_response?: Json | null
           cost_price?: number | null
           created_at?: string
+          fallback_attempted?: boolean | null
+          fallback_provider?: string | null
+          fallback_response?: Json | null
           id?: string
           profit?: number | null
           provider: string
+          provider_used?: string | null
           recipient: string
           service_type: Database["public"]["Enums"]["service_type"]
           status?: Database["public"]["Enums"]["transaction_status"]
@@ -495,9 +539,13 @@ export type Database = {
           api_response?: Json | null
           cost_price?: number | null
           created_at?: string
+          fallback_attempted?: boolean | null
+          fallback_provider?: string | null
+          fallback_response?: Json | null
           id?: string
           profit?: number | null
           provider?: string
+          provider_used?: string | null
           recipient?: string
           service_type?: Database["public"]["Enums"]["service_type"]
           status?: Database["public"]["Enums"]["transaction_status"]

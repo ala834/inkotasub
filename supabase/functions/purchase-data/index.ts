@@ -6,6 +6,76 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Provider API functions
+async function subpadiPurchaseData(network: string, phone: string, planId: string) {
+  const apiKey = Deno.env.get("SUBPADI_API_KEY");
+  const apiToken = Deno.env.get("SUBPADI_API_TOKEN");
+
+  if (!apiKey || !apiToken) {
+    return { success: false, message: "SUBPADI credentials not configured", provider: 'subpadi' };
+  }
+
+  try {
+    const response = await fetch("https://subpadi.com/api/data", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        api_key: apiKey,
+        network: network.toUpperCase(),
+        phone,
+        plan_id: planId,
+      }),
+    });
+
+    const data = await response.json();
+    const success = data?.status === "success" || data?.code === "000";
+    console.log("SUBPADI Data Response:", data);
+    
+    return { success, message: data?.message || (success ? "Success" : "Failed"), data, provider: 'subpadi' };
+  } catch (error) {
+    console.error("SUBPADI Data Error:", error);
+    return { success: false, message: error instanceof Error ? error.message : "API error", provider: 'subpadi' };
+  }
+}
+
+async function smeplugPurchaseData(network: string, phone: string, planId: string, amount: number) {
+  const apiKey = Deno.env.get("SMEPLUG_API_KEY");
+
+  if (!apiKey) {
+    return { success: false, message: "SMEPlug credentials not configured", provider: 'smeplug' };
+  }
+
+  const networkMap: Record<string, number> = { 'MTN': 1, 'GLO': 2, 'AIRTEL': 3, '9MOBILE': 4, 'ETISALAT': 4 };
+  const networkId = networkMap[network.toUpperCase()];
+  
+  if (!networkId) {
+    return { success: false, message: "Invalid network", provider: 'smeplug' };
+  }
+
+  try {
+    const response = await fetch("https://smeplug.ng/api/v1/data/purchase", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ network_id: networkId, phone, plan_id: planId, amount }),
+    });
+
+    const data = await response.json();
+    const success = data?.status === "success" || data?.success === true;
+    console.log("SMEPlug Data Response:", data);
+    
+    return { success, message: data?.message || (success ? "Success" : "Failed"), data, provider: 'smeplug' };
+  } catch (error) {
+    console.error("SMEPlug Data Error:", error);
+    return { success: false, message: error instanceof Error ? error.message : "API error", provider: 'smeplug' };
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -43,22 +113,20 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Get user profile to check if agent and validate PIN
+    // Get user profile and validate PIN
     const { data: profile } = await adminSupabase
       .from("profiles")
       .select("is_agent, transaction_pin, failed_pin_attempts, pin_locked_until")
       .eq("user_id", userId)
       .single();
     
-    // Check PIN lockout
     if (profile?.pin_locked_until && new Date(profile.pin_locked_until) > new Date()) {
       return new Response(
-        JSON.stringify({ error: "Account locked due to too many failed PIN attempts. Try again later.", success: false }),
+        JSON.stringify({ error: "Account locked due to too many failed PIN attempts.", success: false }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Validate transaction PIN if set
     if (profile?.transaction_pin) {
       if (!transactionPin) {
         return new Response(
@@ -71,8 +139,7 @@ serve(async (req) => {
         const newAttempts = (profile.failed_pin_attempts || 0) + 1;
         const lockUntil = newAttempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null;
         
-        await adminSupabase
-          .from("profiles")
+        await adminSupabase.from("profiles")
           .update({ failed_pin_attempts: newAttempts, pin_locked_until: lockUntil })
           .eq("user_id", userId);
 
@@ -87,8 +154,7 @@ serve(async (req) => {
       }
 
       if (profile.failed_pin_attempts > 0) {
-        await adminSupabase
-          .from("profiles")
+        await adminSupabase.from("profiles")
           .update({ failed_pin_attempts: 0, pin_locked_until: null })
           .eq("user_id", userId);
       }
@@ -97,7 +163,20 @@ serve(async (req) => {
     const isAgent = profile?.is_agent || false;
     const userType = isAgent ? 'agent' : 'user';
 
-    // Get pricing config for data
+    // Get provider config for this service/network
+    const { data: providerConfig } = await adminSupabase
+      .from("provider_config")
+      .select("*")
+      .eq("service_type", "data")
+      .eq("network", network.toUpperCase())
+      .eq("is_active", true)
+      .single();
+
+    const primaryProvider = providerConfig?.primary_provider || 'subpadi';
+    const fallbackProvider = providerConfig?.fallback_provider || 'smeplug';
+    const fallbackEnabled = providerConfig?.fallback_enabled ?? true;
+
+    // Get pricing config
     const { data: pricingConfigs } = await adminSupabase
       .from("pricing_config")
       .select("*")
@@ -105,18 +184,12 @@ serve(async (req) => {
       .eq("is_active", true)
       .eq("user_type", userType);
 
-    // Find applicable pricing config (most specific first)
-    const config = pricingConfigs?.find(
-      c => c.network === network.toUpperCase() && c.plan_id === planId
-    ) || pricingConfigs?.find(
-      c => c.network === network.toUpperCase() && !c.plan_id
-    ) || pricingConfigs?.find(
-      c => !c.network && !c.plan_id
-    );
+    const config = pricingConfigs?.find(c => c.network === network.toUpperCase() && c.plan_id === planId)
+      || pricingConfigs?.find(c => c.network === network.toUpperCase() && !c.plan_id)
+      || pricingConfigs?.find(c => !c.network && !c.plan_id);
 
-    // Calculate cost price
     let costPrice = amount;
-    let sellingPrice = amount;
+    const sellingPrice = amount;
     
     if (config) {
       if (config.profit_type === 'percentage') {
@@ -128,7 +201,7 @@ serve(async (req) => {
 
     const profit = sellingPrice - costPrice;
 
-    // Get wallet balance
+    // Check wallet balance
     const { data: wallet } = await supabase
       .from("wallets")
       .select("balance")
@@ -148,7 +221,7 @@ serve(async (req) => {
     const reference = `DATA_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const newBalance = currentBalance - sellingPrice;
 
-    // Create transaction
+    // Create pending transaction
     const { data: transaction, error: txError } = await adminSupabase
       .from("transactions")
       .insert({
@@ -166,47 +239,41 @@ serve(async (req) => {
 
     if (txError) throw txError;
 
-    // Call SUBPADI API
-    const subpadiApiKey = Deno.env.get("SUBPADI_API_KEY");
-    const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
+    // Try primary provider
+    let apiResult = primaryProvider === 'subpadi' 
+      ? await subpadiPurchaseData(network, phoneNumber, planId)
+      : await smeplugPurchaseData(network, phoneNumber, planId, costPrice);
 
-    let apiSuccess = false;
-    let apiResponse = null;
+    let usedProvider = primaryProvider;
+    let fallbackAttempted = false;
+    let fallbackResponse = null;
 
-    try {
-      const response = await fetch("https://subpadi.com/api/data", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${subpadiToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          api_key: subpadiApiKey,
-          network: network.toUpperCase(),
-          phone: phoneNumber,
-          plan_id: planId,
-        }),
-      });
-
-      apiResponse = await response.json();
-      apiSuccess = apiResponse?.status === "success" || apiResponse?.code === "000";
-      console.log("SUBPADI response:", apiResponse);
-    } catch (apiError: unknown) {
-      console.error("SUBPADI API error:", apiError);
-      apiResponse = { error: apiError instanceof Error ? apiError.message : "API error" };
+    // If primary fails and fallback is enabled, try fallback
+    if (!apiResult.success && fallbackEnabled && fallbackProvider) {
+      console.log(`Primary provider (${primaryProvider}) failed, trying fallback (${fallbackProvider})...`);
+      fallbackAttempted = true;
+      fallbackResponse = apiResult.data;
+      
+      apiResult = fallbackProvider === 'subpadi'
+        ? await subpadiPurchaseData(network, phoneNumber, planId)
+        : await smeplugPurchaseData(network, phoneNumber, planId, costPrice);
+      
+      if (apiResult.success) {
+        usedProvider = fallbackProvider;
+      }
     }
 
-    if (apiSuccess) {
-      await adminSupabase
-        .from("wallets")
+    if (apiResult.success) {
+      // Deduct wallet and mark success
+      await adminSupabase.from("wallets")
         .update({ balance: newBalance })
         .eq("user_id", userId);
 
-      await adminSupabase
-        .from("transactions")
+      await adminSupabase.from("transactions")
         .update({ status: "success" })
         .eq("id", transaction.id);
 
+      // Create VTU order with provider tracking
       await adminSupabase.from("vtu_orders").insert({
         user_id: userId,
         transaction_id: transaction.id,
@@ -215,9 +282,13 @@ serve(async (req) => {
         recipient: phoneNumber,
         amount: sellingPrice,
         cost_price: costPrice,
-        profit: profit,
+        profit,
         status: "success",
-        api_response: apiResponse,
+        api_response: apiResult.data,
+        provider_used: usedProvider,
+        fallback_attempted: fallbackAttempted,
+        fallback_provider: fallbackAttempted ? fallbackProvider : null,
+        fallback_response: fallbackResponse,
       });
 
       return new Response(
@@ -225,13 +296,31 @@ serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } else {
-      await adminSupabase
-        .from("transactions")
+      // Both providers failed - mark transaction as failed (no wallet deduction)
+      await adminSupabase.from("transactions")
         .update({ status: "failed" })
         .eq("id", transaction.id);
 
+      // Log the failed VTU order
+      await adminSupabase.from("vtu_orders").insert({
+        user_id: userId,
+        transaction_id: transaction.id,
+        service_type: "data",
+        provider: network.toUpperCase(),
+        recipient: phoneNumber,
+        amount: sellingPrice,
+        cost_price: costPrice,
+        profit: 0,
+        status: "failed",
+        api_response: apiResult.data,
+        provider_used: usedProvider,
+        fallback_attempted: fallbackAttempted,
+        fallback_provider: fallbackAttempted ? fallbackProvider : null,
+        fallback_response: fallbackResponse,
+      });
+
       return new Response(
-        JSON.stringify({ success: false, message: apiResponse?.message || "Purchase failed" }),
+        JSON.stringify({ success: false, message: apiResult.message || "Purchase failed on all providers" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

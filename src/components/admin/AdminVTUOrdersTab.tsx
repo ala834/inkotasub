@@ -42,6 +42,10 @@ interface VTUOrder {
   status: string;
   api_response: unknown;
   created_at: string;
+  provider_used: string | null;
+  fallback_attempted: boolean | null;
+  fallback_provider: string | null;
+  fallback_response: unknown;
   profile?: {
     full_name: string | null;
     phone_number: string | null;
@@ -257,6 +261,7 @@ const AdminVTUOrdersTab = () => {
                   <TableHead>Recipient</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-right">Profit</TableHead>
+                  <TableHead>Provider</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead className="text-center">Actions</TableHead>
@@ -286,6 +291,18 @@ const AdminVTUOrdersTab = () => {
                     </TableCell>
                     <TableCell className="text-right text-green-500 font-medium">
                       {order.profit ? formatCurrency(order.profit) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="outline" className={order.provider_used === 'smeplug' ? 'border-purple-500 text-purple-600' : 'border-blue-500 text-blue-600'}>
+                          {order.provider_used?.toUpperCase() || 'SUBPADI'}
+                        </Badge>
+                        {order.fallback_attempted && (
+                          <span className="text-xs text-muted-foreground">
+                            (fallback used)
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
@@ -319,7 +336,7 @@ const AdminVTUOrdersTab = () => {
                 ))}
                 {filteredOrders.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       No orders found
                     </TableCell>
                   </TableRow>
@@ -348,12 +365,21 @@ const AdminVTUOrdersTab = () => {
                   <p className="font-medium capitalize">{selectedOrder.service_type}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Provider</p>
+                  <p className="text-sm text-muted-foreground">Network</p>
                   <p className="font-medium">{selectedOrder.provider}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Recipient</p>
                   <p className="font-medium font-mono">{selectedOrder.recipient}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">API Provider</p>
+                  <Badge variant="outline" className={selectedOrder.provider_used === 'smeplug' ? 'border-purple-500 text-purple-600' : 'border-blue-500 text-blue-600'}>
+                    {selectedOrder.provider_used?.toUpperCase() || 'SUBPADI'}
+                  </Badge>
+                  {selectedOrder.fallback_attempted && (
+                    <span className="text-xs text-muted-foreground ml-2">(fallback)</span>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Status</p>
