@@ -1,9 +1,10 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Smartphone, Signal, Tv, Zap } from "lucide-react";
+import { Smartphone, Signal, Tv, Zap, Settings2 } from "lucide-react";
 import AdminDataPlansTab from "./services/AdminDataPlansTab";
 import AdminAirtimePricingTab from "./services/AdminAirtimePricingTab";
 import AdminCableTVTab from "./services/AdminCableTVTab";
 import AdminElectricityTab from "./services/AdminElectricityTab";
+import AdminProvidersTab from "./services/AdminProvidersTab";
 
 const AdminServicesTab = () => {
   return (
@@ -11,12 +12,16 @@ const AdminServicesTab = () => {
       <div>
         <h2 className="text-2xl font-bold">Services Management</h2>
         <p className="text-muted-foreground">
-          Manage pricing, plans, and settings for all VTU services
+          Manage pricing, plans, providers, and settings for all VTU services
         </p>
       </div>
 
-      <Tabs defaultValue="data" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+      <Tabs defaultValue="providers" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+          <TabsTrigger value="providers" className="gap-2">
+            <Settings2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Providers</span>
+          </TabsTrigger>
           <TabsTrigger value="data" className="gap-2">
             <Signal className="h-4 w-4" />
             <span className="hidden sm:inline">Data</span>
@@ -34,6 +39,10 @@ const AdminServicesTab = () => {
             <span className="hidden sm:inline">Electricity</span>
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="providers">
+          <AdminProvidersTab />
+        </TabsContent>
 
         <TabsContent value="data">
           <AdminDataPlansTab />
