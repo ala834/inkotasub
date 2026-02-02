@@ -55,22 +55,24 @@ const Data = () => {
       });
 
       if (error) throw error;
-      setDataPlans(data?.plans || getMockPlans());
+      
+      if (data?.plans && data.plans.length > 0) {
+        setDataPlans(data.plans);
+      } else {
+        // Show toast if no plans returned
+        toast.error("No data plans available for this network");
+        setDataPlans([]);
+      }
     } catch (error) {
-      setDataPlans(getMockPlans());
+      console.error("Error fetching data plans:", error);
+      toast.error("Failed to load data plans");
+      setDataPlans([]);
     } finally {
       setLoadingPlans(false);
     }
   };
 
-  const getMockPlans = (): DataPlan[] => [
-    { id: "1", name: "500MB", amount: 150, validity: "1 Day" },
-    { id: "2", name: "1GB", amount: 300, validity: "1 Day" },
-    { id: "3", name: "2GB", amount: 500, validity: "30 Days" },
-    { id: "4", name: "3GB", amount: 800, validity: "30 Days" },
-    { id: "5", name: "5GB", amount: 1200, validity: "30 Days" },
-    { id: "6", name: "10GB", amount: 2500, validity: "30 Days" },
-  ];
+  // Production mode - no mock data
 
   const validateForm = () => {
     if (!detectedNetwork || !phoneNumber || !selectedPlan) {
