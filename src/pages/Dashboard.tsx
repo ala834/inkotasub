@@ -4,6 +4,7 @@ import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import WalletCard from "@/components/wallet/WalletCard";
 import ServicesGrid from "@/components/services/ServicesGrid";
+import SMEPlugServicesStatus from "@/components/services/SMEPlugServicesStatus";
 import TransactionsList from "@/components/transactions/TransactionsList";
 import PromoBanner from "@/components/common/PromoBanner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -55,6 +56,11 @@ const Dashboard = () => {
             onFundWallet={() => navigate("/fund-wallet")}
             onTransfer={() => navigate("/transfer")}
           />
+        </div>
+
+        {/* Provider Services Status */}
+        <div className="mb-4">
+          <SMEPlugServicesStatus />
         </div>
 
         {/* Promo Banner */}

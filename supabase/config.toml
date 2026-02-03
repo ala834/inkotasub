@@ -44,3 +44,15 @@ verify_jwt = false
 
 [functions.validate-smartcard]
 verify_jwt = false
+
+[functions.send-otp]
+verify_jwt = false
+
+[functions.verify-otp]
+verify_jwt = false
+
+[functions.phone-auth]
+verify_jwt = false
+
+[functions.get-smeplug-services]
+verify_jwt = false
