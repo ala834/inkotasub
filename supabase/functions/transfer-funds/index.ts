@@ -1,10 +1,24 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Compare PIN with hashed or legacy plaintext support
+async function comparePin(plaintextPin: string, hashedPin: string): Promise<boolean> {
+  if (!hashedPin.startsWith('$2')) {
+    return plaintextPin === hashedPin;
+  }
+  return await bcrypt.compare(plaintextPin, hashedPin);
+}
+
+// Check if PIN needs migration from plaintext to hashed
+function needsPinMigration(storedPin: string): boolean {
+  return !storedPin.startsWith('$2');
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -60,7 +74,10 @@ serve(async (req) => {
         );
       }
       
-      if (senderProfile.transaction_pin !== transactionPin) {
+      // Use secure bcrypt comparison
+      const pinValid = await comparePin(transactionPin, senderProfile.transaction_pin);
+      
+      if (!pinValid) {
         const newAttempts = (senderProfile.failed_pin_attempts || 0) + 1;
         const lockUntil = newAttempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null;
         
@@ -79,10 +96,20 @@ serve(async (req) => {
         );
       }
 
-      if (senderProfile.failed_pin_attempts > 0) {
+      // Reset failed attempts on successful PIN
+      const updates: Record<string, any> = { failed_pin_attempts: 0, pin_locked_until: null };
+      
+      // Migrate legacy plaintext PIN to hashed
+      if (needsPinMigration(senderProfile.transaction_pin)) {
+        const salt = await bcrypt.genSalt(10);
+        updates.transaction_pin = await bcrypt.hash(transactionPin, salt);
+        console.log('Migrated legacy PIN to bcrypt hash for user:', user.id);
+      }
+
+      if (senderProfile.failed_pin_attempts > 0 || needsPinMigration(senderProfile.transaction_pin)) {
         await supabase
           .from('profiles')
-          .update({ failed_pin_attempts: 0, pin_locked_until: null })
+          .update(updates)
           .eq('user_id', user.id);
       }
     }
