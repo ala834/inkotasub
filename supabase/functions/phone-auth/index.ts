@@ -52,17 +52,29 @@ serve(async (req) => {
     const body: AuthRequest = await req.json();
     const { action } = body;
 
-    // Format phone number
+    // Format phone number to +234 format
     const formatPhone = (phone: string): string => {
       let formatted = phone.replace(/[^\d+]/g, "");
       if (formatted.startsWith("0")) {
         formatted = "+234" + formatted.substring(1);
-      } else if (formatted.startsWith("234")) {
+      } else if (formatted.startsWith("234") && !formatted.startsWith("+")) {
         formatted = "+" + formatted;
       } else if (!formatted.startsWith("+234")) {
         formatted = "+234" + formatted;
       }
       return formatted;
+    };
+
+    // Get all possible phone number formats for database lookup
+    const getPhoneVariants = (phone: string): string[] => {
+      const formatted = formatPhone(phone);
+      const digits = formatted.replace(/\D/g, ""); // e.g., 2349057352833
+      return [
+        formatted,                           // +2349057352833
+        digits,                              // 2349057352833
+        "0" + digits.substring(3),           // 09057352833
+        digits.substring(3),                 // 9057352833
+      ];
     };
 
     if (action === "signup") {
@@ -189,14 +201,22 @@ serve(async (req) => {
     if (action === "signin") {
       const { phoneNumber, password } = body as SignInRequest;
       const formattedPhone = formatPhone(phoneNumber);
+      const phoneVariants = getPhoneVariants(phoneNumber);
       const email = phoneToEmail(formattedPhone);
 
-      // Check if user exists by phone
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("user_id")
-        .eq("phone_number", formattedPhone)
-        .single();
+      // Check if user exists by phone (try all possible formats)
+      let profile = null;
+      for (const variant of phoneVariants) {
+        const { data } = await supabaseAdmin
+          .from("profiles")
+          .select("user_id, phone_number")
+          .eq("phone_number", variant)
+          .single();
+        if (data) {
+          profile = data;
+          break;
+        }
+      }
 
       if (!profile) {
         // Log failed attempt
@@ -205,7 +225,7 @@ serve(async (req) => {
           event_type: "login_failed",
           ip_address: req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip"),
           user_agent: req.headers.get("user-agent"),
-          metadata: { reason: "phone_not_found" },
+          metadata: { reason: "phone_not_found", tried_variants: phoneVariants },
         });
 
         return new Response(
@@ -280,12 +300,20 @@ serve(async (req) => {
         );
       }
 
-      // Get user by phone
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("user_id")
-        .eq("phone_number", formattedPhone)
-        .single();
+      // Get user by phone (try all possible formats)
+      const phoneVariants = getPhoneVariants(phoneNumber);
+      let profile = null;
+      for (const variant of phoneVariants) {
+        const { data } = await supabaseAdmin
+          .from("profiles")
+          .select("user_id, phone_number")
+          .eq("phone_number", variant)
+          .single();
+        if (data) {
+          profile = data;
+          break;
+        }
+      }
 
       if (!profile) {
         return new Response(
