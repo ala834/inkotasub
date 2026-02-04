@@ -1,25 +1,104 @@
 import { motion } from "framer-motion";
-import { Smartphone, Wifi, Zap, Tv, AlertCircle, Loader2 } from "lucide-react";
-import { useSMEPlugServices } from "@/hooks/useSMEPlugServices";
+import { 
+  Smartphone, 
+  Wifi, 
+  Zap, 
+  Tv, 
+  AlertCircle, 
+  Loader2, 
+  GraduationCap, 
+  Banknote,
+  Package,
+  ChevronDown,
+  ChevronUp
+} from "lucide-react";
+import { useSMEPlugServices, SMEPlugService } from "@/hooks/useSMEPlugServices";
+import { useState } from "react";
 
-const serviceIcons: Record<string, React.ElementType> = {
-  airtime: Smartphone,
-  data: Wifi,
-  electricity: Zap,
-  cable: Tv,
-  "cable-tv": Tv,
+// Icon mapping for different service types
+const getServiceIcon = (slug: string): React.ElementType => {
+  const normalizedSlug = slug.toLowerCase();
+  
+  if (normalizedSlug.includes("airtime") && !normalizedSlug.includes("cash")) {
+    return Smartphone;
+  }
+  if (normalizedSlug.includes("data") || normalizedSlug.includes("bundle")) {
+    return Wifi;
+  }
+  if (normalizedSlug.includes("electric") || normalizedSlug.includes("power")) {
+    return Zap;
+  }
+  if (normalizedSlug.includes("cable") || normalizedSlug.includes("tv") || normalizedSlug.includes("dstv") || normalizedSlug.includes("gotv")) {
+    return Tv;
+  }
+  if (normalizedSlug.includes("exam") || normalizedSlug.includes("waec") || normalizedSlug.includes("neco") || normalizedSlug.includes("jamb") || normalizedSlug.includes("education")) {
+    return GraduationCap;
+  }
+  if (normalizedSlug.includes("cash") || normalizedSlug.includes("a2c") || normalizedSlug.includes("convert")) {
+    return Banknote;
+  }
+  
+  return Package;
 };
 
-const serviceColors: Record<string, string> = {
-  airtime: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
-  data: "linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)",
-  electricity: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)",
-  cable: "linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)",
-  "cable-tv": "linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)",
+// Color mapping for different service types
+const getServiceColor = (slug: string): string => {
+  const normalizedSlug = slug.toLowerCase();
+  
+  if (normalizedSlug.includes("airtime") && !normalizedSlug.includes("cash")) {
+    return "linear-gradient(135deg, #10B981 0%, #059669 100%)";
+  }
+  if (normalizedSlug.includes("data") || normalizedSlug.includes("bundle")) {
+    return "linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)";
+  }
+  if (normalizedSlug.includes("electric") || normalizedSlug.includes("power")) {
+    return "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)";
+  }
+  if (normalizedSlug.includes("cable") || normalizedSlug.includes("tv")) {
+    return "linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)";
+  }
+  if (normalizedSlug.includes("exam") || normalizedSlug.includes("waec") || normalizedSlug.includes("neco") || normalizedSlug.includes("jamb") || normalizedSlug.includes("education")) {
+    return "linear-gradient(135deg, #EC4899 0%, #BE185D 100%)";
+  }
+  if (normalizedSlug.includes("cash") || normalizedSlug.includes("a2c") || normalizedSlug.includes("convert")) {
+    return "linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)";
+  }
+  
+  return "linear-gradient(135deg, #6B7280 0%, #374151 100%)";
+};
+
+const ServiceBadge = ({ service }: { service: SMEPlugService }) => {
+  const Icon = getServiceIcon(service.slug);
+  const color = getServiceColor(service.slug);
+  const isActive = service.is_active !== false;
+  
+  return (
+    <div
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${
+        isActive ? "bg-muted/50" : "bg-muted/20 opacity-50"
+      }`}
+      title={service.description || service.name}
+    >
+      <div
+        className="w-5 h-5 rounded-full flex items-center justify-center"
+        style={{ background: color }}
+      >
+        <Icon className="h-3 w-3 text-primary-foreground" />
+      </div>
+      <span className="text-xs font-medium">{service.name}</span>
+      {isActive && (
+        <span className="w-2 h-2 rounded-full bg-primary" title="Active" />
+      )}
+      {!isActive && (
+        <span className="w-2 h-2 rounded-full bg-muted-foreground" title="Inactive" />
+      )}
+    </div>
+  );
 };
 
 const SMEPlugServicesStatus = () => {
-  const { services, isLoading, error } = useSMEPlugServices();
+  const { services, categories, missingCategories, isLoading, error } = useSMEPlugServices();
+  const [showAll, setShowAll] = useState(false);
 
   if (isLoading) {
     return (
@@ -66,37 +145,60 @@ const SMEPlugServicesStatus = () => {
     );
   }
 
+  // Show first 5 services by default, or all if expanded
+  const displayServices = showAll ? services : services.slice(0, 5);
+  const hasMore = services.length > 5;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="bg-card rounded-2xl p-4 shadow-sm border border-border/50"
     >
-      <h4 className="text-sm font-medium text-muted-foreground mb-3">Provider Services (SMEPlug)</h4>
-      <div className="flex flex-wrap gap-2">
-        {services.map((service) => {
-          const Icon = serviceIcons[service.slug] || Smartphone;
-          const color = serviceColors[service.slug] || "linear-gradient(135deg, #6B7280 0%, #374151 100%)";
-          
-          return (
-            <div
-              key={service.id}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50"
-            >
-              <div
-                className="w-5 h-5 rounded-full flex items-center justify-center"
-                style={{ background: color }}
-              >
-                <Icon className="h-3 w-3 text-white" />
-              </div>
-              <span className="text-xs font-medium">{service.name}</span>
-              {service.is_active !== false && (
-                <span className="w-2 h-2 rounded-full bg-emerald-500" title="Active" />
-              )}
-            </div>
-          );
-        })}
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-sm font-medium text-muted-foreground">
+          Provider Services ({services.length} active)
+        </h4>
+        {categories.length > 0 && (
+          <span className="text-xs text-muted-foreground">
+            {categories.length} categories
+          </span>
+        )}
       </div>
+      
+      <div className="flex flex-wrap gap-2">
+        {displayServices.map((service) => (
+          <ServiceBadge key={service.id || service.slug} service={service} />
+        ))}
+      </div>
+
+      {hasMore && (
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className="flex items-center gap-1 mt-3 text-xs text-primary hover:text-primary/80 transition-colors"
+        >
+          {showAll ? (
+            <>
+              <ChevronUp className="h-3 w-3" />
+              Show less
+            </>
+          ) : (
+            <>
+              <ChevronDown className="h-3 w-3" />
+              Show all ({services.length - 5} more)
+            </>
+          )}
+        </button>
+      )}
+
+      {missingCategories.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-border/50">
+          <p className="text-xs text-muted-foreground">
+            <span className="text-destructive">⚠</span> Some categories may not be available: {missingCategories.slice(0, 3).join(", ")}
+            {missingCategories.length > 3 && ` +${missingCategories.length - 3} more`}
+          </p>
+        </div>
+      )}
     </motion.div>
   );
 };
