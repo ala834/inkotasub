@@ -1,6 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+ import {
+   purchaseAirtime,
+   DEFAULT_PROVIDER_ROUTING,
+   generateReference,
+   type Provider,
+ } from "../_shared/inkota-service-layer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,76 +24,6 @@ async function comparePin(plaintextPin: string, hashedPin: string): Promise<bool
 // Check if PIN needs migration from plaintext to hashed
 function needsPinMigration(storedPin: string): boolean {
   return !storedPin.startsWith('$2');
-}
-
-// Provider API functions
-async function subpadiPurchaseAirtime(network: string, phone: string, amount: number) {
-  const apiKey = Deno.env.get("SUBPADI_API_KEY");
-  const apiToken = Deno.env.get("SUBPADI_API_TOKEN");
-
-  if (!apiKey || !apiToken) {
-    return { success: false, message: "SUBPADI credentials not configured", provider: 'subpadi' };
-  }
-
-  try {
-    const response = await fetch("https://subpadi.com/api/airtime", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        api_key: apiKey,
-        network: network.toUpperCase(),
-        phone,
-        amount,
-      }),
-    });
-
-    const data = await response.json();
-    const success = data?.status === "success" || data?.code === "000";
-    console.log("SUBPADI Airtime Response:", data);
-    
-    return { success, message: data?.message || (success ? "Success" : "Failed"), data, provider: 'subpadi' };
-  } catch (error) {
-    console.error("SUBPADI Airtime Error:", error);
-    return { success: false, message: error instanceof Error ? error.message : "API error", provider: 'subpadi' };
-  }
-}
-
-async function smeplugPurchaseAirtime(network: string, phone: string, amount: number) {
-  const apiKey = Deno.env.get("SMEPLUG_API_KEY");
-
-  if (!apiKey) {
-    return { success: false, message: "SMEPlug credentials not configured", provider: 'smeplug' };
-  }
-
-  const networkMap: Record<string, number> = { 'MTN': 1, 'GLO': 2, 'AIRTEL': 3, '9MOBILE': 4, 'ETISALAT': 4 };
-  const networkId = networkMap[network.toUpperCase()];
-  
-  if (!networkId) {
-    return { success: false, message: "Invalid network", provider: 'smeplug' };
-  }
-
-  try {
-    const response = await fetch("https://smeplug.ng/api/v1/airtime/purchase", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ network_id: networkId, phone, amount }),
-    });
-
-    const data = await response.json();
-    const success = data?.status === "success" || data?.success === true;
-    console.log("SMEPlug Airtime Response:", data);
-    
-    return { success, message: data?.message || (success ? "Success" : "Failed"), data, provider: 'smeplug' };
-  } catch (error) {
-    console.error("SMEPlug Airtime Error:", error);
-    return { success: false, message: error instanceof Error ? error.message : "API error", provider: 'smeplug' };
-  }
 }
 
 serve(async (req) => {
@@ -189,7 +125,7 @@ serve(async (req) => {
     const isAgent = profile?.is_agent || false;
     const userType = isAgent ? 'agent' : 'user';
 
-    // Get provider config for this service/network
+     // Get provider config for this service/network (admin can override defaults)
     const { data: providerConfig } = await adminSupabase
       .from("provider_config")
       .select("*")
@@ -198,8 +134,10 @@ serve(async (req) => {
       .eq("is_active", true)
       .single();
 
-    const primaryProvider = providerConfig?.primary_provider || 'subpadi';
-    const fallbackProvider = providerConfig?.fallback_provider || 'smeplug';
+     // Use INKOTA SUB default routing, allow admin override
+     const defaultRouting = DEFAULT_PROVIDER_ROUTING.airtime;
+     const primaryProvider = (providerConfig?.primary_provider || defaultRouting.primary) as Provider;
+     const fallbackProvider = (providerConfig?.fallback_provider || defaultRouting.fallback) as Provider;
     const fallbackEnabled = providerConfig?.fallback_enabled ?? true;
 
     // Get pricing config
@@ -238,12 +176,12 @@ serve(async (req) => {
     const currentBalance = parseFloat(wallet.balance as unknown as string);
     if (currentBalance < sellingPrice) {
       return new Response(
-        JSON.stringify({ error: "Insufficient balance", success: false }),
+         JSON.stringify({ error: "Insufficient balance. Please fund your wallet.", success: false }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const reference = `AIR_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+     const reference = generateReference('airtime');
     const newBalance = currentBalance - sellingPrice;
 
     // Create pending transaction
@@ -264,29 +202,16 @@ serve(async (req) => {
 
     if (txError) throw txError;
 
-    // Try primary provider
-    let apiResult = primaryProvider === 'subpadi' 
-      ? await subpadiPurchaseAirtime(network, phoneNumber, costPrice)
-      : await smeplugPurchaseAirtime(network, phoneNumber, costPrice);
-
-    let usedProvider = primaryProvider;
-    let fallbackAttempted = false;
-    let fallbackResponse = null;
-
-    // If primary fails and fallback is enabled, try fallback
-    if (!apiResult.success && fallbackEnabled && fallbackProvider) {
-      console.log(`Primary provider (${primaryProvider}) failed, trying fallback (${fallbackProvider})...`);
-      fallbackAttempted = true;
-      fallbackResponse = apiResult.data;
-      
-      apiResult = fallbackProvider === 'subpadi'
-        ? await subpadiPurchaseAirtime(network, phoneNumber, costPrice)
-        : await smeplugPurchaseAirtime(network, phoneNumber, costPrice);
-      
-      if (apiResult.success) {
-        usedProvider = fallbackProvider;
-      }
-    }
+     // Use INKOTA SUB unified service layer with automatic failover
+     const apiResult = await purchaseAirtime(
+       { network, phoneNumber, amount: costPrice },
+       { primary: primaryProvider, fallback: fallbackProvider, fallbackEnabled }
+     );
+ 
+     // Extract internal tracking info for admin logging
+     const usedProvider = apiResult._internal.providerUsed;
+     const fallbackAttempted = apiResult._internal.fallbackAttempted;
+     const fallbackResponse = apiResult._internal.fallbackResponse;
 
     if (apiResult.success) {
       // Deduct wallet and mark success
@@ -309,7 +234,7 @@ serve(async (req) => {
         cost_price: costPrice,
         profit,
         status: "success",
-        api_response: apiResult.data,
+         api_response: apiResult._internal.rawResponse,
         provider_used: usedProvider,
         fallback_attempted: fallbackAttempted,
         fallback_provider: fallbackAttempted ? fallbackProvider : null,
@@ -317,7 +242,7 @@ serve(async (req) => {
       });
 
       return new Response(
-        JSON.stringify({ success: true, message: "Airtime purchased successfully" }),
+         JSON.stringify({ success: true, message: apiResult.message }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } else {
@@ -337,7 +262,7 @@ serve(async (req) => {
         cost_price: costPrice,
         profit: 0,
         status: "failed",
-        api_response: apiResult.data,
+         api_response: apiResult._internal.rawResponse,
         provider_used: usedProvider,
         fallback_attempted: fallbackAttempted,
         fallback_provider: fallbackAttempted ? fallbackProvider : null,
@@ -345,7 +270,7 @@ serve(async (req) => {
       });
 
       return new Response(
-        JSON.stringify({ success: false, message: apiResult.message || "Purchase failed on all providers" }),
+         JSON.stringify({ success: false, message: apiResult.message }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

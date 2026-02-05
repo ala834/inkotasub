@@ -15,7 +15,7 @@ import {
 import { useSMEPlugServices, SMEPlugService } from "@/hooks/useSMEPlugServices";
 import { useState } from "react";
 
-// Icon mapping for different service types
+ // Icon mapping for different service types - no provider names exposed
 const getServiceIcon = (slug: string): React.ElementType => {
   const normalizedSlug = slug.toLowerCase();
   
@@ -41,7 +41,7 @@ const getServiceIcon = (slug: string): React.ElementType => {
   return Package;
 };
 
-// Color mapping for different service types
+ // Color mapping for different service types - using semantic gradients
 const getServiceColor = (slug: string): string => {
   const normalizedSlug = slug.toLowerCase();
   
@@ -71,6 +71,14 @@ const ServiceBadge = ({ service }: { service: SMEPlugService }) => {
   const Icon = getServiceIcon(service.slug);
   const color = getServiceColor(service.slug);
   const isActive = service.is_active !== false;
+   
+   // Display user-friendly names without provider references
+   const displayName = service.name
+     .replace(/smeplug/gi, '')
+     .replace(/subpadi/gi, '')
+     .replace(/sme\s*plug/gi, '')
+     .replace(/sub\s*padi/gi, '')
+     .trim();
   
   return (
     <div
@@ -85,7 +93,7 @@ const ServiceBadge = ({ service }: { service: SMEPlugService }) => {
       >
         <Icon className="h-3 w-3 text-primary-foreground" />
       </div>
-      <span className="text-xs font-medium">{service.name}</span>
+       <span className="text-xs font-medium">{displayName || service.name}</span>
       {isActive && (
         <span className="w-2 h-2 rounded-full bg-primary" title="Active" />
       )}
@@ -157,7 +165,7 @@ const SMEPlugServicesStatus = () => {
     >
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-sm font-medium text-muted-foreground">
-          Provider Services ({services.length} active)
+           Available Services ({services.length} active)
         </h4>
         {categories.length > 0 && (
           <span className="text-xs text-muted-foreground">
