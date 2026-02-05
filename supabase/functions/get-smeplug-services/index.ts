@@ -174,9 +174,14 @@ serve(async (req) => {
         
         if (Array.isArray(services) && services.length > 0) {
           for (const svc of services) {
+             // Clean service names - remove provider references
+             const cleanName = (svc.name || svc.network || svc.provider || endpoint.name)
+               .replace(/smeplug/gi, '')
+               .replace(/subpadi/gi, '')
+               .trim();
             allServices.push({
               id: svc.id || svc.network_id || svc.code || `${endpoint.category}-${Math.random()}`,
-              name: svc.name || svc.network || svc.provider || endpoint.name,
+               name: cleanName || endpoint.name,
               slug: svc.slug || svc.code || svc.network?.toLowerCase() || endpoint.category,
               is_active: svc.is_active !== false && svc.status !== "inactive",
               status: svc.status || "active",
@@ -249,7 +254,8 @@ serve(async (req) => {
     );
 
     console.log("=== SMEPlug Service Discovery Results ===");
-    console.log("Total services found:", allServices.length);
+     console.log("=== INKOTA SUB Service Discovery ===");
+     console.log("Total service categories found:", allServices.length);
     console.log("Categories found:", foundCategories);
     console.log("Successful API endpoints:", successfulEndpoints);
     console.log("API errors:", apiErrors);
@@ -285,7 +291,7 @@ serve(async (req) => {
         services: activeServices,
         all_services: allServices,
         categories,
-        provider: "smeplug",
+         // Don't expose provider name to frontend
         api_endpoints_tried: serviceEndpoints.map(e => e.url),
         successful_endpoints: successfulEndpoints,
         api_errors: apiErrors.length > 0 ? apiErrors : undefined,
