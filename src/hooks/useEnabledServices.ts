@@ -43,7 +43,7 @@ export const useEnabledServices = () => {
           airtime: true,
           electricity: true,
           cable: true,
-          exam_pin: false,
+          exam_pin: true, // Enabled via SMEPlug provider
         };
 
         settings.forEach((setting) => {
@@ -75,7 +75,7 @@ export const useEnabledServices = () => {
           airtime: prev.airtime, // Airtime doesn't use plans table
           electricity: prev.electricity, // Uses provider list
           cable: prev.cable, // Uses provider list
-          exam_pin: false, // Always disabled - not supported by SUBPADI
+          exam_pin: prev.exam_pin, // Exam cards via SMEPlug
         }));
       }
     } catch (error) {
