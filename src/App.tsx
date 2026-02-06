@@ -17,6 +17,7 @@ import Airtime from "./pages/Airtime";
 import Data from "./pages/Data";
 import Electricity from "./pages/Electricity";
 import CableTV from "./pages/CableTV";
+import ExamCards from "./pages/ExamCards";
 import Transfer from "./pages/Transfer";
 import Referrals from "./pages/Referrals";
 import Notifications from "./pages/Notifications";
@@ -47,6 +48,7 @@ const App = () => (
             <Route path="/data" element={<ProtectedRoute><Data /></ProtectedRoute>} />
             <Route path="/electricity" element={<ProtectedRoute><Electricity /></ProtectedRoute>} />
             <Route path="/cable-tv" element={<ProtectedRoute><CableTV /></ProtectedRoute>} />
+            <Route path="/exam-cards" element={<ProtectedRoute><ExamCards /></ProtectedRoute>} />
             <Route path="/transfer" element={<ProtectedRoute><Transfer /></ProtectedRoute>} />
             <Route path="/referrals" element={<ProtectedRoute><Referrals /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />

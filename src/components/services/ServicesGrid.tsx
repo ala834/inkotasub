@@ -5,7 +5,8 @@ import {
   Tv, 
   CreditCard,
   Gift,
-  Headphones
+  Headphones,
+  GraduationCap
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -41,6 +42,13 @@ const allServices = [
     color: "linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)", 
     path: "/cable-tv",
     serviceKey: "cable" as const
+  },
+  { 
+    icon: GraduationCap, 
+    label: "Exam Cards", 
+    color: "linear-gradient(135deg, #EC4899 0%, #DB2777 100%)", 
+    path: "/exam-cards",
+    serviceKey: "exam_pin" as const
   },
   { 
     icon: CreditCard, 
