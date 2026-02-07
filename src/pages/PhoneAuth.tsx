@@ -374,7 +374,7 @@ const PhoneAuth = () => {
                 </Button>
 
                 {mode !== "reset" && (
-                  <div className="text-center pt-4">
+                  <div className="text-center pt-4 space-y-3">
                     <p className="text-muted-foreground">
                       {mode === "signin" ? "Don't have an account?" : "Already have an account?"}{" "}
                       <button
@@ -389,15 +389,29 @@ const PhoneAuth = () => {
                       </button>
                     </p>
                     {mode === "signin" && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMode("reset");
-                        }}
-                        className="text-sm text-muted-foreground hover:text-primary mt-2"
-                      >
-                        Forgot password?
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMode("reset");
+                          }}
+                          className="text-sm text-muted-foreground hover:text-primary block mx-auto"
+                        >
+                          Forgot password?
+                        </button>
+                        <div className="border-t border-border pt-3">
+                          <p className="text-sm text-muted-foreground">
+                            Registered with email?{" "}
+                            <button
+                              type="button"
+                              onClick={() => navigate("/auth")}
+                              className="text-primary font-semibold hover:underline"
+                            >
+                              Login with Email
+                            </button>
+                          </p>
+                        </div>
+                      </>
                     )}
                   </div>
                 )}

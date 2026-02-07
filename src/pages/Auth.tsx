@@ -244,7 +244,7 @@ const Auth = () => {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-3">
             <p className="text-muted-foreground">
               {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
               <button
@@ -258,6 +258,18 @@ const Auth = () => {
                 {isLogin ? "Sign up" : "Sign in"}
               </button>
             </p>
+            <div className="border-t border-border pt-3">
+              <p className="text-sm text-muted-foreground">
+                Prefer phone number?{" "}
+                <button
+                  type="button"
+                  onClick={() => navigate("/phone-auth")}
+                  className="text-primary font-semibold hover:underline"
+                >
+                  Login with Phone
+                </button>
+              </p>
+            </div>
           </div>
         </div>
       </motion.div>
