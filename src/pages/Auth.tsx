@@ -14,7 +14,7 @@ const passwordSchema = z.string().min(6, "Password must be at least 6 characters
 
 const Auth = () => {
   const navigate = useNavigate();
-  const { user, signIn, signUp, isLoading } = useAuth();
+  const { user, signIn, signUp, isLoading, isAdmin } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,9 +38,14 @@ const Auth = () => {
 
   useEffect(() => {
     if (user && !isLoading) {
-      navigate("/dashboard");
+      // Redirect admins to admin dashboard
+      if (isAdmin) {
+        navigate("/admin");
+      } else {
+        navigate("/dashboard");
+      }
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, isAdmin, navigate]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -80,15 +85,18 @@ const Auth = () => {
       if (isLogin) {
         const { error } = await signIn(formData.email, formData.password);
         if (error) {
+          console.error("Login error:", error.message);
           if (error.message.includes("Invalid login credentials")) {
             toast.error("Invalid email or password");
+          } else if (error.message.includes("Email not confirmed")) {
+            toast.error("Please verify your email address first");
           } else {
             toast.error(error.message);
           }
           return;
         }
         toast.success("Welcome back!");
-        navigate("/dashboard");
+        // Navigation handled by useEffect watching user state
       } else {
         const { error } = await signUp(formData.email, formData.password, formData.fullName);
         if (error) {
@@ -106,7 +114,7 @@ const Auth = () => {
         }
         
         toast.success("Account created successfully!");
-        navigate("/dashboard");
+        // Navigation handled by useEffect watching user state
       }
     } finally {
       setLoading(false);
