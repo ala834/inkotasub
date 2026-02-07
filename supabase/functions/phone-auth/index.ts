@@ -258,9 +258,19 @@ serve(async (req) => {
         );
       }
 
-      // Generate email from the matched profile's phone number to ensure consistency
-      const email = phoneToEmail(profile.phone_number);
-      console.log(`[SIGNIN] Using email: ${email} for user_id: ${profile.user_id}`);
+      // Get the actual email from auth.users table
+      const { data: authUser, error: authUserError } = await supabaseAdmin.auth.admin.getUserById(profile.user_id);
+      
+      if (authUserError || !authUser?.user?.email) {
+        console.error(`[SIGNIN] Failed to get auth user:`, authUserError);
+        return new Response(
+          JSON.stringify({ success: false, error: "Account error. Please contact support." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const email = authUser.user.email;
+      console.log(`[SIGNIN] Using actual email: ${email} for user_id: ${profile.user_id}`);
 
       // Sign in with Supabase
       const supabaseClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? "");
