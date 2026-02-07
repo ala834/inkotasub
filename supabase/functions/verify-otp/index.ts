@@ -127,13 +127,22 @@ serve(async (req) => {
     // Generate a temporary verification token for the next step
     const verificationToken = crypto.randomUUID();
 
+    // Determine the token purpose based on the original purpose
+    const tokenPurpose = purpose === "reset_pin" ? "reset_pin_token" : "verification_token";
+
     // Store token temporarily (expires in 10 minutes)
-    await supabaseAdmin.from("otp_codes").insert({
+    const { error: tokenInsertError } = await supabaseAdmin.from("otp_codes").insert({
       phone_number: formattedPhone,
       code: verificationToken,
-      purpose: `${purpose}_token`,
+      purpose: tokenPurpose,
       expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     });
+
+    if (tokenInsertError) {
+      console.error("Error storing verification token:", tokenInsertError);
+    }
+
+    console.log(`[OTP] Verification successful for ${formattedPhone}, purpose: ${purpose}, token purpose: ${tokenPurpose}`);
 
     return new Response(
       JSON.stringify({

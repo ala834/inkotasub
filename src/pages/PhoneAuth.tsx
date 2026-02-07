@@ -213,6 +213,7 @@ const PhoneAuth = () => {
 
       if (error) throw error;
       if (!data.success) {
+        console.error("Sign in failed:", data.error);
         toast.error(data.error || "Invalid credentials");
         return;
       }
@@ -220,7 +221,13 @@ const PhoneAuth = () => {
       if (data.session) {
         await supabase.auth.setSession(data.session);
         toast.success("Welcome back!");
-        navigate("/dashboard");
+        
+        // Redirect based on admin status
+        if (data.is_admin) {
+          navigate("/admin");
+        } else {
+          navigate("/dashboard");
+        }
       }
     } catch (error) {
       console.error("Sign in error:", error);

@@ -52,28 +52,38 @@ serve(async (req) => {
     const body: AuthRequest = await req.json();
     const { action } = body;
 
-    // Format phone number to +234 format
+    // Format phone number to +234 format (canonical format for storage)
     const formatPhone = (phone: string): string => {
-      let formatted = phone.replace(/[^\d+]/g, "");
-      if (formatted.startsWith("0")) {
-        formatted = "+234" + formatted.substring(1);
-      } else if (formatted.startsWith("234") && !formatted.startsWith("+")) {
-        formatted = "+" + formatted;
-      } else if (!formatted.startsWith("+234")) {
-        formatted = "+234" + formatted;
+      let cleaned = phone.replace(/[^\d]/g, "");
+      
+      // Remove leading country code variations
+      if (cleaned.startsWith("234")) {
+        cleaned = cleaned.substring(3);
       }
-      return formatted;
+      // Remove leading zero
+      if (cleaned.startsWith("0")) {
+        cleaned = cleaned.substring(1);
+      }
+      
+      // Should now have 10 digits
+      if (cleaned.length !== 10) {
+        console.error(`Invalid phone length after cleaning: ${cleaned.length} digits from ${phone}`);
+      }
+      
+      return "+234" + cleaned;
     };
 
     // Get all possible phone number formats for database lookup
     const getPhoneVariants = (phone: string): string[] => {
       const formatted = formatPhone(phone);
       const digits = formatted.replace(/\D/g, ""); // e.g., 2349057352833
+      const localDigits = digits.substring(3);     // e.g., 9057352833
       return [
-        formatted,                           // +2349057352833
+        formatted,                           // +2349057352833 (canonical)
         digits,                              // 2349057352833
-        "0" + digits.substring(3),           // 09057352833
-        digits.substring(3),                 // 9057352833
+        "0" + localDigits,                   // 09057352833
+        localDigits,                         // 9057352833
+        "+234" + "0" + localDigits,          // +23409057352833 (edge case)
       ];
     };
 
@@ -202,23 +212,37 @@ serve(async (req) => {
       const { phoneNumber, password } = body as SignInRequest;
       const formattedPhone = formatPhone(phoneNumber);
       const phoneVariants = getPhoneVariants(phoneNumber);
-      const email = phoneToEmail(formattedPhone);
+
+      console.log(`[SIGNIN] Attempting login for phone: ${phoneNumber}`);
+      console.log(`[SIGNIN] Formatted phone: ${formattedPhone}`);
+      console.log(`[SIGNIN] Phone variants to try:`, phoneVariants);
 
       // Check if user exists by phone (try all possible formats)
       let profile = null;
+      let matchedVariant = "";
       for (const variant of phoneVariants) {
-        const { data } = await supabaseAdmin
+        console.log(`[SIGNIN] Checking variant: ${variant}`);
+        const { data, error } = await supabaseAdmin
           .from("profiles")
           .select("user_id, phone_number")
           .eq("phone_number", variant)
-          .single();
+          .maybeSingle();
+        
+        if (error) {
+          console.error(`[SIGNIN] Error checking variant ${variant}:`, error);
+        }
+        
         if (data) {
           profile = data;
+          matchedVariant = variant;
+          console.log(`[SIGNIN] Found profile with variant: ${variant}, user_id: ${data.user_id}`);
           break;
         }
       }
 
       if (!profile) {
+        console.error(`[SIGNIN] No profile found for any variant`);
+        
         // Log failed attempt
         await supabaseAdmin.from("auth_events").insert({
           phone_number: formattedPhone,
@@ -234,6 +258,10 @@ serve(async (req) => {
         );
       }
 
+      // Generate email from the matched profile's phone number to ensure consistency
+      const email = phoneToEmail(profile.phone_number);
+      console.log(`[SIGNIN] Using email: ${email} for user_id: ${profile.user_id}`);
+
       // Sign in with Supabase
       const supabaseClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? "");
       const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
@@ -242,6 +270,8 @@ serve(async (req) => {
       });
 
       if (signInError) {
+        console.error(`[SIGNIN] Password verification failed:`, signInError.message);
+        
         // Log failed attempt
         await supabaseAdmin.from("auth_events").insert({
           user_id: profile.user_id,
@@ -249,7 +279,7 @@ serve(async (req) => {
           event_type: "login_failed",
           ip_address: req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip"),
           user_agent: req.headers.get("user-agent"),
-          metadata: { reason: "invalid_password" },
+          metadata: { reason: "invalid_password", error: signInError.message },
         });
 
         return new Response(
@@ -258,6 +288,17 @@ serve(async (req) => {
         );
       }
 
+      // Check if user is admin
+      const { data: adminRole } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", signInData.user?.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      const isAdmin = !!adminRole;
+      console.log(`[SIGNIN] Login successful for user_id: ${signInData.user?.id}, isAdmin: ${isAdmin}`);
+
       // Log successful login
       await supabaseAdmin.from("auth_events").insert({
         user_id: signInData.user?.id,
@@ -265,6 +306,7 @@ serve(async (req) => {
         event_type: "login_success",
         ip_address: req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip"),
         user_agent: req.headers.get("user-agent"),
+        metadata: { is_admin: isAdmin },
       });
 
       return new Response(
@@ -273,6 +315,7 @@ serve(async (req) => {
           message: "Signed in successfully",
           session: signInData.session,
           user: signInData.user,
+          is_admin: isAdmin,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
