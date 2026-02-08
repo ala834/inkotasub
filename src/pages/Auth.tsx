@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { z } from "zod";
+import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
@@ -18,6 +19,7 @@ const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -229,6 +231,18 @@ const Auth = () => {
               )}
             </div>
 
+            {isLogin && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-sm text-muted-foreground hover:text-primary"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
+
             <Button
               type="submit"
               disabled={loading}
@@ -263,7 +277,7 @@ const Auth = () => {
                 Prefer phone number?{" "}
                 <button
                   type="button"
-                  onClick={() => navigate("/phone-auth")}
+                  onClick={() => navigate("/auth")}
                   className="text-primary font-semibold hover:underline"
                 >
                   Login with Phone
@@ -273,6 +287,11 @@ const Auth = () => {
           </div>
         </div>
       </motion.div>
+
+      <ForgotPasswordDialog 
+        open={showForgotPassword} 
+        onOpenChange={setShowForgotPassword} 
+      />
     </div>
   );
 };
