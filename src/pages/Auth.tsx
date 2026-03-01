@@ -277,7 +277,7 @@ const Auth = () => {
                 Prefer phone number?{" "}
                 <button
                   type="button"
-                  onClick={() => navigate("/auth")}
+onClick={() => navigate("/auth")}
                   className="text-primary font-semibold hover:underline"
                 >
                   Login with Phone
