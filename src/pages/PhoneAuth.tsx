@@ -404,7 +404,7 @@ const PhoneAuth = () => {
                             Registered with email?{" "}
                             <button
                               type="button"
-                              onClick={() => navigate("/auth")}
+onClick={() => navigate("/auth/email")}
                               className="text-primary font-semibold hover:underline"
                             >
                               Login with Email
