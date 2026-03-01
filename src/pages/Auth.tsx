@@ -88,35 +88,43 @@ const Auth = () => {
         const { error } = await signIn(formData.email, formData.password);
         if (error) {
           console.error("Login error:", error.message);
-          if (error.message.includes("Invalid login credentials")) {
+          if (error.message === "Failed to fetch" || error.message.includes("NetworkError") || error.message.includes("fetch")) {
+            toast.error("Network error. Please check your internet connection and try again.");
+          } else if (error.message.includes("Invalid login credentials")) {
             toast.error("Invalid email or password");
           } else if (error.message.includes("Email not confirmed")) {
             toast.error("Please verify your email address first");
           } else {
-            toast.error(error.message);
+            toast.error(error.message || "Login failed. Please try again.");
           }
           return;
         }
         toast.success("Welcome back!");
-        // Navigation handled by useEffect watching user state
       } else {
         const { error } = await signUp(formData.email, formData.password, formData.fullName);
         if (error) {
-          if (error.message.includes("already registered")) {
+          if (error.message === "Failed to fetch" || error.message.includes("NetworkError") || error.message.includes("fetch")) {
+            toast.error("Network error. Please check your internet connection and try again.");
+          } else if (error.message.includes("already registered")) {
             toast.error("This email is already registered. Please login instead.");
           } else {
-            toast.error(error.message);
+            toast.error(error.message || "Signup failed. Please try again.");
           }
           return;
         }
         
-        // Store referral code for processing on first deposit
         if (formData.referralCode) {
           localStorage.setItem("pendingReferralCode", formData.referralCode.toUpperCase());
         }
         
         toast.success("Account created successfully!");
-        // Navigation handled by useEffect watching user state
+      }
+    } catch (err: any) {
+      console.error("Auth unexpected error:", err);
+      if (err?.message === "Failed to fetch" || err?.message?.includes("NetworkError")) {
+        toast.error("Unable to connect to the server. Please check your internet connection and try again.");
+      } else {
+        toast.error(err?.message || "An unexpected error occurred. Please try again.");
       }
     } finally {
       setLoading(false);
