@@ -12,6 +12,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import NotificationsDropdown from "@/components/notifications/NotificationsDropdown";
+import inkotaLogo from "@/assets/inkota-logo.png";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -48,9 +49,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
             <Menu className="h-5 w-5" />
           </Button>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">I</span>
-            </div>
+            <img src={inkotaLogo} alt="INKOTA SUB" className="w-8 h-8 object-contain" />
             <span className="font-display font-bold text-lg text-foreground">
               INKOTA<span className="text-primary">SUB</span>
             </span>
