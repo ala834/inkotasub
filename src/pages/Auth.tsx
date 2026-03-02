@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
+import inkotaLogo from "@/assets/inkota-logo.png";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
@@ -147,10 +148,8 @@ const Auth = () => {
         className="w-full max-w-md"
       >
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xl">I</span>
-            </div>
+          <div className="flex items-center justify-center mb-4">
+            <img src={inkotaLogo} alt="INKOTA SUB" className="w-20 h-20 object-contain" />
           </div>
           <h1 className="text-2xl font-display font-bold text-foreground">
             INKOTA<span className="text-primary">SUB</span>

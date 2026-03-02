@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import OTPInput from "@/components/auth/OTPInput";
+import inkotaLogo from "@/assets/inkota-logo.png";
 
 type AuthStep = "phone" | "otp" | "password" | "login";
 type AuthMode = "signup" | "signin" | "reset";
@@ -316,10 +317,8 @@ const PhoneAuth = () => {
       >
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-xl">I</span>
-            </div>
+          <div className="flex items-center justify-center mb-4">
+            <img src={inkotaLogo} alt="INKOTA SUB" className="w-20 h-20 object-contain" />
           </div>
           <h1 className="text-2xl font-display font-bold text-foreground">
             INKOTA<span className="text-primary">SUB</span>
