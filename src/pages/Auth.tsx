@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Fingerprint, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
+import { useBiometric } from "@/hooks/useBiometric";
+import { storeCredentials } from "@/lib/biometric";
 import inkotaLogo from "@/assets/inkota-logo.png";
 
 const emailSchema = z.string().email("Please enter a valid email address");
@@ -17,9 +19,11 @@ const passwordSchema = z.string().min(6, "Password must be at least 6 characters
 const Auth = () => {
   const navigate = useNavigate();
   const { user, signIn, signUp, isLoading, isAdmin } = useAuth();
+  const { loginReady, biometricLogin, locked, isNative } = useBiometric();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
@@ -101,6 +105,8 @@ const Auth = () => {
           return;
         }
         toast.success("Welcome back!");
+        // Store credentials for biometric login if enabled later
+        await storeCredentials(formData.email, formData.password);
       } else {
         const { error } = await signUp(formData.email, formData.password, formData.fullName);
         if (error) {
@@ -270,6 +276,56 @@ const Auth = () => {
               )}
             </Button>
           </form>
+
+          {/* Biometric Login Button */}
+          {isLogin && loginReady && !locked && (
+            <div className="mt-4">
+              <div className="relative flex items-center justify-center my-3">
+                <div className="border-t border-border flex-1" />
+                <span className="px-3 text-xs text-muted-foreground">or</span>
+                <div className="border-t border-border flex-1" />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={biometricLoading}
+                onClick={async () => {
+                  setBiometricLoading(true);
+                  try {
+                    const result = await biometricLogin();
+                    if (result.success && result.email && result.password) {
+                      const { error } = await signIn(result.email, result.password);
+                      if (error) {
+                        toast.error("Biometric login failed. Please use password.");
+                      } else {
+                        toast.success("Welcome back!");
+                      }
+                    } else {
+                      toast.error(result.error || "Fingerprint verification failed");
+                    }
+                  } finally {
+                    setBiometricLoading(false);
+                  }
+                }}
+                className="w-full h-12 rounded-xl gap-3 border-primary/30"
+              >
+                {biometricLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <>
+                    <Fingerprint className="h-5 w-5 text-primary" />
+                    Login with Fingerprint
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {isLogin && locked && (
+            <p className="mt-3 text-xs text-destructive text-center">
+              Fingerprint locked. Please login with password.
+            </p>
+          )}
 
           <div className="mt-6 text-center space-y-3">
             <p className="text-muted-foreground">
