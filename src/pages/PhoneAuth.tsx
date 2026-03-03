@@ -318,7 +318,7 @@ const PhoneAuth = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
-            <img src={inkotaLogo} alt="INKOTA SUB" className="w-20 h-20 object-contain" />
+            <motion.img src={inkotaLogo} alt="INKOTA SUB" className="w-20 h-20 object-contain" animate={{ scale: [1, 1.06, 1] }} transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }} />
           </div>
           <h1 className="text-2xl font-display font-bold text-foreground">
             INKOTA<span className="text-primary">SUB</span>
