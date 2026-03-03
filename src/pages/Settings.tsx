@@ -654,6 +654,67 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Biometric Setup Dialog */}
+      <Dialog open={biometricSetupOpen} onOpenChange={setBiometricSetupOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Fingerprint className="h-5 w-5 text-primary" />
+              Enable Fingerprint Login
+            </DialogTitle>
+            <DialogDescription>
+              Enter your login credentials to link fingerprint authentication to this device. Your credentials will be stored securely in encrypted storage.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="biometricEmail">Email</Label>
+              <Input
+                id="biometricEmail"
+                type="email"
+                value={biometricEmail}
+                onChange={(e) => setBiometricEmail(e.target.value)}
+                placeholder="Your login email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="biometricPassword">Password</Label>
+              <Input
+                id="biometricPassword"
+                type="password"
+                value={biometricPassword}
+                onChange={(e) => setBiometricPassword(e.target.value)}
+                placeholder="Your login password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBiometricSetupOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!biometricEmail || !biometricPassword) {
+                  toast.error("Please enter your credentials");
+                  return;
+                }
+                const result = await enableBiometricLogin(biometricEmail, biometricPassword);
+                if (result.success) {
+                  toast.success("Fingerprint login enabled! You can now login with your fingerprint.");
+                  setBiometricSetupOpen(false);
+                  setBiometricEmail("");
+                  setBiometricPassword("");
+                } else {
+                  toast.error(result.error || "Failed to enable fingerprint login");
+                }
+              }}
+            >
+              Enable Fingerprint
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <BottomNav />
     </div>
   );
