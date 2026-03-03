@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { useWallet } from "@/hooks/useWallet";
 import { useVirtualAccount } from "@/hooks/useVirtualAccount";
 import { supabase } from "@/integrations/supabase/client";
+import { useBiometric } from "@/hooks/useBiometric";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -79,6 +80,14 @@ const Settings = () => {
   const { user, profile, signOut } = useAuth();
   const { wallet } = useWallet();
   const { virtualAccount } = useVirtualAccount();
+  const {
+    available: biometricAvailable,
+    loginEnabled: biometricLoginEnabled,
+    transactionEnabled: biometricTransactionEnabled,
+    enableBiometricLogin,
+    disableBiometricLogin,
+    toggleTransactionBiometric,
+  } = useBiometric();
 
   // Preferences state
   const [darkMode, setDarkMode] = useState(() => {
@@ -91,7 +100,9 @@ const Settings = () => {
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [transactionAlerts, setTransactionAlerts] = useState(true);
   const [autoFundingNotifications, setAutoFundingNotifications] = useState(true);
-  const [biometricLogin, setBiometricLogin] = useState(false);
+  const [biometricSetupOpen, setBiometricSetupOpen] = useState(false);
+  const [biometricEmail, setBiometricEmail] = useState("");
+  const [biometricPassword, setBiometricPassword] = useState("");
 
   // Dialog states
   const [changePinOpen, setChangePinOpen] = useState(false);
