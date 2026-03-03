@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Lock, Loader2, Eye, EyeOff } from "lucide-react";
+import { Lock, Loader2, Eye, EyeOff, Fingerprint } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useBiometric } from "@/hooks/useBiometric";
 
 interface PinEntryDialogProps {
   open: boolean;
@@ -35,7 +36,9 @@ const PinEntryDialog = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPin, setShowPin] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const { transactionEnabled, biometricVerifyTransaction } = useBiometric();
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -204,26 +207,64 @@ const PinEntryDialog = ({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 pt-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isLoading}
-            className="flex-1 h-12 rounded-xl"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={isLoading || pin.some((d) => !d)}
-            className="flex-1 h-12 rounded-xl"
-          >
-            {isLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              "Confirm"
-            )}
-          </Button>
+        <div className="flex flex-col gap-3 pt-2">
+          {/* Biometric option */}
+          {transactionEnabled && (
+            <Button
+              variant="outline"
+              onClick={async () => {
+                setBiometricLoading(true);
+                setError("");
+                try {
+                  const result = await biometricVerifyTransaction();
+                  if (result.success) {
+                    // Use a special marker to indicate biometric-verified
+                    await onSubmit("__biometric_verified__");
+                    onOpenChange(false);
+                  } else {
+                    setError(result.error || "Fingerprint failed. Use PIN instead.");
+                  }
+                } catch (err: any) {
+                  setError(err.message || "Fingerprint failed");
+                } finally {
+                  setBiometricLoading(false);
+                }
+              }}
+              disabled={isLoading || biometricLoading}
+              className="h-12 rounded-xl gap-2 border-primary/30"
+            >
+              {biometricLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <>
+                  <Fingerprint className="h-5 w-5 text-primary" />
+                  Verify with Fingerprint
+                </>
+              )}
+            </Button>
+          )}
+
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isLoading || biometricLoading}
+              className="flex-1 h-12 rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={isLoading || biometricLoading || pin.some((d) => !d)}
+              className="flex-1 h-12 rounded-xl"
+            >
+              {isLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                "Confirm"
+              )}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
