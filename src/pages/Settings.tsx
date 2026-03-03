@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { useWallet } from "@/hooks/useWallet";
 import { useVirtualAccount } from "@/hooks/useVirtualAccount";
 import { supabase } from "@/integrations/supabase/client";
+import { useBiometric } from "@/hooks/useBiometric";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -79,6 +80,14 @@ const Settings = () => {
   const { user, profile, signOut } = useAuth();
   const { wallet } = useWallet();
   const { virtualAccount } = useVirtualAccount();
+  const {
+    available: biometricAvailable,
+    loginEnabled: biometricLoginEnabled,
+    transactionEnabled: biometricTransactionEnabled,
+    enableBiometricLogin,
+    disableBiometricLogin,
+    toggleTransactionBiometric,
+  } = useBiometric();
 
   // Preferences state
   const [darkMode, setDarkMode] = useState(() => {
@@ -91,7 +100,9 @@ const Settings = () => {
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [transactionAlerts, setTransactionAlerts] = useState(true);
   const [autoFundingNotifications, setAutoFundingNotifications] = useState(true);
-  const [biometricLogin, setBiometricLogin] = useState(false);
+  const [biometricSetupOpen, setBiometricSetupOpen] = useState(false);
+  const [biometricEmail, setBiometricEmail] = useState("");
+  const [biometricPassword, setBiometricPassword] = useState("");
 
   // Dialog states
   const [changePinOpen, setChangePinOpen] = useState(false);
@@ -224,12 +235,35 @@ const Settings = () => {
         {
           icon: Fingerprint,
           label: "Biometric Login",
-          description: "Enable fingerprint or Face ID",
-          toggle: true,
-          value: biometricLogin,
-          onToggle: (value) => {
-            setBiometricLogin(value);
-            toast.success(value ? "Biometric login enabled" : "Biometric login disabled");
+          description: biometricAvailable
+            ? biometricLoginEnabled ? "Fingerprint login is active" : "Enable fingerprint login"
+            : "Not available on this device",
+          toggle: biometricAvailable,
+          value: biometricLoginEnabled,
+          onToggle: async (value) => {
+            if (value) {
+              setBiometricSetupOpen(true);
+            } else {
+              await disableBiometricLogin();
+              toast.success("Biometric login disabled");
+            }
+          },
+        },
+        {
+          icon: Fingerprint,
+          label: "Fingerprint for Transactions",
+          description: biometricAvailable
+            ? biometricTransactionEnabled ? "Use fingerprint instead of PIN" : "Enable for transactions"
+            : "Not available on this device",
+          toggle: biometricAvailable,
+          value: biometricTransactionEnabled,
+          onToggle: async (value) => {
+            const result = await toggleTransactionBiometric(value);
+            if (result?.success) {
+              toast.success(value ? "Fingerprint enabled for transactions" : "Fingerprint disabled for transactions");
+            } else if (result?.error) {
+              toast.error(result.error);
+            }
           },
         },
       ],
@@ -616,6 +650,67 @@ const Settings = () => {
               Cancel
             </Button>
             <Button onClick={handleChangePin}>Set PIN</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Biometric Setup Dialog */}
+      <Dialog open={biometricSetupOpen} onOpenChange={setBiometricSetupOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Fingerprint className="h-5 w-5 text-primary" />
+              Enable Fingerprint Login
+            </DialogTitle>
+            <DialogDescription>
+              Enter your login credentials to link fingerprint authentication to this device. Your credentials will be stored securely in encrypted storage.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="biometricEmail">Email</Label>
+              <Input
+                id="biometricEmail"
+                type="email"
+                value={biometricEmail}
+                onChange={(e) => setBiometricEmail(e.target.value)}
+                placeholder="Your login email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="biometricPassword">Password</Label>
+              <Input
+                id="biometricPassword"
+                type="password"
+                value={biometricPassword}
+                onChange={(e) => setBiometricPassword(e.target.value)}
+                placeholder="Your login password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBiometricSetupOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!biometricEmail || !biometricPassword) {
+                  toast.error("Please enter your credentials");
+                  return;
+                }
+                const result = await enableBiometricLogin(biometricEmail, biometricPassword);
+                if (result.success) {
+                  toast.success("Fingerprint login enabled! You can now login with your fingerprint.");
+                  setBiometricSetupOpen(false);
+                  setBiometricEmail("");
+                  setBiometricPassword("");
+                } else {
+                  toast.error(result.error || "Failed to enable fingerprint login");
+                }
+              }}
+            >
+              Enable Fingerprint
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

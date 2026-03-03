@@ -491,6 +491,39 @@ export type Database = {
         }
         Relationships: []
       }
+      trusted_devices: {
+        Row: {
+          biometric_enabled: boolean | null
+          created_at: string
+          device_id: string
+          device_name: string | null
+          id: string
+          last_used_at: string
+          platform: string | null
+          user_id: string
+        }
+        Insert: {
+          biometric_enabled?: boolean | null
+          created_at?: string
+          device_id: string
+          device_name?: string | null
+          id?: string
+          last_used_at?: string
+          platform?: string | null
+          user_id: string
+        }
+        Update: {
+          biometric_enabled?: boolean | null
+          created_at?: string
+          device_id?: string
+          device_name?: string | null
+          id?: string
+          last_used_at?: string
+          platform?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
