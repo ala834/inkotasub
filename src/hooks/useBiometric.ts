@@ -110,7 +110,7 @@ export function useBiometric() {
     [refresh]
   );
 
-  const biometricLogin = useCallback(async () => {
+  const biometricLogin = useCallback(async (): Promise<{ success: boolean; error?: string; email?: string; password?: string }> => {
     if (locked) {
       return { success: false, error: "Too many failed attempts. Use password." };
     }
@@ -121,7 +121,6 @@ export function useBiometric() {
       return result;
     }
 
-    // Verify device binding
     const creds = await getStoredCredentials();
     if (!creds?.email || !creds?.password) {
       return { success: false, error: "No stored credentials. Please login with password first." };

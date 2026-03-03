@@ -6,6 +6,8 @@ import { Device } from "@capacitor/device";
 interface BiometricResult {
   success: boolean;
   error?: string;
+  email?: string;
+  password?: string;
 }
 
 interface StoredCredentials {
