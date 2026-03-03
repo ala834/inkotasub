@@ -235,12 +235,35 @@ const Settings = () => {
         {
           icon: Fingerprint,
           label: "Biometric Login",
-          description: "Enable fingerprint or Face ID",
-          toggle: true,
-          value: biometricLogin,
-          onToggle: (value) => {
-            setBiometricLogin(value);
-            toast.success(value ? "Biometric login enabled" : "Biometric login disabled");
+          description: biometricAvailable
+            ? biometricLoginEnabled ? "Fingerprint login is active" : "Enable fingerprint login"
+            : "Not available on this device",
+          toggle: biometricAvailable,
+          value: biometricLoginEnabled,
+          onToggle: async (value) => {
+            if (value) {
+              setBiometricSetupOpen(true);
+            } else {
+              await disableBiometricLogin();
+              toast.success("Biometric login disabled");
+            }
+          },
+        },
+        {
+          icon: Fingerprint,
+          label: "Fingerprint for Transactions",
+          description: biometricAvailable
+            ? biometricTransactionEnabled ? "Use fingerprint instead of PIN" : "Enable for transactions"
+            : "Not available on this device",
+          toggle: biometricAvailable,
+          value: biometricTransactionEnabled,
+          onToggle: async (value) => {
+            const result = await toggleTransactionBiometric(value);
+            if (result?.success) {
+              toast.success(value ? "Fingerprint enabled for transactions" : "Fingerprint disabled for transactions");
+            } else if (result?.error) {
+              toast.error(result.error);
+            }
           },
         },
       ],
