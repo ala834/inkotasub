@@ -13,12 +13,13 @@ interface VirtualAccountWithProfile {
   account_number: string;
   account_name: string;
   bank_name: string;
+  bank_code: string | null;
+  customer_code: string | null;
+  dva_id: string | null;
   is_active: boolean | null;
   created_at: string;
-  profile?: {
-    full_name: string | null;
-  };
-  user_email?: string;
+  full_name: string | null;
+  phone_number: string | null;
 }
 
 const AdminVirtualAccountsTab = () => {
@@ -33,22 +34,28 @@ const AdminVirtualAccountsTab = () => {
 
   const fetchAccounts = async () => {
     setIsLoading(true);
-    
-    // Fetch virtual accounts with profiles
+
     const { data: accountsData, error } = await supabase
       .from("virtual_accounts")
-      .select(`
-        *,
-        profile:profiles!virtual_accounts_user_id_fkey(full_name)
-      `)
+      .select("*")
       .order("created_at", { ascending: false });
 
     if (!error && accountsData) {
+      const userIds = accountsData.map((a) => a.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, phone_number")
+        .in("user_id", userIds);
+
+      const profileMap = new Map(
+        (profiles || []).map((p) => [p.user_id, p])
+      );
+
       setAccounts(
         accountsData.map((a) => ({
           ...a,
-          profile: Array.isArray(a.profile) ? a.profile[0] : a.profile,
-          user_email: "User",
+          full_name: profileMap.get(a.user_id)?.full_name || null,
+          phone_number: profileMap.get(a.user_id)?.phone_number || null,
         }))
       );
     }
@@ -71,9 +78,10 @@ const AdminVirtualAccountsTab = () => {
     return (
       account.account_number?.includes(searchQuery) ||
       account.account_name?.toLowerCase().includes(searchLower) ||
-      account.profile?.full_name?.toLowerCase().includes(searchLower) ||
-      account.user_email?.toLowerCase().includes(searchLower) ||
-      account.bank_name?.toLowerCase().includes(searchLower)
+      account.full_name?.toLowerCase().includes(searchLower) ||
+      account.phone_number?.includes(searchQuery) ||
+      account.bank_name?.toLowerCase().includes(searchLower) ||
+      account.customer_code?.toLowerCase().includes(searchLower)
     );
   });
 
@@ -136,10 +144,10 @@ const AdminVirtualAccountsTab = () => {
                     </div>
                     <div className="min-w-0">
                       <p className="font-medium truncate">
-                        {account.profile?.full_name || "Unknown User"}
+                        {account.full_name || "Unknown User"}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {account.user_email}
+                        {account.phone_number || "No phone"}
                       </p>
                       <div className="mt-2 space-y-1">
                         <div className="flex items-center gap-2">
