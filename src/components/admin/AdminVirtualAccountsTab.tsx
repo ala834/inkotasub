@@ -74,6 +74,24 @@ const AdminVirtualAccountsTab = () => {
     }
   };
 
+  const toggleAccountStatus = async (accountId: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    const { error } = await supabase
+      .from("virtual_accounts")
+      .update({ is_active: newStatus })
+      .eq("id", accountId);
+
+    if (error) {
+      toast.error("Failed to update account status");
+      return;
+    }
+
+    setAccounts((prev) =>
+      prev.map((a) => (a.id === accountId ? { ...a, is_active: newStatus } : a))
+    );
+    toast.success(`Account ${newStatus ? "activated" : "deactivated"}`);
+  };
+
   const filteredAccounts = accounts.filter((account) => {
     const searchLower = searchQuery.toLowerCase();
     return (
