@@ -78,71 +78,104 @@ serve(async (req) => {
       });
     }
 
+    // Parse user's name properly
+    const nameParts = customerName.trim().split(/\s+/);
+    const firstName = nameParts[0] || "Customer";
+    const lastName = nameParts.slice(1).join(" ") || firstName;
+
     // Step 1: Create or get Paystack customer
     let customerCode = "";
     
-    // Check if customer exists on Paystack
-    const listCustomersRes = await fetch(
-      `https://api.paystack.co/customer?email=${encodeURIComponent(user.email!)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${paystackSecretKey}`,
-        },
-      }
-    );
+    // Check if we already have a customer_code stored in DB for this user
+    const { data: existingVA } = await supabase
+      .from("virtual_accounts")
+      .select("customer_code")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-    const listCustomersData = await listCustomersRes.json();
-    
-    if (listCustomersData.data && listCustomersData.data.length > 0) {
-      customerCode = listCustomersData.data[0].customer_code;
-      console.log("Found existing Paystack customer:", customerCode);
-
-      // Update existing customer with phone number if missing
-      if (customerPhone && !listCustomersData.data[0].phone) {
-        console.log("Updating existing customer with phone number...");
-        const updateRes = await fetch(
-          `https://api.paystack.co/customer/${customerCode}`,
-          {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${paystackSecretKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ phone: customerPhone }),
-          }
-        );
-        const updateData = await updateRes.json();
-        console.log("Customer update response:", JSON.stringify(updateData));
-      }
+    if (existingVA?.customer_code) {
+      customerCode = existingVA.customer_code;
+      console.log("Using stored customer_code:", customerCode);
     } else {
-      // Create new customer
-      const createCustomerRes = await fetch("https://api.paystack.co/customer", {
-        method: "POST",
+      // Look up customer on Paystack by email
+      const listCustomersRes = await fetch(
+        `https://api.paystack.co/customer?email=${encodeURIComponent(user.email!)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${paystackSecretKey}`,
+          },
+        }
+      );
+
+      const listCustomersData = await listCustomersRes.json();
+      
+      // Find a customer that matches this user (check metadata user_id if available)
+      let matchedCustomer = null;
+      if (listCustomersData.data && listCustomersData.data.length > 0) {
+        // Prefer a customer whose metadata.user_id matches
+        matchedCustomer = listCustomersData.data.find(
+          (c: any) => c.metadata?.user_id === user.id
+        );
+        // Fallback: if only one customer exists for this email, use it
+        if (!matchedCustomer && listCustomersData.data.length === 1) {
+          matchedCustomer = listCustomersData.data[0];
+        }
+      }
+
+      if (matchedCustomer) {
+        customerCode = matchedCustomer.customer_code;
+        console.log("Found existing Paystack customer:", customerCode);
+      } else {
+        // Create new customer with correct name
+        const createCustomerRes = await fetch("https://api.paystack.co/customer", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${paystackSecretKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: user.email,
+            first_name: firstName,
+            last_name: lastName,
+            phone: customerPhone,
+            metadata: {
+              user_id: user.id,
+            },
+          }),
+        });
+
+        const createCustomerData = await createCustomerRes.json();
+        
+        if (!createCustomerData.status) {
+          console.error("Failed to create Paystack customer:", createCustomerData);
+          throw new Error(createCustomerData.message || "Failed to create customer");
+        }
+
+        customerCode = createCustomerData.data.customer_code;
+        console.log("Created new Paystack customer:", customerCode);
+      }
+    }
+
+    // Always update Paystack customer with latest name and phone to ensure DVA name matches
+    console.log("Syncing customer details:", { firstName, lastName, phone: customerPhone });
+    const updateRes = await fetch(
+      `https://api.paystack.co/customer/${customerCode}`,
+      {
+        method: "PUT",
         headers: {
           Authorization: `Bearer ${paystackSecretKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email: user.email,
-          first_name: customerName.split(" ")[0],
-          last_name: customerName.split(" ").slice(1).join(" ") || customerName,
+          first_name: firstName,
+          last_name: lastName,
           phone: customerPhone,
-          metadata: {
-            user_id: user.id,
-          },
+          metadata: { user_id: user.id },
         }),
-      });
-
-      const createCustomerData = await createCustomerRes.json();
-      
-      if (!createCustomerData.status) {
-        console.error("Failed to create Paystack customer:", createCustomerData);
-        throw new Error(createCustomerData.message || "Failed to create customer");
       }
-
-      customerCode = createCustomerData.data.customer_code;
-      console.log("Created new Paystack customer:", customerCode);
-    }
+    );
+    const updateData = await updateRes.json();
+    console.log("Customer sync response:", updateData.status);
 
     // Step 2: Create Dedicated Virtual Account
     const createDVARes = await fetch("https://api.paystack.co/dedicated_account", {
