@@ -67,6 +67,17 @@ serve(async (req) => {
     const customerName = profile?.full_name || user.email?.split("@")[0] || "Customer";
     const customerPhone = profile?.phone_number || "";
 
+    if (!customerPhone) {
+      console.log("No phone number found for user, cannot create DVA");
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: "Please add your phone number in your profile before creating a virtual account."
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Step 1: Create or get Paystack customer
     let customerCode = "";
     
@@ -85,6 +96,24 @@ serve(async (req) => {
     if (listCustomersData.data && listCustomersData.data.length > 0) {
       customerCode = listCustomersData.data[0].customer_code;
       console.log("Found existing Paystack customer:", customerCode);
+
+      // Update existing customer with phone number if missing
+      if (customerPhone && !listCustomersData.data[0].phone) {
+        console.log("Updating existing customer with phone number...");
+        const updateRes = await fetch(
+          `https://api.paystack.co/customer/${customerCode}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${paystackSecretKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ phone: customerPhone }),
+          }
+        );
+        const updateData = await updateRes.json();
+        console.log("Customer update response:", JSON.stringify(updateData));
+      }
     } else {
       // Create new customer
       const createCustomerRes = await fetch("https://api.paystack.co/customer", {
