@@ -78,9 +78,10 @@ const AdminVirtualAccountsTab = () => {
     return (
       account.account_number?.includes(searchQuery) ||
       account.account_name?.toLowerCase().includes(searchLower) ||
-      account.profile?.full_name?.toLowerCase().includes(searchLower) ||
-      account.user_email?.toLowerCase().includes(searchLower) ||
-      account.bank_name?.toLowerCase().includes(searchLower)
+      account.full_name?.toLowerCase().includes(searchLower) ||
+      account.phone_number?.includes(searchQuery) ||
+      account.bank_name?.toLowerCase().includes(searchLower) ||
+      account.customer_code?.toLowerCase().includes(searchLower)
     );
   });
 
@@ -143,10 +144,10 @@ const AdminVirtualAccountsTab = () => {
                     </div>
                     <div className="min-w-0">
                       <p className="font-medium truncate">
-                        {account.profile?.full_name || "Unknown User"}
+                        {account.full_name || "Unknown User"}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {account.user_email}
+                        {account.phone_number || "No phone"}
                       </p>
                       <div className="mt-2 space-y-1">
                         <div className="flex items-center gap-2">
