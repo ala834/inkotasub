@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Building2, Copy, Check, RefreshCw } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -71,6 +72,24 @@ const AdminVirtualAccountsTab = () => {
     } catch (err) {
       toast.error("Failed to copy");
     }
+  };
+
+  const toggleAccountStatus = async (accountId: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    const { error } = await supabase
+      .from("virtual_accounts")
+      .update({ is_active: newStatus })
+      .eq("id", accountId);
+
+    if (error) {
+      toast.error("Failed to update account status");
+      return;
+    }
+
+    setAccounts((prev) =>
+      prev.map((a) => (a.id === accountId ? { ...a, is_active: newStatus } : a))
+    );
+    toast.success(`Account ${newStatus ? "activated" : "deactivated"}`);
   };
 
   const filteredAccounts = accounts.filter((account) => {
@@ -178,6 +197,10 @@ const AdminVirtualAccountsTab = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
+                    <Switch
+                      checked={!!account.is_active}
+                      onCheckedChange={() => toggleAccountStatus(account.id, !!account.is_active)}
+                    />
                     <div className={cn(
                       "px-2 py-1 rounded-full text-xs font-medium",
                       account.is_active ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
