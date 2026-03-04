@@ -197,6 +197,10 @@ const AdminVirtualAccountsTab = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
+                    <Switch
+                      checked={!!account.is_active}
+                      onCheckedChange={() => toggleAccountStatus(account.id, !!account.is_active)}
+                    />
                     <div className={cn(
                       "px-2 py-1 rounded-full text-xs font-medium",
                       account.is_active ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
