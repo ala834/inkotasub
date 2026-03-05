@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -68,12 +67,9 @@ const AdminProvidersTab = () => {
       data: "Data",
       electricity: "Electricity",
       cable: "Cable TV",
+      exam_pin: "Exam Cards",
     };
     return labels[type] || type;
-  };
-
-  const getProviderBadgeColor = (provider: string) => {
-    return provider === 'subpadi' ? 'bg-blue-500/10 text-blue-600' : 'bg-purple-500/10 text-purple-600';
   };
 
   if (isLoading) {
@@ -94,7 +90,7 @@ const AdminProvidersTab = () => {
               <div>
                 <CardTitle>VTU Provider Configuration</CardTitle>
                 <CardDescription>
-                  Manage primary and fallback providers per service and network
+                  All services route through SMEPlug as the primary provider
                 </CardDescription>
               </div>
             </div>
@@ -111,9 +107,7 @@ const AdminProvidersTab = () => {
                 <TableRow>
                   <TableHead>Service</TableHead>
                   <TableHead>Network</TableHead>
-                  <TableHead>Primary Provider</TableHead>
-                  <TableHead>Fallback Provider</TableHead>
-                  <TableHead>Fallback Enabled</TableHead>
+                  <TableHead>Provider</TableHead>
                   <TableHead>Active</TableHead>
                 </TableRow>
               </TableHeader>
@@ -135,48 +129,9 @@ const AdminProvidersTab = () => {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={config.primary_provider}
-                        onValueChange={(value) => updateConfig(config.id, { primary_provider: value })}
-                        disabled={saving === config.id}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="subpadi">
-                            <span className={getProviderBadgeColor('subpadi')}>SUBPADI</span>
-                          </SelectItem>
-                          <SelectItem value="smeplug">
-                            <span className={getProviderBadgeColor('smeplug')}>SMEPlug</span>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={config.fallback_provider || "none"}
-                        onValueChange={(value) => updateConfig(config.id, { 
-                          fallback_provider: value === "none" ? null : value 
-                        })}
-                        disabled={saving === config.id}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          <SelectItem value="subpadi">SUBPADI</SelectItem>
-                          <SelectItem value="smeplug">SMEPlug</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={config.fallback_enabled}
-                        onCheckedChange={(checked) => updateConfig(config.id, { fallback_enabled: checked })}
-                        disabled={saving === config.id || !config.fallback_provider}
-                      />
+                      <Badge className="bg-primary/10 text-primary">
+                        SMEPlug
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <Switch
@@ -196,34 +151,22 @@ const AdminProvidersTab = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <Shield className="h-5 w-5 text-green-600" />
+            <Shield className="h-5 w-5 text-primary" />
             <div>
-              <CardTitle>Provider Failover Logic</CardTitle>
-              <CardDescription>How the system handles provider failures</CardDescription>
+              <CardTitle>Provider Information</CardTitle>
+              <CardDescription>Current VTU provider details</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4 text-sm">
-            <div className="p-4 rounded-lg bg-muted/50">
-              <h4 className="font-medium mb-2">Automatic Failover Process:</h4>
-              <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
-                <li>System attempts transaction with the <strong>Primary Provider</strong></li>
-                <li>If primary fails and <strong>Fallback Enabled</strong> is on, system retries with Fallback Provider</li>
-                <li>If both providers fail, transaction is marked as failed and <strong>no wallet deduction</strong> occurs</li>
-                <li>All provider responses are logged for admin review</li>
-              </ol>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-lg border">
-                <h5 className="font-medium text-blue-600 mb-1">SUBPADI</h5>
-                <p className="text-muted-foreground text-xs">Primary VTU provider with comprehensive service coverage</p>
-              </div>
-              <div className="p-4 rounded-lg border">
-                <h5 className="font-medium text-purple-600 mb-1">SMEPlug</h5>
-                <p className="text-muted-foreground text-xs">Backup provider for failover and redundancy</p>
-              </div>
-            </div>
+          <div className="p-4 rounded-lg bg-muted/50">
+            <h4 className="font-medium mb-2">SMEPlug — Sole VTU Provider</h4>
+            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+              <li>Handles all airtime, data, electricity, cable TV, and exam card purchases</li>
+              <li>All transactions are processed directly through SMEPlug API</li>
+              <li>Failed transactions result in <strong>no wallet deduction</strong></li>
+              <li>All responses are logged for admin review</li>
+            </ul>
           </div>
         </CardContent>
       </Card>

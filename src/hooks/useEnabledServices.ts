@@ -15,7 +15,7 @@ export const useEnabledServices = () => {
     airtime: true,
     electricity: true,
     cable: true,
-    exam_pin: false, // Disabled by default as SUBPADI doesn't support it
+    exam_pin: true, // Enabled via SMEPlug provider
   });
   const [isLoading, setIsLoading] = useState(true);
 

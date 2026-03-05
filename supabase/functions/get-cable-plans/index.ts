@@ -14,83 +14,66 @@ serve(async (req) => {
   try {
     const { provider } = await req.json();
     const authHeader = req.headers.get("Authorization");
-    
-    // Default to user pricing if not authenticated
+
     let isAgent = false;
-    
     if (authHeader?.startsWith("Bearer ")) {
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL")!,
         Deno.env.get("SUPABASE_ANON_KEY")!,
         { global: { headers: { Authorization: authHeader } } }
       );
-
       const token = authHeader.replace("Bearer ", "");
       const { data: claims } = await supabase.auth.getClaims(token);
-      
       if (claims?.claims?.sub) {
         const userId = claims.claims.sub;
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("is_agent")
-          .eq("user_id", userId)
-          .single();
-        
+        const { data: profile } = await supabase.from("profiles").select("is_agent").eq("user_id", userId).single();
         isAgent = profile?.is_agent || false;
       }
     }
 
-    // Call SUBPADI API to get real cable plans
-    const subpadiApiKey = Deno.env.get("SUBPADI_API_KEY");
-    const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
-
+    // Call SMEPlug API for cable plans
+    const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
     let basePlans = [];
 
-    if (subpadiApiKey && subpadiToken) {
+    if (smeplugApiKey) {
       try {
-        console.log("Fetching cable plans from SUBPADI for provider:", provider);
-        
-        const response = await fetch("https://subpadi.com/api/cable/plans", {
-          method: "POST",
+        console.log("Fetching cable plans from SMEPlug for provider:", provider);
+
+        const response = await fetch(`https://smeplug.ng/api/v1/cable/plans?service_id=${provider.toLowerCase()}`, {
+          method: "GET",
           headers: {
-            "Authorization": `Bearer ${subpadiToken}`,
+            "Authorization": `Bearer ${smeplugApiKey}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            api_key: subpadiApiKey,
-            provider: provider.toUpperCase(),
-          }),
         });
 
         const apiResponse = await response.json();
-        console.log("SUBPADI cable plans response:", apiResponse);
+        console.log("SMEPlug cable plans response:", JSON.stringify(apiResponse).substring(0, 500));
 
-        if (apiResponse?.status === "success" && apiResponse?.data?.plans) {
-          basePlans = apiResponse.data.plans.map((plan: any) => ({
-            id: plan.plan_id || plan.id,
-            name: plan.name || plan.plan_name,
-            amount: parseFloat(plan.amount || plan.price),
+        if (apiResponse?.status === "success" && apiResponse?.data) {
+          const plans = Array.isArray(apiResponse.data) ? apiResponse.data : apiResponse.data?.plans || [];
+          basePlans = plans.map((plan: any) => ({
+            id: plan.plan_id || plan.id?.toString(),
+            name: plan.plan_name || plan.name,
+            amount: parseFloat(plan.price || plan.amount || 0),
           }));
         } else {
           basePlans = getFallbackPlans(provider);
         }
       } catch (apiError) {
-        console.error("SUBPADI API error:", apiError);
+        console.error("SMEPlug API error:", apiError);
         basePlans = getFallbackPlans(provider);
       }
     } else {
       basePlans = getFallbackPlans(provider);
     }
-    
-    // Get pricing config from database
+
+    // Get pricing config
     const adminSupabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-    
     const userType = isAgent ? 'agent' : 'user';
-    
-    // Fetch all applicable pricing configs
     const { data: pricingConfigs } = await adminSupabase
       .from("pricing_config")
       .select("*")
@@ -98,21 +81,13 @@ serve(async (req) => {
       .eq("is_active", true)
       .eq("user_type", userType);
 
-    // Apply pricing to each plan
     const pricedPlans = basePlans.map((plan: any) => {
       const costPrice = plan.amount;
-      
-      // Find the most specific pricing config
-      const config = pricingConfigs?.find(
-        (c: any) => c.network === provider.toUpperCase() && c.plan_id === plan.id
-      ) || pricingConfigs?.find(
-        (c: any) => c.network === provider.toUpperCase() && !c.plan_id
-      ) || pricingConfigs?.find(
-        (c: any) => !c.network && !c.plan_id
-      );
+      const config = pricingConfigs?.find((c: any) => c.network === provider.toUpperCase() && c.plan_id === plan.id)
+        || pricingConfigs?.find((c: any) => c.network === provider.toUpperCase() && !c.plan_id)
+        || pricingConfigs?.find((c: any) => !c.network && !c.plan_id);
 
       let finalPrice = costPrice;
-      
       if (config) {
         if (config.profit_type === 'percentage') {
           finalPrice = Math.round(costPrice * (1 + config.profit_value / 100));
@@ -121,10 +96,7 @@ serve(async (req) => {
         }
       }
 
-      return {
-        ...plan,
-        amount: finalPrice,
-      };
+      return { ...plan, amount: finalPrice };
     });
 
     return new Response(
@@ -141,7 +113,6 @@ serve(async (req) => {
 });
 
 function getFallbackPlans(provider: string) {
-  // Fallback plans based on current pricing (updated regularly)
   if (provider.toLowerCase() === "dstv") {
     return [
       { id: "dstv_padi", name: "DStv Padi", amount: 2500 },

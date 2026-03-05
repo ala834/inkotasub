@@ -5,6 +5,21 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Map disco codes to SMEPlug format
+const discoMapping: Record<string, string> = {
+  "ikeja": "ikeja-electric",
+  "eko": "eko-electric",
+  "abuja": "abuja-electric",
+  "kano": "kano-electric",
+  "port-harcourt": "portharcourt-electric",
+  "ibadan": "ibadan-electric",
+  "kaduna": "kaduna-electric",
+  "jos": "jos-electric",
+  "enugu": "enugu-electric",
+  "benin": "benin-electric",
+  "yola": "yola-electric",
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -13,58 +28,38 @@ serve(async (req) => {
   try {
     const { disco, meterNumber, meterType } = await req.json();
 
-    const subpadiApiKey = Deno.env.get("SUBPADI_API_KEY");
-    const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
-
-    if (!subpadiApiKey || !subpadiToken) {
-      console.error("SUBPADI credentials not configured");
+    const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
+    if (!smeplugApiKey) {
+      console.error("SMEPLUG_API_KEY not configured");
       return new Response(
         JSON.stringify({ error: "Service temporarily unavailable" }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Map disco codes to SUBPADI format
-    const discoMapping: Record<string, string> = {
-      "ikeja": "IKEDC",
-      "eko": "EKEDC",
-      "abuja": "AEDC",
-      "kano": "KEDCO",
-      "port-harcourt": "PHED",
-      "ibadan": "IBEDC",
-      "kaduna": "KAEDCO",
-      "jos": "JED",
-      "enugu": "EEDC",
-      "benin": "BEDC",
-      "yola": "YEDC",
-    };
+    const discoCode = discoMapping[disco.toLowerCase()] || disco.toLowerCase();
+    console.log("Validating meter via SMEPlug:", { disco: discoCode, meterNumber, meterType });
 
-    const discoCode = discoMapping[disco.toLowerCase()] || disco.toUpperCase();
-
-    console.log("Validating meter:", { disco: discoCode, meterNumber, meterType });
-
-    // Call SUBPADI meter validation API
-    const response = await fetch("https://subpadi.com/api/electricity/verify", {
+    const response = await fetch("https://smeplug.ng/api/v1/electricity/verify", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${subpadiToken}`,
+        "Authorization": `Bearer ${smeplugApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        api_key: subpadiApiKey,
-        disco: discoCode,
+        service_id: discoCode,
         meter_number: meterNumber,
-        meter_type: meterType.toUpperCase(),
+        meter_type: meterType.toLowerCase(),
       }),
     });
 
     const apiResponse = await response.json();
-    console.log("SUBPADI meter validation response:", apiResponse);
+    console.log("SMEPlug meter validation response:", apiResponse);
 
-    if (apiResponse?.status === "success" || apiResponse?.code === "000") {
+    if (apiResponse?.status === "success" || apiResponse?.success === true) {
       return new Response(
-        JSON.stringify({ 
-          customerName: apiResponse.data?.customer_name || apiResponse.customer_name || `Customer ${meterNumber.slice(-4)}`,
+        JSON.stringify({
+          customerName: apiResponse.data?.customer_name || apiResponse.data?.name || `Customer ${meterNumber.slice(-4)}`,
           meterNumber,
           disco: discoCode,
           meterType,
@@ -76,9 +71,9 @@ serve(async (req) => {
     } else {
       console.error("Meter validation failed:", apiResponse);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: apiResponse?.message || "Invalid meter number or details",
-          validated: false 
+          validated: false,
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

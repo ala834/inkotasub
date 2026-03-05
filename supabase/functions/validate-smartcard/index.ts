@@ -13,53 +13,41 @@ serve(async (req) => {
   try {
     const { provider, smartCardNumber } = await req.json();
 
-    const subpadiApiKey = Deno.env.get("SUBPADI_API_KEY");
-    const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
-
-    if (!subpadiApiKey || !subpadiToken) {
-      console.error("SUBPADI credentials not configured");
+    const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
+    if (!smeplugApiKey) {
+      console.error("SMEPLUG_API_KEY not configured");
       return new Response(
         JSON.stringify({ error: "Service temporarily unavailable" }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Map provider to SUBPADI format
-    const providerMapping: Record<string, string> = {
-      "dstv": "DSTV",
-      "gotv": "GOTV",
-      "startimes": "STARTIMES",
-    };
+    const providerCode = provider.toLowerCase();
+    console.log("Validating smartcard via SMEPlug:", { provider: providerCode, smartCardNumber });
 
-    const providerCode = providerMapping[provider.toLowerCase()] || provider.toUpperCase();
-
-    console.log("Validating smartcard:", { provider: providerCode, smartCardNumber });
-
-    // Call SUBPADI smartcard validation API
-    const response = await fetch("https://subpadi.com/api/cable/verify", {
+    const response = await fetch("https://smeplug.ng/api/v1/cable/verify", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${subpadiToken}`,
+        "Authorization": `Bearer ${smeplugApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        api_key: subpadiApiKey,
-        provider: providerCode,
+        service_id: providerCode,
         smartcard_number: smartCardNumber,
       }),
     });
 
     const apiResponse = await response.json();
-    console.log("SUBPADI smartcard validation response:", apiResponse);
+    console.log("SMEPlug smartcard validation response:", apiResponse);
 
-    if (apiResponse?.status === "success" || apiResponse?.code === "000") {
+    if (apiResponse?.status === "success" || apiResponse?.success === true) {
       return new Response(
-        JSON.stringify({ 
-          customerName: apiResponse.data?.customer_name || apiResponse.customer_name || `Customer ${smartCardNumber.slice(-4)}`,
+        JSON.stringify({
+          customerName: apiResponse.data?.customer_name || apiResponse.data?.name || `Customer ${smartCardNumber.slice(-4)}`,
           smartCardNumber,
-          provider: providerCode,
+          provider: providerCode.toUpperCase(),
           validated: true,
-          currentBouquet: apiResponse.data?.current_bouquet || null,
+          currentBouquet: apiResponse.data?.current_bouquet || apiResponse.data?.current_plan || null,
           dueDate: apiResponse.data?.due_date || null,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -67,9 +55,9 @@ serve(async (req) => {
     } else {
       console.error("Smartcard validation failed:", apiResponse);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: apiResponse?.message || "Invalid smart card number",
-          validated: false 
+          validated: false,
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
