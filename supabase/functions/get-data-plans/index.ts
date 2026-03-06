@@ -15,6 +15,17 @@ const NETWORK_MAP: Record<string, number> = {
   'ETISALAT': 4,
 };
 
+// Plan type categories based on plan name patterns
+function categorizePlan(planName: string): string {
+  const name = planName.toUpperCase();
+  if (name.includes('CORPORATE') || name.includes('CG')) return 'Corporate';
+  if (name.includes('GIFTING') || name.includes('GIFT')) return 'Gifting';
+  if (name.includes('DIRECT')) return 'Direct';
+  if (name.includes('SME2') || name.includes('SME 2')) return 'SME2';
+  if (name.includes('SME')) return 'SME';
+  return 'General';
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -40,9 +51,8 @@ serve(async (req) => {
       }
     }
 
-    // Call SMEPlug API to get data plans
     const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
-    let basePlans = [];
+    let basePlans: any[] = [];
 
     if (smeplugApiKey) {
       try {
@@ -58,21 +68,54 @@ serve(async (req) => {
         });
 
         const apiResponse = await response.json();
-        console.log("SMEPlug data plans response:", JSON.stringify(apiResponse).substring(0, 500));
+        console.log("SMEPlug API status:", apiResponse?.status, "type:", typeof apiResponse?.status);
 
-        if (apiResponse?.status === "success" && apiResponse?.data) {
-          const plans = Array.isArray(apiResponse.data) ? apiResponse.data : apiResponse.data?.plans || [];
-          basePlans = plans.map((plan: any) => ({
-            id: plan.plan_id || plan.id?.toString(),
-            name: plan.plan_name || plan.name,
-            amount: parseFloat(plan.price || plan.amount || 0),
-            baseAmount: parseFloat(plan.price || plan.amount || 0),
-            validity: plan.validity || plan.duration || "30 Days",
-            dataSize: extractDataSize(plan.plan_name || plan.name || ""),
-          }));
+        // SMEPlug returns { status: true, data: { "1": [...plans] } }
+        if ((apiResponse?.status === true || apiResponse?.status === "success") && apiResponse?.data) {
+          let plans: any[] = [];
+
+          // Handle keyed format: { "1": [...], "2": [...] }
+          if (typeof apiResponse.data === 'object' && !Array.isArray(apiResponse.data)) {
+            for (const key of Object.keys(apiResponse.data)) {
+              const group = apiResponse.data[key];
+              if (Array.isArray(group)) {
+                plans = plans.concat(group);
+              }
+            }
+          } else if (Array.isArray(apiResponse.data)) {
+            plans = apiResponse.data;
+          }
+
+          // Also check data.plans
+          if (plans.length === 0 && apiResponse.data?.plans) {
+            plans = Array.isArray(apiResponse.data.plans) ? apiResponse.data.plans : [];
+          }
+
+          console.log("Total plans parsed:", plans.length);
+
+          // Filter out plans with 0 price
+          basePlans = plans
+            .filter((plan: any) => {
+              const price = parseFloat(plan.price || plan.amount || 0);
+              return price > 0;
+            })
+            .map((plan: any) => {
+              const planName = plan.plan_name || plan.name || "";
+              return {
+                id: (plan.plan_id || plan.id)?.toString(),
+                name: planName,
+                amount: parseFloat(plan.price || plan.amount || 0),
+                baseAmount: parseFloat(plan.price || plan.amount || 0),
+                validity: plan.validity || plan.duration || "30 Days",
+                dataSize: extractDataSize(planName),
+                category: categorizePlan(planName),
+              };
+            });
+
           basePlans.sort((a: any, b: any) => a.dataSize - b.dataSize);
+          console.log("Valid plans after filtering:", basePlans.length);
         } else {
-          console.warn("SMEPlug data plans API returned no data, using fallback");
+          console.warn("Unexpected API response format, using fallback. Status:", apiResponse?.status);
           basePlans = getFallbackPlans(network);
         }
       } catch (apiError) {
@@ -112,7 +155,13 @@ serve(async (req) => {
         }
       }
 
-      const result: any = { id: plan.id, name: plan.name, amount: finalPrice, validity: plan.validity };
+      const result: any = {
+        id: plan.id,
+        name: plan.name,
+        amount: finalPrice,
+        validity: plan.validity,
+        category: plan.category || 'General',
+      };
       if (includeBasePrice) result.baseAmount = plan.amount;
       return result;
     });
@@ -142,35 +191,29 @@ function extractDataSize(planName: string): number {
 function getFallbackPlans(network: string) {
   const networkPlans: Record<string, any[]> = {
     mtn: [
-      { id: "mtn_100mb_1d", name: "100MB (1 Day)", amount: 100, validity: "1 Day", dataSize: 100 },
-      { id: "mtn_250mb_1d", name: "250MB (1 Day)", amount: 130, validity: "1 Day", dataSize: 250 },
-      { id: "mtn_500mb_1d", name: "500MB (1 Day)", amount: 150, validity: "1 Day", dataSize: 500 },
-      { id: "mtn_1gb_1d", name: "1GB (1 Day)", amount: 300, validity: "1 Day", dataSize: 1024 },
-      { id: "mtn_2gb_30d", name: "2GB (30 Days)", amount: 500, validity: "30 Days", dataSize: 2048 },
-      { id: "mtn_3gb_30d", name: "3GB (30 Days)", amount: 800, validity: "30 Days", dataSize: 3072 },
-      { id: "mtn_5gb_30d", name: "5GB (30 Days)", amount: 1200, validity: "30 Days", dataSize: 5120 },
-      { id: "mtn_10gb_30d", name: "10GB (30 Days)", amount: 2500, validity: "30 Days", dataSize: 10240 },
+      { id: "mtn_500mb", name: "500MB SME", amount: 150, validity: "30 Days", dataSize: 500, category: "SME" },
+      { id: "mtn_1gb", name: "1GB SME", amount: 300, validity: "30 Days", dataSize: 1024, category: "SME" },
+      { id: "mtn_2gb", name: "2GB SME", amount: 600, validity: "30 Days", dataSize: 2048, category: "SME" },
+      { id: "mtn_3gb", name: "3GB SME", amount: 900, validity: "30 Days", dataSize: 3072, category: "SME" },
+      { id: "mtn_5gb", name: "5GB SME", amount: 1500, validity: "30 Days", dataSize: 5120, category: "SME" },
+      { id: "mtn_10gb", name: "10GB SME", amount: 3000, validity: "30 Days", dataSize: 10240, category: "SME" },
     ],
     airtel: [
-      { id: "airtel_100mb_1d", name: "100MB (1 Day)", amount: 100, validity: "1 Day", dataSize: 100 },
-      { id: "airtel_500mb_1d", name: "500MB (1 Day)", amount: 140, validity: "1 Day", dataSize: 500 },
-      { id: "airtel_1gb_1d", name: "1GB (1 Day)", amount: 280, validity: "1 Day", dataSize: 1024 },
-      { id: "airtel_2gb_30d", name: "2GB (30 Days)", amount: 480, validity: "30 Days", dataSize: 2048 },
-      { id: "airtel_5gb_30d", name: "5GB (30 Days)", amount: 1150, validity: "30 Days", dataSize: 5120 },
-      { id: "airtel_10gb_30d", name: "10GB (30 Days)", amount: 2400, validity: "30 Days", dataSize: 10240 },
+      { id: "airtel_500mb", name: "500MB", amount: 150, validity: "30 Days", dataSize: 500, category: "General" },
+      { id: "airtel_1gb", name: "1GB", amount: 300, validity: "30 Days", dataSize: 1024, category: "General" },
+      { id: "airtel_2gb", name: "2GB", amount: 600, validity: "30 Days", dataSize: 2048, category: "General" },
+      { id: "airtel_5gb", name: "5GB", amount: 1500, validity: "30 Days", dataSize: 5120, category: "General" },
     ],
     glo: [
-      { id: "glo_100mb_1d", name: "100MB (1 Day)", amount: 90, validity: "1 Day", dataSize: 100 },
-      { id: "glo_500mb_1d", name: "500MB (1 Day)", amount: 130, validity: "1 Day", dataSize: 500 },
-      { id: "glo_1gb_1d", name: "1GB (1 Day)", amount: 260, validity: "1 Day", dataSize: 1024 },
-      { id: "glo_2gb_30d", name: "2GB (30 Days)", amount: 450, validity: "30 Days", dataSize: 2048 },
-      { id: "glo_5gb_30d", name: "5GB (30 Days)", amount: 1100, validity: "30 Days", dataSize: 5120 },
+      { id: "glo_500mb", name: "500MB", amount: 130, validity: "30 Days", dataSize: 500, category: "General" },
+      { id: "glo_1gb", name: "1GB", amount: 260, validity: "30 Days", dataSize: 1024, category: "General" },
+      { id: "glo_2gb", name: "2GB", amount: 520, validity: "30 Days", dataSize: 2048, category: "General" },
+      { id: "glo_5gb", name: "5GB", amount: 1300, validity: "30 Days", dataSize: 5120, category: "General" },
     ],
     "9mobile": [
-      { id: "9mobile_100mb_1d", name: "100MB (1 Day)", amount: 100, validity: "1 Day", dataSize: 100 },
-      { id: "9mobile_500mb_1d", name: "500MB (1 Day)", amount: 140, validity: "1 Day", dataSize: 500 },
-      { id: "9mobile_1gb_1d", name: "1GB (1 Day)", amount: 280, validity: "1 Day", dataSize: 1024 },
-      { id: "9mobile_2gb_30d", name: "2GB (30 Days)", amount: 480, validity: "30 Days", dataSize: 2048 },
+      { id: "9mobile_500mb", name: "500MB", amount: 140, validity: "30 Days", dataSize: 500, category: "General" },
+      { id: "9mobile_1gb", name: "1GB", amount: 280, validity: "30 Days", dataSize: 1024, category: "General" },
+      { id: "9mobile_2gb", name: "2GB", amount: 560, validity: "30 Days", dataSize: 2048, category: "General" },
     ],
   };
   return networkPlans[network.toLowerCase()] || networkPlans.mtn;
