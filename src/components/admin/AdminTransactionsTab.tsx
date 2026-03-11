@@ -132,11 +132,11 @@ const AdminTransactionsTab = () => {
                   <div
                     className={cn(
                       "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
-                      tx.type === "credit" ? "bg-green-500/10" : "bg-destructive/10"
+                      tx.type === "credit" ? "bg-success/10" : "bg-destructive/10"
                     )}
                   >
                     {tx.type === "credit" ? (
-                      <ArrowDownLeft className="h-5 w-5 text-green-500" />
+                      <ArrowDownLeft className="h-5 w-5 text-success" />
                     ) : (
                       <ArrowUpRight className="h-5 w-5 text-destructive" />
                     )}
