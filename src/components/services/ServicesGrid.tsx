@@ -6,7 +6,9 @@ import {
   CreditCard,
   Gift,
   Headphones,
-  GraduationCap
+  GraduationCap,
+  Banknote,
+  ArrowRightLeft
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -18,58 +20,74 @@ const allServices = [
   { 
     icon: Smartphone, 
     label: "Airtime", 
-    color: "linear-gradient(135deg, #10B981 0%, #059669 100%)", 
+    gradient: "from-emerald-500 to-teal-600",
+    shadow: "shadow-emerald-500/25",
     path: "/airtime",
     serviceKey: "airtime" as const
   },
   { 
     icon: Wifi, 
     label: "Data Bundle", 
-    color: "linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)", 
+    gradient: "from-blue-500 to-indigo-600",
+    shadow: "shadow-blue-500/25",
     path: "/data",
     serviceKey: "data" as const
   },
   { 
     icon: Zap, 
     label: "Electricity", 
-    color: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)", 
+    gradient: "from-amber-500 to-orange-600",
+    shadow: "shadow-amber-500/25",
     path: "/electricity",
     serviceKey: "electricity" as const
   },
   { 
     icon: Tv, 
     label: "Cable TV", 
-    color: "linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)", 
+    gradient: "from-violet-500 to-purple-600",
+    shadow: "shadow-violet-500/25",
     path: "/cable-tv",
     serviceKey: "cable" as const
   },
   { 
     icon: GraduationCap, 
     label: "Exam Cards", 
-    color: "linear-gradient(135deg, #EC4899 0%, #DB2777 100%)", 
+    gradient: "from-pink-500 to-rose-600",
+    shadow: "shadow-pink-500/25",
     path: "/exam-cards",
     serviceKey: "exam_pin" as const
   },
   { 
-    icon: CreditCard, 
+    icon: Banknote, 
+    label: "Airtime to Cash", 
+    gradient: "from-cyan-500 to-blue-600",
+    shadow: "shadow-cyan-500/25",
+    path: "#",
+    serviceKey: null
+  },
+  { 
+    icon: ArrowRightLeft, 
     label: "Transfer", 
-    color: "linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)", 
+    gradient: "from-teal-500 to-emerald-600",
+    shadow: "shadow-teal-500/25",
     path: "/transfer",
-    serviceKey: null // Always enabled
+    serviceKey: null
   },
   { 
     icon: Gift, 
     label: "Referrals", 
-    color: "linear-gradient(135deg, #F43F5E 0%, #E11D48 100%)", 
+    gradient: "from-rose-500 to-pink-600",
+    shadow: "shadow-rose-500/25",
     path: "/referrals",
-    serviceKey: null // Always enabled
+    serviceKey: null
   },
   { 
     icon: Headphones, 
     label: "Support", 
-    color: "linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%)", 
+    gradient: "from-sky-500 to-cyan-600",
+    shadow: "shadow-sky-500/25",
     path: "/support",
-    serviceKey: null // Always enabled
+    serviceKey: null
   },
 ];
 
@@ -79,9 +97,7 @@ const ServicesGrid = () => {
 
   // Filter services based on admin settings
   const services = allServices.filter((service) => {
-    // Always show services without a serviceKey (Transfer, Referrals, Support)
     if (!service.serviceKey) return true;
-    // Check if the service is enabled
     return enabledServices[service.serviceKey];
   });
 
@@ -90,15 +106,16 @@ const ServicesGrid = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="bg-card rounded-3xl p-4 shadow-sm border border-border/50"
+        className="space-y-4"
       >
-        <Skeleton className="h-6 w-32 mb-4 mx-2" />
-        <div className="grid grid-cols-4 gap-1">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="flex flex-col items-center p-3">
-              <Skeleton className="w-12 h-12 rounded-2xl mb-2" />
-              <Skeleton className="h-3 w-14" />
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-6 w-32" />
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+            <div key={i} className="flex flex-col items-center gap-3 p-4">
+              <Skeleton className="w-14 h-14 rounded-2xl" />
+              <Skeleton className="h-3 w-16" />
             </div>
           ))}
         </div>
@@ -110,21 +127,23 @@ const ServicesGrid = () => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 }}
-      className="bg-card rounded-3xl p-4 shadow-sm border border-border/50"
+      className="space-y-4"
     >
-      <h3 className="font-display font-semibold text-foreground mb-4 px-2">
-        Quick Services
-      </h3>
-      <div className="grid grid-cols-4 gap-1">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-foreground">Quick Services</h2>
+      </div>
+      
+      <div className="grid grid-cols-3 gap-3">
         {services.map((service, index) => (
           <ServiceCard
             key={service.label}
             icon={service.icon}
             label={service.label}
-            color={service.color}
-            delay={0.1 + index * 0.05}
+            gradient={service.gradient}
+            shadow={service.shadow}
+            delay={0.05 + index * 0.03}
             onClick={() => service.path !== "#" && navigate(service.path)}
+            disabled={service.path === "#"}
           />
         ))}
       </div>
