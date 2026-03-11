@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import PhoneInputWithNetwork from "@/components/common/PhoneInputWithNetwork";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
+import RecentNumbers from "@/components/common/RecentNumbers";
+import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 
 const quickAmounts = [50, 100, 200, 500, 1000, 2000, 5000];
 
@@ -22,9 +24,15 @@ const Airtime = () => {
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
+  const [contactName, setContactName] = useState<string | undefined>();
+  const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("airtime");
 
   const handleNetworkDetected = useCallback((network: string | null) => {
     setDetectedNetwork(network);
+  }, []);
+
+  const handleContactSelected = useCallback((name: string | undefined) => {
+    setContactName(name);
   }, []);
 
   const validateForm = () => {
@@ -32,18 +40,15 @@ const Airtime = () => {
       toast.error("Please fill all fields");
       return false;
     }
-
     if (phoneNumber.length !== 11 && !phoneNumber.startsWith("+234")) {
       toast.error("Please enter a valid phone number");
       return false;
     }
-
     const amountNum = parseFloat(amount);
     if (wallet && amountNum > wallet.balance) {
       toast.error("Insufficient wallet balance");
       return false;
     }
-
     return true;
   };
 
@@ -55,7 +60,6 @@ const Airtime = () => {
 
   const handlePurchaseWithPin = async (pin: string) => {
     const amountNum = parseFloat(amount);
-
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("purchase-airtime", {
@@ -66,10 +70,9 @@ const Airtime = () => {
           transaction_pin: pin,
         },
       });
-
       if (error) throw error;
-
       if (data?.success) {
+        addRecentNumber(phoneNumber, contactName);
         toast.success("Airtime purchased successfully!");
         navigate("/dashboard");
       } else {
@@ -86,12 +89,7 @@ const Airtime = () => {
     <div className="min-h-screen gradient-hero">
       <header className="sticky top-0 z-50 glass-card border-b border-border/50 px-4 py-3">
         <div className="container mx-auto flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(-1)}
-            className="rounded-full"
-          >
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-lg font-display font-bold">Buy Airtime</h1>
@@ -99,11 +97,7 @@ const Airtime = () => {
       </header>
 
       <main className="container mx-auto px-4 py-6 max-w-lg">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-6"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           {/* Wallet Balance */}
           <div className="glass-card rounded-2xl p-4 flex items-center justify-between">
             <div>
@@ -112,22 +106,23 @@ const Airtime = () => {
                 ₦{wallet?.balance.toLocaleString() || "0.00"}
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/fund-wallet")}
-              className="rounded-xl"
-            >
+            <Button variant="outline" size="sm" onClick={() => navigate("/fund-wallet")} className="rounded-xl">
               Fund Wallet
             </Button>
           </div>
 
           {/* Phone Number with Auto Network Detection */}
-          <div className="glass-card rounded-2xl p-4">
+          <div className="glass-card rounded-2xl p-4 space-y-3">
             <PhoneInputWithNetwork
               value={phoneNumber}
               onChange={setPhoneNumber}
               onNetworkDetected={handleNetworkDetected}
+              onContactSelected={handleContactSelected}
+            />
+            <RecentNumbers
+              numbers={recentNumbers}
+              onSelect={setPhoneNumber}
+              onClear={clearRecentNumbers}
             />
           </div>
 
@@ -142,7 +137,6 @@ const Airtime = () => {
               placeholder="Enter amount"
               className="h-12 rounded-xl mt-2"
             />
-
             <div className="flex flex-wrap gap-2 mt-3">
               {quickAmounts.map((amt) => (
                 <Button
@@ -176,7 +170,6 @@ const Airtime = () => {
         </motion.div>
       </main>
 
-      {/* PIN Entry Dialog */}
       <PinEntryDialog
         open={showPinDialog}
         onOpenChange={setShowPinDialog}

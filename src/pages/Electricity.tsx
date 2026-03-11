@@ -17,6 +17,8 @@ import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
+import RecentNumbers from "@/components/common/RecentNumbers";
+import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 
 const discos = [
   { id: "ikeja", name: "Ikeja Electric (IE)" },
@@ -43,21 +45,19 @@ const Electricity = () => {
   const [customerName, setCustomerName] = useState("");
   const [isValidated, setIsValidated] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
+  const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("electricity");
 
   const handleValidate = async () => {
     if (!disco || !meterNumber) {
       toast.error("Please select disco and enter meter number");
       return;
     }
-
     setIsValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke("validate-meter", {
         body: { disco, meterNumber, meterType },
       });
-
       if (error) throw error;
-
       if (data?.customerName) {
         setCustomerName(data.customerName);
         setIsValidated(true);
@@ -79,25 +79,20 @@ const Electricity = () => {
       toast.error("Please validate meter and enter amount");
       return false;
     }
-
     const amountNum = parseFloat(amount);
     if (wallet && amountNum > wallet.balance) {
       toast.error("Insufficient wallet balance");
       return false;
     }
-
     return true;
   };
 
   const handlePurchaseClick = () => {
-    if (validateForm()) {
-      setShowPinDialog(true);
-    }
+    if (validateForm()) setShowPinDialog(true);
   };
 
   const handlePurchaseWithPin = async (pin: string) => {
     const amountNum = parseFloat(amount);
-
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("purchase-electricity", {
@@ -110,10 +105,9 @@ const Electricity = () => {
           transaction_pin: pin,
         },
       });
-
       if (error) throw error;
-
       if (data?.success) {
+        addRecentNumber(meterNumber, customerName || undefined);
         toast.success(`Electricity token: ${data.token}`);
         navigate("/dashboard");
       } else {
@@ -132,12 +126,7 @@ const Electricity = () => {
     <div className="min-h-screen gradient-hero pb-6">
       <header className="sticky top-0 z-50 glass-card border-b border-border/50 px-4 py-3">
         <div className="container mx-auto flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(-1)}
-            className="rounded-full"
-          >
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-lg font-display font-bold">Pay Electricity Bill</h1>
@@ -145,25 +134,14 @@ const Electricity = () => {
       </header>
 
       <main className="container mx-auto px-4 py-6 max-w-lg">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-6"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           {/* Wallet Balance */}
           <div className="glass-card rounded-2xl p-4 flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Wallet Balance</p>
-              <p className="text-xl font-bold text-foreground">
-                ₦{wallet?.balance.toLocaleString() || "0.00"}
-              </p>
+              <p className="text-xl font-bold text-foreground">₦{wallet?.balance.toLocaleString() || "0.00"}</p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/fund-wallet")}
-              className="rounded-xl"
-            >
+            <Button variant="outline" size="sm" onClick={() => navigate("/fund-wallet")} className="rounded-xl">
               Fund Wallet
             </Button>
           </div>
@@ -188,9 +166,7 @@ const Electricity = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {discos.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name}
-                    </SelectItem>
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -227,6 +203,13 @@ const Electricity = () => {
               />
             </div>
 
+            {/* Recent meter numbers */}
+            <RecentNumbers
+              numbers={recentNumbers}
+              onSelect={(num) => { setMeterNumber(num); setIsValidated(false); }}
+              onClear={clearRecentNumbers}
+            />
+
             <Button
               onClick={handleValidate}
               disabled={isValidating || !disco || !meterNumber}
@@ -248,11 +231,7 @@ const Electricity = () => {
 
           {/* Amount */}
           {isValidated && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="glass-card rounded-2xl p-4"
-            >
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl p-4">
               <Label htmlFor="amount">Amount (₦)</Label>
               <Input
                 id="amount"
@@ -280,7 +259,6 @@ const Electricity = () => {
         </motion.div>
       </main>
 
-      {/* PIN Entry Dialog */}
       <PinEntryDialog
         open={showPinDialog}
         onOpenChange={setShowPinDialog}
