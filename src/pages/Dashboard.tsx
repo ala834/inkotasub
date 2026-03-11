@@ -4,9 +4,6 @@ import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import WalletCard from "@/components/wallet/WalletCard";
 import ServicesGrid from "@/components/services/ServicesGrid";
-import SMEPlugServicesStatus from "@/components/services/SMEPlugServicesStatus";
-import TransactionsList from "@/components/transactions/TransactionsList";
-import PromoBanner from "@/components/common/PromoBanner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWallet } from "@/hooks/useWallet";
 
@@ -33,7 +30,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen gradient-hero pb-24">
+    <div className="min-h-screen bg-background pb-24">
       <Header />
 
       <main className="container mx-auto px-4 py-6 max-w-lg">
@@ -43,14 +40,14 @@ const Dashboard = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-6"
         >
-          <p className="text-muted-foreground">{getGreeting()},</p>
+          <p className="text-muted-foreground text-sm">{getGreeting()},</p>
           <h1 className="text-2xl font-display font-bold text-foreground">
-            {getFirstName()} 👋
+            {getFirstName()}
           </h1>
         </motion.div>
 
         {/* Wallet Card */}
-        <div className="mb-6">
+        <div className="mb-8">
           <WalletCard
             balance={wallet?.balance || 0}
             onFundWallet={() => navigate("/fund-wallet")}
@@ -58,25 +55,8 @@ const Dashboard = () => {
           />
         </div>
 
-        {/* Provider Services Status */}
-        <div className="mb-4">
-          <SMEPlugServicesStatus />
-        </div>
-
-        {/* Promo Banner */}
-        <div className="mb-6">
-          <PromoBanner />
-        </div>
-
-        {/* Services Grid */}
-        <div className="mb-6">
-          <ServicesGrid />
-        </div>
-
-        {/* Recent Transactions */}
-        <div className="mb-6">
-          <TransactionsList />
-        </div>
+        {/* Quick Services */}
+        <ServicesGrid />
       </main>
 
       <BottomNav />
