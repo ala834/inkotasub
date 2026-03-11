@@ -103,45 +103,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const processEmailReferral = async (userId: string) => {
+  const processEmailReferral = async (userId: string, accessToken: string) => {
     try {
       const pendingCode = localStorage.getItem("pendingReferralCode");
       if (!pendingCode) return;
 
-      // Check if this user already has a referral record
-      const { data: existingReferral } = await supabase
-        .from("referrals")
-        .select("id")
-        .eq("referred_id", userId)
-        .single();
-
-      if (existingReferral) {
-        localStorage.removeItem("pendingReferralCode");
-        return;
-      }
-
-      // Find the referrer by code
-      const { data: referrerProfile } = await supabase
-        .from("profiles")
-        .select("user_id")
-        .eq("referral_code", pendingCode)
-        .single();
-
-      if (!referrerProfile || referrerProfile.user_id === userId) {
-        localStorage.removeItem("pendingReferralCode");
-        return;
-      }
-
-      // Insert referral record via edge function or direct insert won't work (no INSERT RLS)
-      // The paystack-webhook will pick up the referral record on first deposit
-      // We need to use a service-role context; since we can't from client, we'll call an edge function
-      // For now, store in profile metadata or rely on phone-auth flow
-      // Actually, referrals table has no INSERT policy for users, so we log this for webhook processing
-      console.log("Pending referral code found but cannot insert from client (no RLS INSERT policy). The paystack-webhook will need to check localStorage referral code.");
-      
-      // Keep the code in localStorage - the webhook processes referrals from the referrals table
-      // Since we can't insert from client, we'll need to handle this differently
       localStorage.removeItem("pendingReferralCode");
+
+      const { error } = await supabase.functions.invoke("process-referral", {
+        body: { referralCode: pendingCode },
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (error) {
+        console.error("Error processing email referral:", error);
+      } else {
+        console.log("Email referral processed successfully");
+      }
     } catch (error) {
       console.error("Error processing email referral:", error);
     }
