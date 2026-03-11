@@ -229,6 +229,9 @@ serve(async (req) => {
         type: "success",
       });
 
+      // Check and reward referrer for first transaction
+      checkAndRewardFirstTransaction(userId);
+
       return new Response(
         JSON.stringify({ success: true, token: electricityToken, message: "Electricity purchased successfully", serviceCharge, totalAmount: sellingPrice }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }

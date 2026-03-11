@@ -169,6 +169,9 @@ serve(async (req) => {
         provider_used: 'smeplug', fallback_attempted: false,
       });
 
+      // Check and reward referrer for first transaction
+      checkAndRewardFirstTransaction(userId);
+
       return new Response(
         JSON.stringify({ success: true, message: apiResult.message }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }

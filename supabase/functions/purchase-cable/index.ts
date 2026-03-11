@@ -210,6 +210,9 @@ serve(async (req) => {
         type: "success",
       });
 
+      // Check and reward referrer for first transaction
+      checkAndRewardFirstTransaction(userId);
+
       return new Response(
         JSON.stringify({ success: true, message: "Subscription successful" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
