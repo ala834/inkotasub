@@ -3,12 +3,11 @@ import {
   Wifi, 
   Zap, 
   Tv, 
-  CreditCard,
   Gift,
   Headphones,
   GraduationCap,
-  Banknote,
-  ArrowRightLeft
+  ArrowLeftRight,
+  Send
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
