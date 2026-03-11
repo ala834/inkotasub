@@ -308,6 +308,45 @@ export type Database = {
         }
         Relationships: []
       }
+      profit_withdrawals: {
+        Row: {
+          account_name: string
+          account_number: string
+          admin_id: string
+          amount: number
+          bank_name: string
+          created_at: string
+          id: string
+          notes: string | null
+          processed_at: string | null
+          status: string
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          admin_id: string
+          amount: number
+          bank_name: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          status?: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          admin_id?: string
+          amount?: number
+          bank_name?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       provider_config: {
         Row: {
           created_at: string | null

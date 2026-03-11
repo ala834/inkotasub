@@ -11,6 +11,7 @@ import {
   UserCheck,
   ShoppingCart,
   ArrowLeft,
+  Banknote,
   Shield,
   TrendingUp,
   Webhook,
@@ -37,6 +38,7 @@ import AdminWebhooksTab from "@/components/admin/AdminWebhooksTab";
 import AdminVirtualAccountsTab from "@/components/admin/AdminVirtualAccountsTab";
 import AdminActivityLogTab from "@/components/admin/AdminActivityLogTab";
 import AdminServicesTab from "@/components/admin/AdminServicesTab";
+import AdminProfitWithdrawalTab from "@/components/admin/AdminProfitWithdrawalTab";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -57,6 +59,7 @@ const AdminDashboard = () => {
   const tabs = [
     { value: "analytics", label: "Dashboard", icon: LayoutDashboard },
     { value: "profit", label: "Profit Analytics", icon: TrendingUp },
+    { value: "withdrawals", label: "Withdrawals", icon: Banknote },
     { value: "services", label: "Services", icon: Package },
     { value: "users", label: "Users", icon: Users },
     { value: "agents", label: "Agents", icon: UserCheck },
@@ -136,6 +139,10 @@ const AdminDashboard = () => {
 
           <TabsContent value="profit">
             <AdminProfitAnalyticsTab />
+          </TabsContent>
+
+          <TabsContent value="withdrawals">
+            <AdminProfitWithdrawalTab />
           </TabsContent>
 
           <TabsContent value="services">
