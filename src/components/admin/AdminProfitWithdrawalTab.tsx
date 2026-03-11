@@ -166,6 +166,9 @@ const AdminProfitWithdrawalTab = () => {
   };
 
   const handleUpdateStatus = async (id: string, newStatus: string) => {
+    // Get withdrawal details before updating
+    const withdrawal = withdrawals.find((w) => w.id === id);
+
     const { error } = await supabase
       .from("profit_withdrawals")
       .update({
@@ -177,6 +180,46 @@ const AdminProfitWithdrawalTab = () => {
     if (error) {
       toast.error("Failed to update status");
       return;
+    }
+
+    // Notify all admins about the status change
+    try {
+      const { data: adminRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "admin");
+
+      if (adminRoles && adminRoles.length > 0 && withdrawal) {
+        const amountStr = formatCurrency(withdrawal.amount);
+        const notifications = adminRoles.map((admin) => ({
+          user_id: admin.user_id,
+          title: newStatus === "completed" ? "Withdrawal Completed" : "Withdrawal Rejected",
+          message:
+            newStatus === "completed"
+              ? `Profit withdrawal of ${amountStr} to ${withdrawal.bank_name} (${withdrawal.account_number}) has been completed.`
+              : `Profit withdrawal of ${amountStr} to ${withdrawal.bank_name} (${withdrawal.account_number}) has been rejected.`,
+          type: newStatus === "completed" ? "success" : "warning",
+        }));
+
+        await supabase.from("notifications").insert(notifications);
+      }
+    } catch (notifError) {
+      console.error("Failed to send admin notifications:", notifError);
+    }
+
+    // Log admin activity
+    if (user) {
+      await supabase.from("admin_activity_log").insert({
+        admin_id: user.id,
+        action: `profit_withdrawal_${newStatus}`,
+        target_type: "profit_withdrawal",
+        target_id: id,
+        details: {
+          amount: withdrawal?.amount,
+          bank_name: withdrawal?.bank_name,
+          account_number: withdrawal?.account_number,
+        },
+      } as any);
     }
 
     toast.success(`Withdrawal ${newStatus}`);
