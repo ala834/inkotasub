@@ -20,72 +20,72 @@ const allServices = [
   { 
     icon: Smartphone, 
     label: "Airtime", 
-    gradient: "from-emerald-500 to-teal-600",
-    shadow: "shadow-emerald-500/25",
+    color: "#10B981",
+    shadow: "shadow-emerald-500/30",
     path: "/airtime",
     serviceKey: "airtime" as const
   },
   { 
     icon: Wifi, 
     label: "Data Bundle", 
-    gradient: "from-blue-500 to-indigo-600",
-    shadow: "shadow-blue-500/25",
+    color: "#3B82F6",
+    shadow: "shadow-blue-500/30",
     path: "/data",
     serviceKey: "data" as const
   },
   { 
     icon: Zap, 
     label: "Electricity", 
-    gradient: "from-amber-500 to-orange-600",
-    shadow: "shadow-amber-500/25",
+    color: "#F97316",
+    shadow: "shadow-orange-500/30",
     path: "/electricity",
     serviceKey: "electricity" as const
   },
   { 
     icon: Tv, 
     label: "Cable TV", 
-    gradient: "from-violet-500 to-purple-600",
-    shadow: "shadow-violet-500/25",
+    color: "#8B5CF6",
+    shadow: "shadow-violet-500/30",
     path: "/cable-tv",
     serviceKey: "cable" as const
   },
   { 
     icon: GraduationCap, 
     label: "Exam Cards", 
-    gradient: "from-pink-500 to-rose-600",
-    shadow: "shadow-pink-500/25",
+    color: "#EC4899",
+    shadow: "shadow-pink-500/30",
     path: "/exam-cards",
     serviceKey: "exam_pin" as const
   },
   { 
-    icon: Banknote, 
+    icon: ArrowLeftRight, 
     label: "Airtime to Cash", 
-    gradient: "from-cyan-500 to-blue-600",
-    shadow: "shadow-cyan-500/25",
+    color: "#14B8A6",
+    shadow: "shadow-teal-500/30",
     path: "#",
     serviceKey: null
   },
   { 
-    icon: ArrowRightLeft, 
+    icon: Send, 
     label: "Transfer", 
-    gradient: "from-teal-500 to-emerald-600",
-    shadow: "shadow-teal-500/25",
+    color: "#2563EB",
+    shadow: "shadow-blue-600/30",
     path: "/transfer",
     serviceKey: null
   },
   { 
     icon: Gift, 
     label: "Referrals", 
-    gradient: "from-rose-500 to-pink-600",
-    shadow: "shadow-rose-500/25",
+    color: "#EF4444",
+    shadow: "shadow-red-500/30",
     path: "/referrals",
     serviceKey: null
   },
   { 
     icon: Headphones, 
     label: "Support", 
-    gradient: "from-sky-500 to-cyan-600",
-    shadow: "shadow-sky-500/25",
+    color: "#06B6D4",
+    shadow: "shadow-cyan-500/30",
     path: "/support",
     serviceKey: null
   },
