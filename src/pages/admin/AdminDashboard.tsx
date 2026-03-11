@@ -9,6 +9,7 @@ import {
   RefreshCw,
   DollarSign,
   UserCheck,
+  Gift,
   ShoppingCart,
   ArrowLeft,
   Banknote,
