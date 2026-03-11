@@ -5,6 +5,7 @@ import {
   purchaseAirtime,
   generateReference,
 } from "../_shared/inkota-service-layer.ts";
+import { checkAndRewardFirstTransaction } from "../_shared/referral-reward.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
