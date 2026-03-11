@@ -58,6 +58,7 @@ const AdminDashboard = () => {
   const tabs = [
     { value: "analytics", label: "Dashboard", icon: LayoutDashboard },
     { value: "profit", label: "Profit Analytics", icon: TrendingUp },
+    { value: "withdrawals", label: "Withdrawals", icon: Banknote },
     { value: "services", label: "Services", icon: Package },
     { value: "users", label: "Users", icon: Users },
     { value: "agents", label: "Agents", icon: UserCheck },
