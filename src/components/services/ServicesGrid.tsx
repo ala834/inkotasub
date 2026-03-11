@@ -138,7 +138,7 @@ const ServicesGrid = () => {
             key={service.label}
             icon={service.icon}
             label={service.label}
-            gradient={service.gradient}
+            color={service.color}
             shadow={service.shadow}
             delay={0.05 + index * 0.03}
             onClick={() => service.path !== "#" && navigate(service.path)}
