@@ -7,8 +7,6 @@ const corsHeaders = {
 
 interface NotifyRequest {
   contact_method: "whatsapp" | "email" | "call";
-  user_email?: string;
-  user_name?: string;
 }
 
 Deno.serve(async (req) => {
@@ -17,16 +15,49 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Authenticate the request
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claims, error: authError } = await supabase.auth.getClaims(token);
+    if (authError || !claims?.claims) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const userId = claims.claims.sub;
+    const userEmail = claims.claims.email;
+
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const adminSupabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    const { contact_method, user_email, user_name }: NotifyRequest = await req.json();
+    // Get user profile for name
+    const { data: profileData } = await adminSupabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", userId)
+      .single();
 
-    console.log(`Support contact notification: ${contact_method} from ${user_email || "unknown user"}`);
+    const { contact_method }: NotifyRequest = await req.json();
+
+    console.log(`Support contact notification: ${contact_method} from ${userEmail || userId}`);
 
     // Get all admin users
-    const { data: adminRoles, error: adminError } = await supabase
+    const { data: adminRoles, error: adminError } = await adminSupabase
       .from("user_roles")
       .select("user_id")
       .eq("role", "admin");
@@ -50,8 +81,9 @@ Deno.serve(async (req) => {
       call: "Phone Call",
     };
 
+    const userName = profileData?.full_name || userEmail || "A user";
     const notificationTitle = "New Support Contact";
-    const notificationMessage = `${user_name || user_email || "A user"} initiated contact via ${methodLabels[contact_method]}`;
+    const notificationMessage = `${userName} initiated contact via ${methodLabels[contact_method]}`;
 
     // Create notifications for all admins
     const notifications = adminRoles.map((admin) => ({
@@ -62,7 +94,7 @@ Deno.serve(async (req) => {
       read: false,
     }));
 
-    const { error: insertError } = await supabase
+    const { error: insertError } = await adminSupabase
       .from("notifications")
       .insert(notifications);
 

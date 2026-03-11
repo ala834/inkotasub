@@ -82,6 +82,27 @@ serve(async (req) => {
       .eq("reference", reference)
       .single();
 
+    const userId = claims.claims.sub;
+
+    // Validate reference ownership - transaction must belong to requesting user
+    if (existingTx && existingTx.user_id !== userId) {
+      console.warn("Reference ownership mismatch:", reference, "requested by:", userId);
+      return new Response(
+        JSON.stringify({ status: "failed", message: "Reference does not belong to this account" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Also validate Paystack metadata user_id matches
+    const paystackUserId = paystackData.data?.metadata?.user_id;
+    if (paystackUserId && paystackUserId !== userId) {
+      console.warn("Paystack metadata user_id mismatch:", paystackUserId, "vs", userId);
+      return new Response(
+        JSON.stringify({ status: "failed", message: "Payment does not belong to this account" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (existingTx?.status === "success") {
       console.log("Transaction already processed:", reference);
       return new Response(
@@ -96,7 +117,6 @@ serve(async (req) => {
     }
 
     // If webhook hasn't processed yet, process now (fallback)
-    const userId = claims.claims.sub;
     const { data: wallet } = await adminSupabase
       .from("wallets")
       .select("balance")
