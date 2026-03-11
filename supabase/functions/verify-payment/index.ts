@@ -78,7 +78,7 @@ serve(async (req) => {
 
     const { data: existingTx } = await adminSupabase
       .from("transactions")
-      .select("id, status")
+      .select("id, status, user_id")
       .eq("reference", reference)
       .single();
 
