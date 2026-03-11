@@ -193,7 +193,7 @@ const AdminTransactionsTab = () => {
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-muted-foreground">Profit:</span>
-                        <span className="font-semibold text-green-500">
+                        <span className="font-semibold text-success">
                           +{formatCurrency(tx.profit)}
                         </span>
                       </div>
