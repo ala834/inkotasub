@@ -162,7 +162,7 @@ const AdminTransactionsTab = () => {
                   <p
                     className={cn(
                       "font-semibold",
-                      tx.type === "credit" ? "text-green-500" : "text-destructive"
+                      tx.type === "credit" ? "text-success" : "text-destructive"
                     )}
                   >
                     {tx.type === "credit" ? "+" : "-"}
