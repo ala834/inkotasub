@@ -14,7 +14,6 @@ interface Referral {
   referred_id: string;
   reward_amount: number | null;
   rewarded: boolean;
-  status: string;
   created_at: string;
 }
 
