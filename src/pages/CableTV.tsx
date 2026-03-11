@@ -10,6 +10,8 @@ import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
+import RecentNumbers from "@/components/common/RecentNumbers";
+import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 
 const providers = [
   { id: "dstv", name: "DSTV", color: "bg-blue-600" },
@@ -36,11 +38,10 @@ const CableTV = () => {
   const [customerName, setCustomerName] = useState("");
   const [isValidated, setIsValidated] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
+  const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("cable");
 
   useEffect(() => {
-    if (provider) {
-      fetchPlans();
-    }
+    if (provider) fetchPlans();
   }, [provider]);
 
   const fetchPlans = async () => {
@@ -49,7 +50,6 @@ const CableTV = () => {
       const { data, error } = await supabase.functions.invoke("get-cable-plans", {
         body: { provider },
       });
-
       if (error) throw error;
       setPlans(data?.plans || getMockPlans());
     } catch (error) {
@@ -93,15 +93,12 @@ const CableTV = () => {
       toast.error("Please select provider and enter smart card number");
       return;
     }
-
     setIsValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke("validate-smartcard", {
         body: { provider, smartCardNumber },
       });
-
       if (error) throw error;
-
       if (data?.customerName) {
         setCustomerName(data.customerName);
         setIsValidated(true);
@@ -123,24 +120,19 @@ const CableTV = () => {
       toast.error("Please validate smart card and select a plan");
       return false;
     }
-
     if (wallet && selectedPlan.amount > wallet.balance) {
       toast.error("Insufficient wallet balance");
       return false;
     }
-
     return true;
   };
 
   const handlePurchaseClick = () => {
-    if (validateForm()) {
-      setShowPinDialog(true);
-    }
+    if (validateForm()) setShowPinDialog(true);
   };
 
   const handlePurchaseWithPin = async (pin: string) => {
     if (!selectedPlan) return;
-
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("purchase-cable", {
@@ -153,10 +145,9 @@ const CableTV = () => {
           transaction_pin: pin,
         },
       });
-
       if (error) throw error;
-
       if (data?.success) {
+        addRecentNumber(smartCardNumber, customerName || undefined);
         toast.success("Cable subscription successful!");
         navigate("/dashboard");
       } else {
@@ -175,12 +166,7 @@ const CableTV = () => {
     <div className="min-h-screen gradient-hero pb-6">
       <header className="sticky top-0 z-50 glass-card border-b border-border/50 px-4 py-3">
         <div className="container mx-auto flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(-1)}
-            className="rounded-full"
-          >
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-lg font-display font-bold">Cable TV Subscription</h1>
@@ -188,25 +174,14 @@ const CableTV = () => {
       </header>
 
       <main className="container mx-auto px-4 py-6 max-w-lg">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-6"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           {/* Wallet Balance */}
           <div className="glass-card rounded-2xl p-4 flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Wallet Balance</p>
-              <p className="text-xl font-bold text-foreground">
-                ₦{wallet?.balance.toLocaleString() || "0.00"}
-              </p>
+              <p className="text-xl font-bold text-foreground">₦{wallet?.balance.toLocaleString() || "0.00"}</p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/fund-wallet")}
-              className="rounded-xl"
-            >
+            <Button variant="outline" size="sm" onClick={() => navigate("/fund-wallet")} className="rounded-xl">
               Fund Wallet
             </Button>
           </div>
@@ -218,11 +193,7 @@ const CableTV = () => {
               {providers.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => {
-                    setProvider(p.id);
-                    setSelectedPlan(null);
-                    setIsValidated(false);
-                  }}
+                  onClick={() => { setProvider(p.id); setSelectedPlan(null); setIsValidated(false); }}
                   className={cn(
                     "p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2",
                     provider === p.id
@@ -253,6 +224,13 @@ const CableTV = () => {
                 />
               </div>
 
+              {/* Recent smartcard numbers */}
+              <RecentNumbers
+                numbers={recentNumbers}
+                onSelect={(num) => { setSmartCardNumber(num); setIsValidated(false); }}
+                onClear={clearRecentNumbers}
+              />
+
               <Button
                 onClick={handleValidate}
                 disabled={isValidating || !smartCardNumber}
@@ -275,11 +253,7 @@ const CableTV = () => {
 
           {/* Cable Plans */}
           {isValidated && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="glass-card rounded-2xl p-4"
-            >
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl p-4">
               <Label className="text-muted-foreground mb-3 block">Select Plan</Label>
               {loadingPlans ? (
                 <div className="flex justify-center py-8">
@@ -299,9 +273,7 @@ const CableTV = () => {
                       )}
                     >
                       <span className="font-medium">{plan.name}</span>
-                      <span className="font-bold text-primary">
-                        ₦{plan.amount.toLocaleString()}
-                      </span>
+                      <span className="font-bold text-primary">₦{plan.amount.toLocaleString()}</span>
                     </button>
                   ))}
                 </div>
@@ -326,7 +298,6 @@ const CableTV = () => {
         </motion.div>
       </main>
 
-      {/* PIN Entry Dialog */}
       <PinEntryDialog
         open={showPinDialog}
         onOpenChange={setShowPinDialog}

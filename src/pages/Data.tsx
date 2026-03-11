@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import PhoneInputWithNetwork from "@/components/common/PhoneInputWithNetwork";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import NetworkBadge from "@/components/common/NetworkBadge";
+import RecentNumbers from "@/components/common/RecentNumbers";
+import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface DataPlan {
@@ -35,6 +37,8 @@ const Data = () => {
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [contactName, setContactName] = useState<string | undefined>();
+  const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("data");
 
   const handleNetworkDetected = useCallback((network: string | null) => {
     if (network !== detectedNetwork) {
@@ -44,6 +48,10 @@ const Data = () => {
       setSearchQuery("");
     }
   }, [detectedNetwork]);
+
+  const handleContactSelected = useCallback((name: string | undefined) => {
+    setContactName(name);
+  }, []);
 
   useEffect(() => {
     if (detectedNetwork) {
@@ -64,7 +72,6 @@ const Data = () => {
       if (error) throw error;
       if (data?.plans && data.plans.length > 0) {
         setDataPlans(data.plans);
-        // Auto-select first category
         const categories = [...new Set(data.plans.map((p: DataPlan) => p.category))];
         const sorted = CATEGORY_ORDER.filter(c => categories.includes(c));
         if (sorted.length > 0) setActiveCategory(sorted[0]);
@@ -88,15 +95,11 @@ const Data = () => {
 
   const filteredPlans = useMemo(() => {
     let plans = dataPlans;
-    if (activeCategory) {
-      plans = plans.filter(p => p.category === activeCategory);
-    }
+    if (activeCategory) plans = plans.filter(p => p.category === activeCategory);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       plans = plans.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        p.amount.toString().includes(q) ||
-        p.validity.toLowerCase().includes(q)
+        p.name.toLowerCase().includes(q) || p.amount.toString().includes(q) || p.validity.toLowerCase().includes(q)
       );
     }
     return plans;
@@ -137,6 +140,7 @@ const Data = () => {
       });
       if (error) throw error;
       if (data?.success) {
+        addRecentNumber(phoneNumber, contactName);
         toast.success("Data bundle purchased successfully!");
         navigate("/dashboard");
       } else {
@@ -166,9 +170,7 @@ const Data = () => {
           <div className="glass-card rounded-2xl p-4 flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Wallet Balance</p>
-              <p className="text-xl font-bold text-foreground">
-                ₦{wallet?.balance.toLocaleString() || "0.00"}
-              </p>
+              <p className="text-xl font-bold text-foreground">₦{wallet?.balance.toLocaleString() || "0.00"}</p>
             </div>
             <Button variant="outline" size="sm" onClick={() => navigate("/fund-wallet")} className="rounded-xl">
               Fund Wallet
@@ -176,11 +178,17 @@ const Data = () => {
           </div>
 
           {/* Phone Number */}
-          <div className="glass-card rounded-2xl p-4">
+          <div className="glass-card rounded-2xl p-4 space-y-3">
             <PhoneInputWithNetwork
               value={phoneNumber}
               onChange={setPhoneNumber}
               onNetworkDetected={handleNetworkDetected}
+              onContactSelected={handleContactSelected}
+            />
+            <RecentNumbers
+              numbers={recentNumbers}
+              onSelect={setPhoneNumber}
+              onClear={clearRecentNumbers}
             />
           </div>
 
@@ -188,15 +196,10 @@ const Data = () => {
           {detectedNetwork && (
             <div className="glass-card rounded-2xl p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-muted-foreground">
-                  {detectedNetwork.toUpperCase()} Data Plans
-                </p>
-                <span className="text-xs text-muted-foreground">
-                  {filteredPlans.length} plan{filteredPlans.length !== 1 ? "s" : ""}
-                </span>
+                <p className="text-sm font-semibold text-muted-foreground">{detectedNetwork.toUpperCase()} Data Plans</p>
+                <span className="text-xs text-muted-foreground">{filteredPlans.length} plan{filteredPlans.length !== 1 ? "s" : ""}</span>
               </div>
 
-              {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -212,7 +215,6 @@ const Data = () => {
                 )}
               </div>
 
-              {/* Category Tabs */}
               {categories.length > 1 && (
                 <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                   {categories.map((cat) => (
@@ -232,7 +234,6 @@ const Data = () => {
                 </div>
               )}
 
-              {/* Plans Grid */}
               {loadingPlans ? (
                 <div className="grid grid-cols-2 gap-3">
                   {Array.from({ length: 6 }).map((_, i) => (
@@ -265,9 +266,7 @@ const Data = () => {
                           <Wifi className="h-3.5 w-3.5 text-primary flex-shrink-0" />
                           <span className="font-semibold text-sm leading-tight line-clamp-2">{plan.name}</span>
                         </div>
-                        <p className="text-lg font-bold text-primary">
-                          ₦{plan.amount.toLocaleString()}
-                        </p>
+                        <p className="text-lg font-bold text-primary">₦{plan.amount.toLocaleString()}</p>
                         <p className="text-xs text-muted-foreground">{plan.validity}</p>
                       </motion.button>
                     ))}
@@ -277,7 +276,6 @@ const Data = () => {
             </div>
           )}
 
-          {/* Submit */}
           <Button
             onClick={handlePurchaseClick}
             disabled={isLoading || !detectedNetwork || !phoneNumber || !selectedPlan}
