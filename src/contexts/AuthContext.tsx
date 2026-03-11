@@ -103,6 +103,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const processEmailReferral = async (userId: string, accessToken: string) => {
+    try {
+      const pendingCode = localStorage.getItem("pendingReferralCode");
+      if (!pendingCode) return;
+
+      localStorage.removeItem("pendingReferralCode");
+
+      const { error } = await supabase.functions.invoke("process-referral", {
+        body: { referralCode: pendingCode },
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (error) {
+        console.error("Error processing email referral:", error);
+      } else {
+        console.log("Email referral processed successfully");
+      }
+    } catch (error) {
+      console.error("Error processing email referral:", error);
+    }
+  };
+
   const refreshProfile = async () => {
     if (user) {
       await fetchProfile(user.id);
@@ -123,6 +145,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             // Auto-create virtual account on sign-in (covers both signup and login)
             if (event === "SIGNED_IN") {
               ensureVirtualAccount(session.user.id, session.access_token);
+              // Process any pending referral code from email signup
+              processEmailReferral(session.user.id, session.access_token);
             }
           }, 0);
         } else {
