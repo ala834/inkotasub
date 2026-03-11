@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Copy, Gift, Users, CheckCircle } from "lucide-react";
+import { ArrowLeft, Copy, Gift, Users, CheckCircle, TrendingUp, Share2, Wallet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ interface Referral {
   referred_id: string;
   reward_amount: number | null;
   rewarded: boolean;
+  status: string;
   created_at: string;
 }
 
@@ -43,8 +44,8 @@ const Referrals = () => {
 
       setReferrals(data || []);
       const earnings = (data || [])
-        .filter((r) => r.rewarded && r.reward_amount)
-        .reduce((sum, r) => sum + (r.reward_amount || 0), 0);
+        .filter((r: any) => r.reward_amount)
+        .reduce((sum: number, r: any) => sum + (r.reward_amount || 0), 0);
       setTotalEarnings(earnings);
     } catch (error) {
       console.error("Error fetching referrals:", error);
@@ -65,7 +66,7 @@ const Referrals = () => {
     if (navigator.share) {
       navigator.share({
         title: "Join INKOTA SUB",
-        text: `Use my referral code ${profile?.referral_code} to sign up and we both earn rewards!`,
+        text: `Use my referral code ${profile?.referral_code} to sign up on INKOTA SUB and we both earn rewards! Sign up here:`,
         url: referralLink,
       });
     } else {
@@ -81,6 +82,8 @@ const Referrals = () => {
       minimumFractionDigits: 0,
     }).format(value);
   };
+
+  const fullyRewarded = referrals.filter((r: any) => r.status === "fully_rewarded").length;
 
   return (
     <div className="min-h-screen gradient-hero pb-24">
@@ -103,7 +106,7 @@ const Referrals = () => {
             Referral Program
           </h1>
           <p className="text-muted-foreground">
-            Earn 5% of your friends' first deposit
+            Invite friends and earn up to ₦150 per referral
           </p>
         </motion.div>
 
@@ -124,7 +127,8 @@ const Referrals = () => {
               <Copy className="h-5 w-5" />
             </Button>
           </div>
-          <Button onClick={shareReferralLink} className="w-full">
+          <Button onClick={shareReferralLink} className="w-full gap-2">
+            <Share2 className="h-4 w-4" />
             Share Referral Link
           </Button>
         </motion.div>
@@ -134,19 +138,24 @@ const Referrals = () => {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="grid grid-cols-2 gap-4 mb-6"
+          className="grid grid-cols-3 gap-3 mb-6"
         >
           <div className="glass-card p-4 rounded-xl text-center">
-            <Users className="h-6 w-6 text-primary mx-auto mb-2" />
-            <p className="text-2xl font-bold text-foreground">{referrals.length}</p>
-            <p className="text-sm text-muted-foreground">Total Referrals</p>
+            <Users className="h-5 w-5 text-primary mx-auto mb-1" />
+            <p className="text-xl font-bold text-foreground">{referrals.length}</p>
+            <p className="text-xs text-muted-foreground">Referrals</p>
           </div>
           <div className="glass-card p-4 rounded-xl text-center">
-            <Gift className="h-6 w-6 text-primary mx-auto mb-2" />
-            <p className="text-2xl font-bold text-foreground">
+            <Wallet className="h-5 w-5 text-primary mx-auto mb-1" />
+            <p className="text-xl font-bold text-foreground">
               {formatCurrency(totalEarnings)}
             </p>
-            <p className="text-sm text-muted-foreground">Total Earnings</p>
+            <p className="text-xs text-muted-foreground">Earnings</p>
+          </div>
+          <div className="glass-card p-4 rounded-xl text-center">
+            <TrendingUp className="h-5 w-5 text-primary mx-auto mb-1" />
+            <p className="text-xl font-bold text-foreground">{fullyRewarded}</p>
+            <p className="text-xs text-muted-foreground">Completed</p>
           </div>
         </motion.div>
 
@@ -160,22 +169,16 @@ const Referrals = () => {
           <h3 className="font-semibold text-foreground mb-3">How it works</h3>
           <div className="space-y-3 text-sm text-muted-foreground">
             <div className="flex items-start gap-3">
-              <span className="bg-primary/20 text-primary rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
-                1
-              </span>
-              <p>Share your referral code with friends</p>
+              <span className="bg-primary/20 text-primary rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">1</span>
+              <p>Share your referral code or link with friends</p>
             </div>
             <div className="flex items-start gap-3">
-              <span className="bg-primary/20 text-primary rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
-                2
-              </span>
-              <p>They sign up using your code</p>
+              <span className="bg-primary/20 text-primary rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">2</span>
+              <p>They sign up using your code — <strong className="text-primary">you earn ₦100</strong></p>
             </div>
             <div className="flex items-start gap-3">
-              <span className="bg-primary/20 text-primary rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
-                3
-              </span>
-              <p>When they make their first deposit, you earn 5% bonus!</p>
+              <span className="bg-primary/20 text-primary rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">3</span>
+              <p>When they complete their first transaction — <strong className="text-primary">you earn ₦50 more!</strong></p>
             </div>
           </div>
         </motion.div>
@@ -206,19 +209,27 @@ const Referrals = () => {
                     <p className="text-sm text-muted-foreground">
                       {new Date(referral.created_at).toLocaleDateString()}
                     </p>
-                    {referral.rewarded && referral.reward_amount && (
+                    {referral.reward_amount && (
                       <p className="text-sm font-medium text-primary">
                         +{formatCurrency(referral.reward_amount)}
                       </p>
                     )}
                   </div>
-                  {referral.rewarded ? (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                      Pending
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {(referral as any).status === "fully_rewarded" ? (
+                      <span className="text-xs text-green-500 bg-green-500/10 px-2 py-1 rounded flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" /> Complete
+                      </span>
+                    ) : (referral as any).status === "signup_rewarded" ? (
+                      <span className="text-xs text-amber-500 bg-amber-500/10 px-2 py-1 rounded">
+                        Awaiting 1st Txn
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                        Pending
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

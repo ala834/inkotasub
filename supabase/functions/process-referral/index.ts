@@ -5,6 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const SIGNUP_BONUS = 100; // ₦100 signup bonus for referrer
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -25,16 +27,15 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claims, error: authError } = await supabase.auth.getClaims(token);
-    if (authError || !claims?.claims) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const referredUserId = claims.claims.sub;
+    const referredUserId = user.id;
     const { referralCode } = await req.json();
 
     if (!referralCode || typeof referralCode !== "string") {
@@ -82,12 +83,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create referral record
+    // Create referral record with signup bonus
     const { error: insertError } = await adminSupabase.from("referrals").insert({
       referrer_id: referrerProfile.user_id,
       referred_id: referredUserId,
       referral_code: referralCode.toUpperCase(),
-      rewarded: false,
+      reward_amount: SIGNUP_BONUS,
+      rewarded: true,
+      status: "signup_rewarded",
     });
 
     if (insertError) {
@@ -95,7 +98,45 @@ Deno.serve(async (req) => {
       throw insertError;
     }
 
-    console.log(`Referral recorded: ${referredUserId} referred by ${referrerProfile.user_id}`);
+    // Credit the referrer's wallet with ₦100
+    const { data: wallet } = await adminSupabase
+      .from("wallets")
+      .select("balance, ledger_balance")
+      .eq("user_id", referrerProfile.user_id)
+      .single();
+
+    if (wallet) {
+      const newBalance = Number(wallet.balance) + SIGNUP_BONUS;
+      const newLedger = Number(wallet.ledger_balance) + SIGNUP_BONUS;
+
+      await adminSupabase
+        .from("wallets")
+        .update({ balance: newBalance, ledger_balance: newLedger })
+        .eq("user_id", referrerProfile.user_id);
+
+      // Create transaction record for the referrer
+      await adminSupabase.from("transactions").insert({
+        user_id: referrerProfile.user_id,
+        type: "credit",
+        amount: SIGNUP_BONUS,
+        balance_before: Number(wallet.balance),
+        balance_after: newBalance,
+        status: "success",
+        description: "Referral signup bonus",
+        reference: `REF-SIGNUP-${Date.now()}`,
+        metadata: { type: "referral_bonus", referred_user: referredUserId },
+      });
+
+      // Send notification to referrer
+      await adminSupabase.from("notifications").insert({
+        user_id: referrerProfile.user_id,
+        title: "Referral Bonus! 🎉",
+        message: `You earned ₦${SIGNUP_BONUS} for referring a new user! You'll earn an additional ₦50 when they complete their first transaction.`,
+        type: "referral",
+      });
+    }
+
+    console.log(`Referral recorded & rewarded: ${referredUserId} referred by ${referrerProfile.user_id}`);
 
     return new Response(
       JSON.stringify({ success: true }),
