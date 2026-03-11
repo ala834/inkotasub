@@ -11,6 +11,7 @@ import {
   UserCheck,
   ShoppingCart,
   ArrowLeft,
+  Banknote,
   Shield,
   TrendingUp,
   Webhook,
