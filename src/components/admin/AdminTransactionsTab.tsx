@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { Search, ArrowUpRight, ArrowDownLeft, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface Transaction {
+interface TransactionWithProfit {
   id: string;
   user_id: string;
   type: string;
@@ -20,10 +20,14 @@ interface Transaction {
   status: string;
   description: string | null;
   created_at: string;
+  profit: number | null;
+  cost_price: number | null;
+  service_type: string | null;
+  recipient: string | null;
 }
 
 const AdminTransactionsTab = () => {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<TransactionWithProfit[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -33,9 +37,14 @@ const AdminTransactionsTab = () => {
 
   const fetchTransactions = async () => {
     setIsLoading(true);
+    
+    // Join transactions with vtu_orders to get profit data
     let query = supabase
       .from("transactions")
-      .select("*")
+      .select(`
+        *,
+        vtu_orders:vtu_orders!left(transaction_id, profit, cost_price, service_type, recipient)
+      `)
       .order("created_at", { ascending: false })
       .limit(100);
 
@@ -50,6 +59,14 @@ const AdminTransactionsTab = () => {
         data.map((t) => ({
           ...t,
           amount: parseFloat(t.amount as unknown as string),
+          profit: t.vtu_orders?.[0]?.profit 
+            ? parseFloat(t.vtu_orders[0].profit as unknown as string) 
+            : null,
+          cost_price: t.vtu_orders?.[0]?.cost_price 
+            ? parseFloat(t.vtu_orders[0].cost_price as unknown as string) 
+            : null,
+          service_type: t.vtu_orders?.[0]?.service_type || null,
+          recipient: t.vtu_orders?.[0]?.recipient || null,
         }))
       );
     }
