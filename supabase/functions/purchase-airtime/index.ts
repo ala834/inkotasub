@@ -5,6 +5,7 @@ import {
   purchaseAirtime,
   generateReference,
 } from "../_shared/inkota-service-layer.ts";
+import { checkAndRewardFirstTransaction } from "../_shared/referral-reward.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -167,6 +168,9 @@ serve(async (req) => {
         api_response: apiResult._internal.rawResponse,
         provider_used: 'smeplug', fallback_attempted: false,
       });
+
+      // Check and reward referrer for first transaction
+      checkAndRewardFirstTransaction(userId);
 
       return new Response(
         JSON.stringify({ success: true, message: apiResult.message }),

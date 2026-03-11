@@ -9,6 +9,7 @@ import {
   RefreshCw,
   DollarSign,
   UserCheck,
+  Gift,
   ShoppingCart,
   ArrowLeft,
   Banknote,
@@ -39,6 +40,7 @@ import AdminVirtualAccountsTab from "@/components/admin/AdminVirtualAccountsTab"
 import AdminActivityLogTab from "@/components/admin/AdminActivityLogTab";
 import AdminServicesTab from "@/components/admin/AdminServicesTab";
 import AdminProfitWithdrawalTab from "@/components/admin/AdminProfitWithdrawalTab";
+import AdminReferralsTab from "@/components/admin/AdminReferralsTab";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -69,6 +71,7 @@ const AdminDashboard = () => {
     { value: "virtual-accounts", label: "Virtual Accounts", icon: Building2 },
     { value: "webhooks", label: "Webhooks", icon: Webhook },
     { value: "activity", label: "Activity Log", icon: ClipboardList },
+    { value: "referrals", label: "Referrals", icon: Gift },
     { value: "pricing", label: "Pricing", icon: DollarSign },
     { value: "settings", label: "Settings", icon: Settings },
   ];
@@ -179,6 +182,10 @@ const AdminDashboard = () => {
 
           <TabsContent value="activity">
             <AdminActivityLogTab />
+          </TabsContent>
+
+          <TabsContent value="referrals">
+            <AdminReferralsTab />
           </TabsContent>
 
           <TabsContent value="pricing">

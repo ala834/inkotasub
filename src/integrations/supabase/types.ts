@@ -420,6 +420,7 @@ export type Database = {
           reward_amount: number | null
           reward_percentage: number
           rewarded: boolean
+          status: string
         }
         Insert: {
           created_at?: string
@@ -430,6 +431,7 @@ export type Database = {
           reward_amount?: number | null
           reward_percentage?: number
           rewarded?: boolean
+          status?: string
         }
         Update: {
           created_at?: string
@@ -440,6 +442,7 @@ export type Database = {
           reward_amount?: number | null
           reward_percentage?: number
           rewarded?: boolean
+          status?: string
         }
         Relationships: []
       }

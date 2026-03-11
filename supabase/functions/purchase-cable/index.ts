@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+import { checkAndRewardFirstTransaction } from "../_shared/referral-reward.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -208,6 +209,9 @@ serve(async (req) => {
         message: `Your ${providerCode.toUpperCase()} subscription for ${smartCardNumber} has been activated.`,
         type: "success",
       });
+
+      // Check and reward referrer for first transaction
+      checkAndRewardFirstTransaction(userId);
 
       return new Response(
         JSON.stringify({ success: true, message: "Subscription successful" }),
