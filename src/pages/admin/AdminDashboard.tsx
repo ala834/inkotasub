@@ -141,6 +141,10 @@ const AdminDashboard = () => {
             <AdminProfitAnalyticsTab />
           </TabsContent>
 
+          <TabsContent value="withdrawals">
+            <AdminProfitWithdrawalTab />
+          </TabsContent>
+
           <TabsContent value="services">
             <AdminServicesTab />
           </TabsContent>
