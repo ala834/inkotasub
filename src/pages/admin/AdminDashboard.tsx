@@ -37,6 +37,7 @@ import AdminWebhooksTab from "@/components/admin/AdminWebhooksTab";
 import AdminVirtualAccountsTab from "@/components/admin/AdminVirtualAccountsTab";
 import AdminActivityLogTab from "@/components/admin/AdminActivityLogTab";
 import AdminServicesTab from "@/components/admin/AdminServicesTab";
+import AdminProfitWithdrawalTab from "@/components/admin/AdminProfitWithdrawalTab";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
