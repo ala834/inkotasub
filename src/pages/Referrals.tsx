@@ -82,7 +82,7 @@ const Referrals = () => {
     }).format(value);
   };
 
-  const fullyRewarded = referrals.filter((r: any) => r.status === "fully_rewarded").length;
+  const fullyRewarded = referrals.filter((r: any) => (r as any).status === "fully_rewarded").length;
 
   return (
     <div className="min-h-screen gradient-hero pb-24">

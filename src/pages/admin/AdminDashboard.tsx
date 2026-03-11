@@ -184,6 +184,10 @@ const AdminDashboard = () => {
             <AdminActivityLogTab />
           </TabsContent>
 
+          <TabsContent value="referrals">
+            <AdminReferralsTab />
+          </TabsContent>
+
           <TabsContent value="pricing">
             <AdminPricingTab />
           </TabsContent>

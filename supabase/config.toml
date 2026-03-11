@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.purchase-exam-pin]
 verify_jwt = false
+
+[functions.reward-first-transaction]
+verify_jwt = false
