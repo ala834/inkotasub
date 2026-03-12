@@ -72,6 +72,7 @@ const AdminDashboard = () => {
     { value: "virtual-accounts", label: "Virtual Accounts", icon: Building2 },
     { value: "webhooks", label: "Webhooks", icon: Webhook },
     { value: "activity", label: "Activity Log", icon: ClipboardList },
+    { value: "devices", label: "Devices", icon: Shield },
     { value: "referrals", label: "Referrals", icon: Gift },
     { value: "pricing", label: "Pricing", icon: DollarSign },
     { value: "settings", label: "Settings", icon: Settings },
