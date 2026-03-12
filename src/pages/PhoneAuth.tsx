@@ -29,6 +29,7 @@ const PhoneAuth = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [referralCode, setReferralCode] = useState("");
 
   const [maskedPhone, setMaskedPhone] = useState("");
