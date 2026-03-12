@@ -32,6 +32,7 @@ import Terms from "./pages/Terms";
 import RefundPolicy from "./pages/RefundPolicy";
 import FAQ from "./pages/FAQ";
 import ResetPassword from "./pages/ResetPassword";
+import MyDevices from "./pages/MyDevices";
 
 const queryClient = new QueryClient();
 
