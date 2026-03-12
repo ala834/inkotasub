@@ -34,6 +34,10 @@ import FAQ from "./pages/FAQ";
 import ResetPassword from "./pages/ResetPassword";
 import MyDevices from "./pages/MyDevices";
 import KYCVerification from "./pages/KYCVerification";
+import BulkAirtime from "./pages/BulkAirtime";
+import BulkData from "./pages/BulkData";
+import InternetServices from "./pages/InternetServices";
+import ProfitCalculator from "./pages/ProfitCalculator";
 
 const queryClient = new QueryClient();
 
@@ -73,6 +77,10 @@ const App = () => {
               <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
               <Route path="/my-devices" element={<ProtectedRoute><MyDevices /></ProtectedRoute>} />
               <Route path="/kyc" element={<ProtectedRoute><KYCVerification /></ProtectedRoute>} />
+              <Route path="/bulk-airtime" element={<ProtectedRoute><BulkAirtime /></ProtectedRoute>} />
+              <Route path="/bulk-data" element={<ProtectedRoute><BulkData /></ProtectedRoute>} />
+              <Route path="/internet-services" element={<ProtectedRoute><InternetServices /></ProtectedRoute>} />
+              <Route path="/calculator" element={<ProtectedRoute><ProfitCalculator /></ProtectedRoute>} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/refund-policy" element={<RefundPolicy />} />
