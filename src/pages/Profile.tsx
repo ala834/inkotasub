@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { Camera, User, Phone, Mail, Save } from "lucide-react";
+import { Camera, User, Phone, Mail, Save, ShieldCheck } from "lucide-react";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import { Button } from "@/components/ui/button";
