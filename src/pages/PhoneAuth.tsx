@@ -156,6 +156,10 @@ const PhoneAuth = () => {
       toast.error("Please enter your full name");
       return;
     }
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
     if (password.length < 6) {
       toast.error("Password must be at least 6 characters");
       return;
@@ -171,6 +175,7 @@ const PhoneAuth = () => {
         body: {
           action: "signup",
           phoneNumber,
+          email: email.trim().toLowerCase(),
           password,
           fullName,
           verificationToken,
