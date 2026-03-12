@@ -32,6 +32,7 @@ import Terms from "./pages/Terms";
 import RefundPolicy from "./pages/RefundPolicy";
 import FAQ from "./pages/FAQ";
 import ResetPassword from "./pages/ResetPassword";
+import MyDevices from "./pages/MyDevices";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,7 @@ const App = () => {
               <Route path="/referrals" element={<ProtectedRoute><Referrals /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
               <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
+              <Route path="/my-devices" element={<ProtectedRoute><MyDevices /></ProtectedRoute>} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/refund-policy" element={<RefundPolicy />} />

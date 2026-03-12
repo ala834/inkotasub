@@ -24,6 +24,7 @@ import {
   Settings as SettingsIcon,
   Globe,
   Building2,
+  Smartphone,
 } from "lucide-react";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
@@ -307,6 +308,12 @@ const Settings = () => {
       title: "Security",
       icon: Shield,
       items: [
+        {
+          icon: Smartphone,
+          label: "My Devices",
+          description: "Manage linked devices",
+          action: () => navigate("/my-devices"),
+        },
         {
           icon: Lock,
           label: "Change Transaction PIN",
