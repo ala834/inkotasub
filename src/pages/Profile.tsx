@@ -10,6 +10,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import KYCBadge from "@/components/common/KYCBadge";
+import { useNavigate } from "react-router-dom";
 
 const Profile = () => {
   const { user, profile, refreshProfile } = useAuth();
