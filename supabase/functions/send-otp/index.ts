@@ -82,6 +82,22 @@ serve(async (req) => {
 
     const formattedPhone = validation.formatted;
 
+    // For signup (verification), check if phone already exists BEFORE sending OTP
+    if (purpose === "verification") {
+      const { data: existingProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("phone_number", formattedPhone)
+        .maybeSingle();
+
+      if (existingProfile) {
+        return new Response(
+          JSON.stringify({ success: false, error: "This phone number is already registered. Please login instead." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // Check rate limiting (max 3 OTPs per phone per 5 minutes)
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const { data: recentOTPs, error: rateLimitError } = await supabaseAdmin
