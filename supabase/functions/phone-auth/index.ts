@@ -9,6 +9,7 @@ const corsHeaders = {
 interface SignUpRequest {
   action: "signup";
   phoneNumber: string;
+  email: string;
   password: string;
   fullName: string;
   verificationToken: string;
