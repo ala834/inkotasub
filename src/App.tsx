@@ -33,6 +33,7 @@ import RefundPolicy from "./pages/RefundPolicy";
 import FAQ from "./pages/FAQ";
 import ResetPassword from "./pages/ResetPassword";
 import MyDevices from "./pages/MyDevices";
+import KYCVerification from "./pages/KYCVerification";
 
 const queryClient = new QueryClient();
 
