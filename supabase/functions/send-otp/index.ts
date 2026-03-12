@@ -194,12 +194,9 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: termiiEnabled 
-          ? `OTP sent to ${maskPhoneNumber(formattedPhone)}` 
-          : `Test OTP sent to ${maskPhoneNumber(formattedPhone)} (use code: ${otpCode})`,
+        message: `OTP sent to ${maskPhoneNumber(formattedPhone)}`,
         masked_phone: maskPhoneNumber(formattedPhone),
         expires_in: expiryMinutes * 60,
-        is_test: !termiiEnabled,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
