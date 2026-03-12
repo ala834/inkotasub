@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { Camera, User, Phone, Mail, Save } from "lucide-react";
+import { Camera, User, Phone, Mail, Save, ShieldCheck } from "lucide-react";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import KYCBadge from "@/components/common/KYCBadge";
+import { useNavigate } from "react-router-dom";
 
 const Profile = () => {
+  const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -121,6 +124,26 @@ const Profile = () => {
               />
             </div>
             <p className="text-sm text-muted-foreground mt-2">Tap to change avatar</p>
+            <div className="flex items-center gap-2 mt-2">
+              <KYCBadge level={(profile as any)?.kyc_level} size="md" />
+            </div>
+          </div>
+
+          {/* KYC Card */}
+          <div
+            className="glass-card rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:ring-1 hover:ring-primary/20 transition-all"
+            onClick={() => navigate("/kyc")}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <ShieldCheck className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">KYC Verification</p>
+                <p className="text-xs text-muted-foreground">Verify your identity for higher limits</p>
+              </div>
+            </div>
+            <ShieldCheck className="h-5 w-5 text-muted-foreground" />
           </div>
 
           {/* Form */}

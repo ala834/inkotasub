@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   Banknote,
   Shield,
+  ShieldCheck,
   TrendingUp,
   Webhook,
   Building2,
@@ -42,6 +43,7 @@ import AdminServicesTab from "@/components/admin/AdminServicesTab";
 import AdminProfitWithdrawalTab from "@/components/admin/AdminProfitWithdrawalTab";
 import AdminReferralsTab from "@/components/admin/AdminReferralsTab";
 import AdminDevicesTab from "@/components/admin/AdminDevicesTab";
+import AdminKYCTab from "@/components/admin/AdminKYCTab";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -73,6 +75,7 @@ const AdminDashboard = () => {
     { value: "webhooks", label: "Webhooks", icon: Webhook },
     { value: "activity", label: "Activity Log", icon: ClipboardList },
     { value: "devices", label: "Devices", icon: Shield },
+    { value: "kyc", label: "KYC", icon: ShieldCheck },
     { value: "referrals", label: "Referrals", icon: Gift },
     { value: "pricing", label: "Pricing", icon: DollarSign },
     { value: "settings", label: "Settings", icon: Settings },
@@ -188,6 +191,10 @@ const AdminDashboard = () => {
 
           <TabsContent value="devices">
             <AdminDevicesTab />
+          </TabsContent>
+
+          <TabsContent value="kyc">
+            <AdminKYCTab />
           </TabsContent>
 
           <TabsContent value="referrals">

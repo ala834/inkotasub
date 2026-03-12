@@ -110,6 +110,81 @@ export type Database = {
         }
         Relationships: []
       }
+      kyc_verifications: {
+        Row: {
+          address: string | null
+          bvn_number: string | null
+          bvn_verified: boolean | null
+          city: string | null
+          created_at: string
+          date_of_birth: string | null
+          email_verified: boolean
+          full_name: string | null
+          id: string
+          level: Database["public"]["Enums"]["kyc_level"]
+          nin_number: string | null
+          nin_verified: boolean | null
+          phone_verified: boolean
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          selfie_url: string | null
+          selfie_verified: boolean | null
+          state: string | null
+          status: Database["public"]["Enums"]["kyc_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          bvn_number?: string | null
+          bvn_verified?: boolean | null
+          city?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email_verified?: boolean
+          full_name?: string | null
+          id?: string
+          level: Database["public"]["Enums"]["kyc_level"]
+          nin_number?: string | null
+          nin_verified?: boolean | null
+          phone_verified?: boolean
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          selfie_url?: string | null
+          selfie_verified?: boolean | null
+          state?: string | null
+          status?: Database["public"]["Enums"]["kyc_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          bvn_number?: string | null
+          bvn_verified?: boolean | null
+          city?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email_verified?: boolean
+          full_name?: string | null
+          id?: string
+          level?: Database["public"]["Enums"]["kyc_level"]
+          nin_number?: string | null
+          nin_verified?: boolean | null
+          phone_verified?: boolean
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          selfie_url?: string | null
+          selfie_verified?: boolean | null
+          state?: string | null
+          status?: Database["public"]["Enums"]["kyc_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -264,10 +339,12 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          daily_transaction_limit: number | null
           failed_pin_attempts: number | null
           full_name: string | null
           id: string
           is_agent: boolean | null
+          kyc_level: Database["public"]["Enums"]["kyc_level"] | null
           phone_number: string | null
           pin_locked_until: string | null
           referral_code: string
@@ -279,10 +356,12 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          daily_transaction_limit?: number | null
           failed_pin_attempts?: number | null
           full_name?: string | null
           id?: string
           is_agent?: boolean | null
+          kyc_level?: Database["public"]["Enums"]["kyc_level"] | null
           phone_number?: string | null
           pin_locked_until?: string | null
           referral_code?: string
@@ -294,10 +373,12 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          daily_transaction_limit?: number | null
           failed_pin_attempts?: number | null
           full_name?: string | null
           id?: string
           is_agent?: boolean | null
+          kyc_level?: Database["public"]["Enums"]["kyc_level"] | null
           phone_number?: string | null
           pin_locked_until?: string | null
           referral_code?: string
@@ -793,6 +874,8 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
+      kyc_level: "level_1" | "level_2" | "level_3"
+      kyc_status: "pending" | "approved" | "rejected"
       service_type: "airtime" | "data" | "electricity" | "cable" | "exam_pin"
       transaction_status: "pending" | "success" | "failed"
       transaction_type: "credit" | "debit"
@@ -924,6 +1007,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
+      kyc_level: ["level_1", "level_2", "level_3"],
+      kyc_status: ["pending", "approved", "rejected"],
       service_type: ["airtime", "data", "electricity", "cable", "exam_pin"],
       transaction_status: ["pending", "success", "failed"],
       transaction_type: ["credit", "debit"],
