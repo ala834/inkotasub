@@ -217,7 +217,7 @@ serve(async (req) => {
       // Sign in the user
       const supabaseClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? "");
       const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
-        email,
+        email: email.toLowerCase(),
         password,
       });
 
