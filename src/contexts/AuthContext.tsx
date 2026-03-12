@@ -209,8 +209,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             // Auto-create virtual account on sign-in (covers both signup and login)
             if (event === "SIGNED_IN") {
               ensureVirtualAccount(session.user.id, session.access_token);
-              // Process any pending referral code from email signup
               processEmailReferral(session.user.id, session.access_token);
+              registerCurrentDevice(session.user.id);
             }
           }, 0);
         } else {
