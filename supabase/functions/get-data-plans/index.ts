@@ -32,7 +32,16 @@ serve(async (req) => {
   }
 
   try {
-    const { network, includeBasePrice } = await req.json();
+    const body = await req.json();
+    const network = body.network || body.provider;
+    const includeBasePrice = body.includeBasePrice;
+
+    if (!network) {
+      return new Response(
+        JSON.stringify({ error: "Network/provider is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     const authHeader = req.headers.get("Authorization");
 
     let isAgent = false;
