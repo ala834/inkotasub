@@ -536,31 +536,52 @@ export type Database = {
       trusted_devices: {
         Row: {
           biometric_enabled: boolean | null
+          block_reason: string | null
+          blocked_at: string | null
+          blocked_by: string | null
           created_at: string
           device_id: string
+          device_model: string | null
           device_name: string | null
           id: string
+          is_active: boolean | null
+          is_blocked: boolean | null
           last_used_at: string
+          os_version: string | null
           platform: string | null
           user_id: string
         }
         Insert: {
           biometric_enabled?: boolean | null
+          block_reason?: string | null
+          blocked_at?: string | null
+          blocked_by?: string | null
           created_at?: string
           device_id: string
+          device_model?: string | null
           device_name?: string | null
           id?: string
+          is_active?: boolean | null
+          is_blocked?: boolean | null
           last_used_at?: string
+          os_version?: string | null
           platform?: string | null
           user_id: string
         }
         Update: {
           biometric_enabled?: boolean | null
+          block_reason?: string | null
+          blocked_at?: string | null
+          blocked_by?: string | null
           created_at?: string
           device_id?: string
+          device_model?: string | null
           device_name?: string | null
           id?: string
+          is_active?: boolean | null
+          is_blocked?: boolean | null
           last_used_at?: string
+          os_version?: string | null
           platform?: string | null
           user_id?: string
         }
