@@ -42,6 +42,7 @@ import AdminServicesTab from "@/components/admin/AdminServicesTab";
 import AdminProfitWithdrawalTab from "@/components/admin/AdminProfitWithdrawalTab";
 import AdminReferralsTab from "@/components/admin/AdminReferralsTab";
 import AdminDevicesTab from "@/components/admin/AdminDevicesTab";
+import AdminKYCTab from "@/components/admin/AdminKYCTab";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
