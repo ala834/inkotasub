@@ -525,6 +525,24 @@ onClick={() => navigate("/auth/email")}
                       </div>
                     </div>
 
+                    <div className="space-y-2">
+                      <Label htmlFor="signupEmail">Email Address</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input
+                          id="signupEmail"
+                          type="email"
+                          placeholder="you@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-10 h-12 rounded-xl"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        A verification link will be sent to this email
+                      </p>
+                    </div>
+
                     {referralCode && (
                       <div className="space-y-2">
                         <Label htmlFor="referral">Referral Code</Label>
