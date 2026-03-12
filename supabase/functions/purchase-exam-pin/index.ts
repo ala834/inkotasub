@@ -1,12 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
-import {
-  generateReference,
-  normalizeResponse,
-  logProviderTransaction,
-  type NormalizedTransactionResponse,
-} from "../_shared/inkota-service-layer.ts";
+import { generateReference, normalizeResponse, type NormalizedTransactionResponse } from "../_shared/inkota-service-layer.ts";
+import { subpadiPurchaseExamPin, isSubpadiConfigured } from "../_shared/subpadi-provider.ts";
 import { checkAndRewardFirstTransaction } from "../_shared/referral-reward.ts";
 
 const corsHeaders = {
@@ -23,36 +19,21 @@ function needsPinMigration(storedPin: string): boolean {
   return !storedPin.startsWith('$2');
 }
 
-// SMEPlug exam PIN purchase
-async function purchaseExamPin(examType: string, quantity: number): Promise<NormalizedTransactionResponse> {
+// SMEPlug exam PIN purchase (fallback)
+async function smeplugPurchaseExamPin(examType: string, quantity: number): Promise<NormalizedTransactionResponse> {
   const apiKey = Deno.env.get("SMEPLUG_API_KEY");
-  if (!apiKey) {
-    return normalizeResponse(false, "Service not configured", null);
-  }
+  if (!apiKey) return normalizeResponse(false, "Service not configured", null);
 
   try {
     const response = await fetch("https://smeplug.ng/api/v1/education/purchase", {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        exam_type: examType,
-        quantity: quantity,
-      }),
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ exam_type: examType, quantity }),
     });
-
     const data = await response.json();
-    const success = data?.status === "success" || data?.success === true;
     console.log("SMEPlug Exam PIN Response:", data);
-
-    return normalizeResponse(
-      success,
-      data?.message || (success ? "Exam card purchased successfully" : "Purchase failed"),
-      data,
-      { reference: data?.reference || data?.data?.reference }
-    );
+    const success = data?.status === "success" || data?.success === true;
+    return normalizeResponse(success, data?.message || (success ? "Exam card purchased" : "Purchase failed"), data, { reference: data?.reference || data?.data?.reference });
   } catch (error) {
     console.error("SMEPlug Exam PIN Error:", error);
     return normalizeResponse(false, error instanceof Error ? error.message : "API error", null);
@@ -101,7 +82,6 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Validate PIN
     const { data: profile } = await adminSupabase
       .from("profiles")
       .select("is_agent, transaction_pin, failed_pin_attempts, pin_locked_until")
@@ -149,7 +129,6 @@ serve(async (req) => {
     const isAgent = profile?.is_agent || false;
     const userType = isAgent ? 'agent' : 'user';
 
-    // Pricing config
     const { data: pricingConfigs } = await adminSupabase
       .from("pricing_config")
       .select("*")
@@ -171,7 +150,6 @@ serve(async (req) => {
     }
     const profit = sellingPrice - costPrice;
 
-    // Check wallet
     const { data: wallet } = await supabase.from("wallets").select("balance").eq("user_id", userId).single();
     if (!wallet) throw new Error("Wallet not found");
 
@@ -198,10 +176,36 @@ serve(async (req) => {
 
     if (txError) throw txError;
 
-    const apiResult = await purchaseExamPin(examType, quantity);
-    logProviderTransaction('exam_pin', apiResult, { examType, quantity });
+    // Try Subpadi first, then SMEPlug fallback
+    let apiSuccess = false;
+    let providerUsed = 'subpadi';
+    let fallbackAttempted = false;
+    let apiResponse: unknown = null;
+    let fallbackResponse: unknown = null;
 
-    if (apiResult.success) {
+    if (isSubpadiConfigured()) {
+      const subpadiResult = await subpadiPurchaseExamPin(examType, quantity);
+      apiResponse = subpadiResult.rawResponse;
+      if (subpadiResult.success) {
+        apiSuccess = true;
+      } else {
+        console.log("Subpadi exam failed, trying SMEPlug fallback:", subpadiResult.message);
+        fallbackAttempted = true;
+        const smeplugResult = await smeplugPurchaseExamPin(examType, quantity);
+        fallbackResponse = smeplugResult._internal.rawResponse;
+        if (smeplugResult.success) {
+          apiSuccess = true;
+          providerUsed = 'smeplug';
+        }
+      }
+    } else {
+      const smeplugResult = await smeplugPurchaseExamPin(examType, quantity);
+      apiResponse = smeplugResult._internal.rawResponse;
+      providerUsed = 'smeplug';
+      apiSuccess = smeplugResult.success;
+    }
+
+    if (apiSuccess) {
       await adminSupabase.from("wallets").update({ balance: newBalance }).eq("user_id", userId);
       await adminSupabase.from("transactions").update({ status: "success" }).eq("id", transaction.id);
       await adminSupabase.from("vtu_orders").insert({
@@ -209,15 +213,15 @@ serve(async (req) => {
         service_type: "exam_pin", provider: examType.toUpperCase(),
         recipient: `${examType.toUpperCase()} x${quantity}`,
         amount: sellingPrice, cost_price: costPrice, profit,
-        status: "success", api_response: apiResult._internal.rawResponse,
-        provider_used: 'smeplug', fallback_attempted: false,
+        status: "success", api_response: apiResponse,
+        provider_used: providerUsed, fallback_attempted: fallbackAttempted,
+        fallback_response: fallbackResponse, fallback_provider: fallbackAttempted ? 'smeplug' : null,
       });
 
-      // Check and reward referrer for first transaction
       checkAndRewardFirstTransaction(userId);
 
       return new Response(
-        JSON.stringify({ success: true, message: apiResult.message }),
+        JSON.stringify({ success: true, message: "Exam card purchased successfully" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } else {
@@ -227,12 +231,13 @@ serve(async (req) => {
         service_type: "exam_pin", provider: examType.toUpperCase(),
         recipient: `${examType.toUpperCase()} x${quantity}`,
         amount: sellingPrice, cost_price: costPrice, profit: 0,
-        status: "failed", api_response: apiResult._internal.rawResponse,
-        provider_used: 'smeplug', fallback_attempted: false,
+        status: "failed", api_response: apiResponse,
+        provider_used: providerUsed, fallback_attempted: fallbackAttempted,
+        fallback_response: fallbackResponse, fallback_provider: fallbackAttempted ? 'smeplug' : null,
       });
 
       return new Response(
-        JSON.stringify({ success: false, message: apiResult.message }),
+        JSON.stringify({ success: false, message: "Exam card purchase failed. Please try again." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
