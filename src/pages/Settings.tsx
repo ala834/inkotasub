@@ -308,6 +308,12 @@ const Settings = () => {
       icon: Shield,
       items: [
         {
+          icon: Smartphone,
+          label: "My Devices",
+          description: "Manage linked devices",
+          action: () => navigate("/my-devices"),
+        },
+        {
           icon: Lock,
           label: "Change Transaction PIN",
           description: "Update your 4-digit PIN",
