@@ -105,6 +105,68 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const registerCurrentDevice = async (userId: string) => {
+    try {
+      let deviceId: string, deviceName: string, deviceModel: string, osVersion: string, platform: string;
+      
+      if (Capacitor.isNativePlatform()) {
+        const idResult = await Device.getId();
+        const infoResult = await Device.getInfo();
+        deviceId = idResult.identifier;
+        deviceName = infoResult.name || `${infoResult.manufacturer} ${infoResult.model}`;
+        deviceModel = infoResult.model;
+        osVersion = infoResult.osVersion;
+        platform = infoResult.platform;
+      } else {
+        deviceId = localStorage.getItem("inkota_device_id") || crypto.randomUUID();
+        localStorage.setItem("inkota_device_id", deviceId);
+        deviceName = navigator.platform || "Web Browser";
+        deviceModel = "Browser";
+        osVersion = "unknown";
+        platform = "web";
+      }
+
+      // Check if blocked
+      const { data: blocked } = await supabase
+        .from("trusted_devices")
+        .select("id")
+        .eq("device_id", deviceId)
+        .eq("is_blocked", true)
+        .maybeSingle();
+
+      if (blocked) {
+        await supabase.auth.signOut();
+        return;
+      }
+
+      // Deactivate other devices
+      await supabase
+        .from("trusted_devices")
+        .update({ is_active: false })
+        .eq("user_id", userId)
+        .neq("device_id", deviceId);
+
+      // Upsert current device
+      await supabase
+        .from("trusted_devices")
+        .upsert(
+          {
+            user_id: userId,
+            device_id: deviceId,
+            device_name: deviceName,
+            device_model: deviceModel,
+            os_version: osVersion,
+            platform,
+            is_active: true,
+            last_used_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,device_id" }
+        );
+    } catch (error) {
+      console.error("Device registration error:", error);
+    }
+  };
+
   const processEmailReferral = async (userId: string, accessToken: string) => {
     try {
       const pendingCode = localStorage.getItem("pendingReferralCode");
