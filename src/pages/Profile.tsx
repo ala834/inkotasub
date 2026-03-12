@@ -14,6 +14,7 @@ import KYCBadge from "@/components/common/KYCBadge";
 import { useNavigate } from "react-router-dom";
 
 const Profile = () => {
+  const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
