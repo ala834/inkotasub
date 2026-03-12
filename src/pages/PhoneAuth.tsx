@@ -302,6 +302,7 @@ const PhoneAuth = () => {
     setPassword("");
     setConfirmPassword("");
     setFullName("");
+    setEmail("");
     setVerificationToken("");
     setOtpExpiry(0);
   };
