@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+import { subpadiPurchaseElectricity, isSubpadiConfigured } from "../_shared/subpadi-provider.ts";
 import { checkAndRewardFirstTransaction } from "../_shared/referral-reward.ts";
 
 const corsHeaders = {
@@ -17,20 +18,34 @@ function needsPinMigration(storedPin: string): boolean {
   return !storedPin.startsWith('$2');
 }
 
-// Map disco codes to SMEPlug format
 const discoMapping: Record<string, string> = {
-  "ikeja": "ikeja-electric",
-  "eko": "eko-electric",
-  "abuja": "abuja-electric",
-  "kano": "kano-electric",
-  "port-harcourt": "portharcourt-electric",
-  "ibadan": "ibadan-electric",
-  "kaduna": "kaduna-electric",
-  "jos": "jos-electric",
-  "enugu": "enugu-electric",
-  "benin": "benin-electric",
-  "yola": "yola-electric",
+  "ikeja": "ikeja-electric", "eko": "eko-electric", "abuja": "abuja-electric",
+  "kano": "kano-electric", "port-harcourt": "portharcourt-electric",
+  "ibadan": "ibadan-electric", "kaduna": "kaduna-electric", "jos": "jos-electric",
+  "enugu": "enugu-electric", "benin": "benin-electric", "yola": "yola-electric",
 };
+
+// SMEPlug electricity purchase (fallback)
+async function smeplugPurchaseElectricity(discoCode: string, meterNumber: string, amount: number, meterType: string) {
+  const apiKey = Deno.env.get("SMEPLUG_API_KEY");
+  if (!apiKey) return { success: false, message: "Service not configured", rawResponse: null, token: null };
+
+  try {
+    const response = await fetch("https://smeplug.ng/api/v1/electricity/purchase", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ service_id: discoCode, meter_number: meterNumber, meter_type: meterType.toLowerCase(), amount }),
+    });
+    const data = await response.json();
+    console.log("SMEPlug electricity response:", data);
+    const success = data?.status === "success" || data?.success === true;
+    const token = data?.data?.token || data?.token;
+    return { success, message: data?.message || (success ? "Electricity purchased" : "Purchase failed"), rawResponse: data, token };
+  } catch (error) {
+    console.error("SMEPlug electricity error:", error);
+    return { success: false, message: error instanceof Error ? error.message : "API error", rawResponse: null, token: null };
+  }
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -115,7 +130,6 @@ serve(async (req) => {
     const isAgent = profile?.is_agent || false;
     const userType = isAgent ? 'agent' : 'user';
 
-    // Pricing config
     const { data: pricingConfigs } = await adminSupabase
       .from("pricing_config")
       .select("*")
@@ -139,7 +153,6 @@ serve(async (req) => {
     const sellingPrice = amount + serviceCharge;
     const profit = serviceCharge;
 
-    // Check wallet
     const { data: wallet } = await supabase.from("wallets").select("balance").eq("user_id", userId).single();
     if (!wallet) throw new Error("Wallet not found");
 
@@ -153,8 +166,8 @@ serve(async (req) => {
 
     const reference = `ELEC_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const newBalance = currentBalance - sellingPrice;
+    const discoCode = discoMapping[disco.toLowerCase()] || disco.toLowerCase();
 
-    // Create pending transaction
     const { data: transaction, error: txError } = await adminSupabase
       .from("transactions")
       .insert({
@@ -168,47 +181,37 @@ serve(async (req) => {
 
     if (txError) throw txError;
 
-    // Call SMEPlug API for electricity purchase
-    const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
-    if (!smeplugApiKey) {
-      await adminSupabase.from("transactions").update({ status: "failed" }).eq("id", transaction.id);
-      return new Response(
-        JSON.stringify({ error: "Service temporarily unavailable", success: false }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const discoCode = discoMapping[disco.toLowerCase()] || disco.toLowerCase();
-
+    // Try Subpadi first, then SMEPlug fallback
     let apiSuccess = false;
-    let apiResponse = null;
-    let electricityToken = null;
+    let providerUsed = 'subpadi';
+    let fallbackAttempted = false;
+    let apiResponse: unknown = null;
+    let fallbackResponse: unknown = null;
+    let electricityToken: string | null = null;
 
-    try {
-      console.log("Calling SMEPlug electricity API:", { disco: discoCode, meterNumber, amount: costPrice });
-
-      const response = await fetch("https://smeplug.ng/api/v1/electricity/purchase", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${smeplugApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          service_id: discoCode,
-          meter_number: meterNumber,
-          meter_type: meterType.toLowerCase(),
-          amount: costPrice,
-        }),
-      });
-
-      apiResponse = await response.json();
-      console.log("SMEPlug electricity response:", apiResponse);
-
-      apiSuccess = apiResponse?.status === "success" || apiResponse?.success === true;
-      electricityToken = apiResponse?.data?.token || apiResponse?.token;
-    } catch (apiError: unknown) {
-      console.error("SMEPlug API error:", apiError);
-      apiResponse = { error: apiError instanceof Error ? apiError.message : "API error" };
+    if (isSubpadiConfigured()) {
+      const subpadiResult = await subpadiPurchaseElectricity(discoCode, meterNumber, costPrice, meterType);
+      apiResponse = subpadiResult.rawResponse;
+      if (subpadiResult.success && subpadiResult.token) {
+        apiSuccess = true;
+        electricityToken = subpadiResult.token;
+      } else {
+        console.log("Subpadi electricity failed, trying SMEPlug fallback:", subpadiResult.message);
+        fallbackAttempted = true;
+        const smeplugResult = await smeplugPurchaseElectricity(discoCode, meterNumber, costPrice, meterType);
+        fallbackResponse = smeplugResult.rawResponse;
+        if (smeplugResult.success && smeplugResult.token) {
+          apiSuccess = true;
+          electricityToken = smeplugResult.token;
+          providerUsed = 'smeplug';
+        }
+      }
+    } else {
+      const smeplugResult = await smeplugPurchaseElectricity(discoCode, meterNumber, costPrice, meterType);
+      apiResponse = smeplugResult.rawResponse;
+      providerUsed = 'smeplug';
+      apiSuccess = smeplugResult.success;
+      electricityToken = smeplugResult.token;
     }
 
     if (apiSuccess && electricityToken) {
@@ -219,8 +222,11 @@ serve(async (req) => {
         service_type: "electricity", provider: discoCode,
         recipient: meterNumber, amount: sellingPrice,
         cost_price: costPrice, profit, status: "success",
-        api_response: { token: electricityToken, customerName, meterType, ...apiResponse },
-        provider_used: 'smeplug',
+        api_response: { token: electricityToken, customerName, meterType, ...(apiResponse as any || {}) },
+        provider_used: providerUsed,
+        fallback_attempted: fallbackAttempted,
+        fallback_response: fallbackResponse,
+        fallback_provider: fallbackAttempted ? 'smeplug' : null,
       });
       await adminSupabase.from("notifications").insert({
         user_id: userId,
@@ -229,7 +235,6 @@ serve(async (req) => {
         type: "success",
       });
 
-      // Check and reward referrer for first transaction
       checkAndRewardFirstTransaction(userId);
 
       return new Response(
@@ -241,12 +246,12 @@ serve(async (req) => {
       await adminSupabase.from("notifications").insert({
         user_id: userId,
         title: "Electricity Purchase Failed",
-        message: `Failed to purchase electricity for ${meterNumber}. ${apiResponse?.message || "Please try again."}`,
+        message: `Failed to purchase electricity for ${meterNumber}. Please try again.`,
         type: "error",
       });
 
       return new Response(
-        JSON.stringify({ success: false, message: apiResponse?.message || "Electricity purchase failed. Please try again." }),
+        JSON.stringify({ success: false, message: "Electricity purchase failed. Please try again." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

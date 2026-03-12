@@ -1,10 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
-import {
-  purchaseData,
-  generateReference,
-} from "../_shared/inkota-service-layer.ts";
+import { purchaseData, generateReference } from "../_shared/inkota-service-layer.ts";
+import { subpadiPurchaseData } from "../_shared/subpadi-provider.ts";
+import { executeWithFallback } from "../_shared/provider-fallback.ts";
 import { checkAndRewardFirstTransaction } from "../_shared/referral-reward.ts";
 
 const corsHeaders = {
@@ -56,7 +55,6 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Get user profile and validate PIN
     const { data: profile } = await adminSupabase
       .from("profiles")
       .select("is_agent, transaction_pin, failed_pin_attempts, pin_locked_until")
@@ -104,7 +102,6 @@ serve(async (req) => {
     const isAgent = profile?.is_agent || false;
     const userType = isAgent ? 'agent' : 'user';
 
-    // Get pricing config
     const { data: pricingConfigs } = await adminSupabase
       .from("pricing_config")
       .select("*")
@@ -127,7 +124,6 @@ serve(async (req) => {
     }
     const profit = sellingPrice - costPrice;
 
-    // Check wallet balance
     const { data: wallet } = await supabase.from("wallets").select("balance").eq("user_id", userId).single();
     if (!wallet) throw new Error("Wallet not found");
 
@@ -154,10 +150,13 @@ serve(async (req) => {
 
     if (txError) throw txError;
 
-    // Purchase via SMEPlug
-    const apiResult = await purchaseData({ network, phoneNumber, planId, amount: costPrice });
+    // Purchase via Subpadi (primary) with SMEPlug fallback
+    const result = await executeWithFallback(
+      () => subpadiPurchaseData(network, phoneNumber, planId, costPrice),
+      () => purchaseData({ network, phoneNumber, planId, amount: costPrice }),
+    );
 
-    if (apiResult.success) {
+    if (result.success) {
       await adminSupabase.from("wallets").update({ balance: newBalance }).eq("user_id", userId);
       await adminSupabase.from("transactions").update({ status: "success" }).eq("id", transaction.id);
       await adminSupabase.from("vtu_orders").insert({
@@ -165,15 +164,17 @@ serve(async (req) => {
         service_type: "data", provider: network.toUpperCase(),
         recipient: phoneNumber, amount: sellingPrice,
         cost_price: costPrice, profit, status: "success",
-        api_response: apiResult._internal.rawResponse,
-        provider_used: 'smeplug', fallback_attempted: false,
+        api_response: result.rawResponse,
+        provider_used: result.providerUsed,
+        fallback_attempted: result.fallbackAttempted,
+        fallback_response: result.fallbackResponse || null,
+        fallback_provider: result.fallbackAttempted ? 'smeplug' : null,
       });
 
-      // Check and reward referrer for first transaction
       checkAndRewardFirstTransaction(userId);
 
       return new Response(
-        JSON.stringify({ success: true, message: apiResult.message }),
+        JSON.stringify({ success: true, message: "Data purchased successfully" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } else {
@@ -183,12 +184,15 @@ serve(async (req) => {
         service_type: "data", provider: network.toUpperCase(),
         recipient: phoneNumber, amount: sellingPrice,
         cost_price: costPrice, profit: 0, status: "failed",
-        api_response: apiResult._internal.rawResponse,
-        provider_used: 'smeplug', fallback_attempted: false,
+        api_response: result.rawResponse,
+        provider_used: result.providerUsed,
+        fallback_attempted: result.fallbackAttempted,
+        fallback_response: result.fallbackResponse || null,
+        fallback_provider: result.fallbackAttempted ? 'smeplug' : null,
       });
 
       return new Response(
-        JSON.stringify({ success: false, message: apiResult.message }),
+        JSON.stringify({ success: false, message: result.message }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

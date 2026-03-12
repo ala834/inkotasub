@@ -1,10 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
-import {
-  purchaseAirtime,
-  generateReference,
-} from "../_shared/inkota-service-layer.ts";
+import { purchaseAirtime, generateReference } from "../_shared/inkota-service-layer.ts";
+import { subpadiPurchaseAirtime } from "../_shared/subpadi-provider.ts";
+import { executeWithFallback } from "../_shared/provider-fallback.ts";
 import { checkAndRewardFirstTransaction } from "../_shared/referral-reward.ts";
 
 const corsHeaders = {
@@ -154,10 +153,13 @@ serve(async (req) => {
 
     if (txError) throw txError;
 
-    // Purchase via SMEPlug
-    const apiResult = await purchaseAirtime({ network, phoneNumber, amount: costPrice });
+    // Purchase via Subpadi (primary) with SMEPlug fallback
+    const result = await executeWithFallback(
+      () => subpadiPurchaseAirtime(network, phoneNumber, costPrice),
+      () => purchaseAirtime({ network, phoneNumber, amount: costPrice }),
+    );
 
-    if (apiResult.success) {
+    if (result.success) {
       await adminSupabase.from("wallets").update({ balance: newBalance }).eq("user_id", userId);
       await adminSupabase.from("transactions").update({ status: "success" }).eq("id", transaction.id);
       await adminSupabase.from("vtu_orders").insert({
@@ -165,15 +167,17 @@ serve(async (req) => {
         service_type: "airtime", provider: network.toUpperCase(),
         recipient: phoneNumber, amount: sellingPrice,
         cost_price: costPrice, profit, status: "success",
-        api_response: apiResult._internal.rawResponse,
-        provider_used: 'smeplug', fallback_attempted: false,
+        api_response: result.rawResponse,
+        provider_used: result.providerUsed,
+        fallback_attempted: result.fallbackAttempted,
+        fallback_response: result.fallbackResponse || null,
+        fallback_provider: result.fallbackAttempted ? 'smeplug' : null,
       });
 
-      // Check and reward referrer for first transaction
       checkAndRewardFirstTransaction(userId);
 
       return new Response(
-        JSON.stringify({ success: true, message: apiResult.message }),
+        JSON.stringify({ success: true, message: "Airtime purchased successfully" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } else {
@@ -183,12 +187,15 @@ serve(async (req) => {
         service_type: "airtime", provider: network.toUpperCase(),
         recipient: phoneNumber, amount: sellingPrice,
         cost_price: costPrice, profit: 0, status: "failed",
-        api_response: apiResult._internal.rawResponse,
-        provider_used: 'smeplug', fallback_attempted: false,
+        api_response: result.rawResponse,
+        provider_used: result.providerUsed,
+        fallback_attempted: result.fallbackAttempted,
+        fallback_response: result.fallbackResponse || null,
+        fallback_provider: result.fallbackAttempted ? 'smeplug' : null,
       });
 
       return new Response(
-        JSON.stringify({ success: false, message: apiResult.message }),
+        JSON.stringify({ success: false, message: result.message }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
