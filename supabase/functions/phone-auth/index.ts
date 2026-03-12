@@ -118,7 +118,7 @@ serve(async (req) => {
 
       if (existingProfile) {
         return new Response(
-          JSON.stringify({ success: false, error: "This phone number is already registered. Please sign in." }),
+          JSON.stringify({ success: false, error: "This phone number is already registered. Please login instead." }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
