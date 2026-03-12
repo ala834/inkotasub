@@ -66,16 +66,15 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const authToken = authHeader.replace("Bearer ", "");
-    const { data: claims, error: authError } = await supabase.auth.getClaims(authToken);
-    if (authError || !claims?.claims) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const userId = claims.claims.sub;
-    const { disco, meterNumber, meterType, amount, customerName, transactionPin } = await req.json();
+    const userId = user.id;
+    const { disco, meterNumber, meterType, amount, customerName, transaction_pin: transactionPin } = await req.json();
 
     const adminSupabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
