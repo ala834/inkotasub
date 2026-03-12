@@ -22,11 +22,9 @@ serve(async (req) => {
         Deno.env.get("SUPABASE_ANON_KEY")!,
         { global: { headers: { Authorization: authHeader } } }
       );
-      const token = authHeader.replace("Bearer ", "");
-      const { data: claims } = await supabase.auth.getClaims(token);
-      if (claims?.claims?.sub) {
-        const userId = claims.claims.sub;
-        const { data: profile } = await supabase.from("profiles").select("is_agent").eq("user_id", userId).single();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("is_agent").eq("user_id", user.id).single();
         isAgent = profile?.is_agent || false;
       }
     }
