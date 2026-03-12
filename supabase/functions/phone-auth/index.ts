@@ -89,8 +89,16 @@ serve(async (req) => {
     };
 
     if (action === "signup") {
-      const { phoneNumber, password, fullName, verificationToken, referralCode } = body as SignUpRequest;
+      const { phoneNumber, email, password, fullName, verificationToken, referralCode } = body as SignUpRequest;
       const formattedPhone = formatPhone(phoneNumber);
+
+      // Validate email
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Please provide a valid email address." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       // Verify the verification token
       const { data: tokenRecord, error: tokenError } = await supabaseAdmin
@@ -110,25 +118,52 @@ serve(async (req) => {
         );
       }
 
-      // Check if phone number already exists
-      const { data: existingProfile } = await supabaseAdmin
+      // Check if phone number already exists in profiles
+      const { data: existingPhone } = await supabaseAdmin
         .from("profiles")
         .select("id")
         .eq("phone_number", formattedPhone)
-        .single();
+        .maybeSingle();
 
-      if (existingProfile) {
+      if (existingPhone) {
         return new Response(
-          JSON.stringify({ success: false, error: "This phone number is already registered. Please login instead." }),
+          JSON.stringify({ success: false, error: "This phone number is already registered. Please login." }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Create user with phone-based email
-      const email = phoneToEmail(formattedPhone);
+      // Check if email already exists in auth.users
+      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1 });
+      // Use a more targeted approach - try to find user by email
+      const { data: emailLookup } = await supabaseAdmin
+        .from("profiles")
+        .select("user_id")
+        .limit(1);
       
+      // Check email via admin API
+      let emailExists = false;
+      try {
+        // Try listing users filtered by email - admin API
+        const { data: usersByEmail, error: emailError } = await supabaseAdmin.auth.admin.listUsers({
+          perPage: 1000,
+        });
+        if (usersByEmail?.users) {
+          emailExists = usersByEmail.users.some(u => u.email?.toLowerCase() === email.toLowerCase());
+        }
+      } catch (e) {
+        console.error("Email check error:", e);
+      }
+
+      if (emailExists) {
+        return new Response(
+          JSON.stringify({ success: false, error: "This email address is already registered. Please login." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Create user with real email
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email,
+        email: email.toLowerCase(),
         password,
         email_confirm: true,
         user_metadata: { full_name: fullName, phone_number: formattedPhone },
