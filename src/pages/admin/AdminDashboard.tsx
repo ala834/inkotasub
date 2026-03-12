@@ -74,6 +74,7 @@ const AdminDashboard = () => {
     { value: "webhooks", label: "Webhooks", icon: Webhook },
     { value: "activity", label: "Activity Log", icon: ClipboardList },
     { value: "devices", label: "Devices", icon: Shield },
+    { value: "kyc", label: "KYC", icon: ShieldCheck },
     { value: "referrals", label: "Referrals", icon: Gift },
     { value: "pricing", label: "Pricing", icon: DollarSign },
     { value: "settings", label: "Settings", icon: Settings },
