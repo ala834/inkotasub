@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   Banknote,
   Shield,
+  ShieldCheck,
   TrendingUp,
   Webhook,
   Building2,
