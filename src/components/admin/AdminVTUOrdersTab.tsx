@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, RefreshCw, Eye, RotateCcw, AlertTriangle } from "lucide-react";
+import { Search, RefreshCw, Eye, RotateCcw, AlertTriangle, ArrowRightLeft } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -57,6 +57,7 @@ const AdminVTUOrdersTab = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [serviceFilter, setServiceFilter] = useState("all");
+  const [providerFilter, setProviderFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<VTUOrder | null>(null);
   const [isRefunding, setIsRefunding] = useState(false);
@@ -86,7 +87,6 @@ const AdminVTUOrdersTab = () => {
 
       if (error) throw error;
 
-      // Fetch user profiles for each order
       const userIds = [...new Set(data?.map((o) => o.user_id) || [])];
       const { data: profiles } = await supabase
         .from("profiles")
@@ -109,12 +109,27 @@ const AdminVTUOrdersTab = () => {
     }
   };
 
+  const providerStats = useMemo(() => {
+    const stats = {
+      subpadi: { total: 0, success: 0, failed: 0 },
+      smeplug: { total: 0, success: 0, failed: 0 },
+      fallbacks: 0,
+    };
+    orders.forEach((o) => {
+      const p = o.provider_used === "smeplug" ? "smeplug" : "subpadi";
+      stats[p].total++;
+      if (o.status === "success") stats[p].success++;
+      if (o.status === "failed") stats[p].failed++;
+      if (o.fallback_attempted) stats.fallbacks++;
+    });
+    return stats;
+  }, [orders]);
+
   const handleRefund = async () => {
     if (!selectedOrder) return;
 
     setIsRefunding(true);
     try {
-      // Get user's current wallet
       const { data: wallet, error: walletError } = await supabase
         .from("wallets")
         .select("*")
@@ -127,7 +142,6 @@ const AdminVTUOrdersTab = () => {
       const refundAmount = parseFloat(selectedOrder.amount as unknown as string);
       const newBalance = currentBalance + refundAmount;
 
-      // Update wallet balance
       const { error: updateError } = await supabase
         .from("wallets")
         .update({ balance: newBalance })
@@ -135,7 +149,6 @@ const AdminVTUOrdersTab = () => {
 
       if (updateError) throw updateError;
 
-      // Create refund transaction
       const { error: txError } = await supabase.from("transactions").insert({
         user_id: selectedOrder.user_id,
         type: "credit",
@@ -149,7 +162,6 @@ const AdminVTUOrdersTab = () => {
 
       if (txError) throw txError;
 
-      // Update order status
       const { error: orderError } = await supabase
         .from("vtu_orders")
         .update({ status: "refunded" as "pending" | "success" | "failed" })
@@ -191,15 +203,77 @@ const AdminVTUOrdersTab = () => {
     }
   };
 
-  const filteredOrders = orders.filter(
-    (order) =>
+  const filteredOrders = orders.filter((order) => {
+    const matchesSearch =
       order.recipient.includes(searchQuery) ||
       order.profile?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      order.id.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesProvider =
+      providerFilter === "all" ||
+      (providerFilter === "fallback" ? order.fallback_attempted : (order.provider_used || "subpadi") === providerFilter);
+
+    return matchesSearch && matchesProvider;
+  });
+
+  const getProviderBadge = (providerUsed: string | null, fallbackAttempted: boolean | null) => {
+    const provider = providerUsed || "subpadi";
+    return (
+      <div className="flex flex-col gap-1">
+        <Badge
+          variant="outline"
+          className={
+            provider === "smeplug"
+              ? "border-purple-500/50 bg-purple-500/10 text-purple-600"
+              : "border-blue-500/50 bg-blue-500/10 text-blue-600"
+          }
+        >
+          {provider.toUpperCase()}
+        </Badge>
+        {fallbackAttempted && (
+          <span className="inline-flex items-center gap-1 text-[10px] text-orange-500">
+            <ArrowRightLeft className="h-3 w-3" />
+            fallback
+          </span>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
+      {/* Provider Stats Summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="glass-card rounded-xl p-3 border border-blue-500/20">
+          <p className="text-xs text-muted-foreground">Subpadi</p>
+          <p className="text-lg font-bold text-blue-600">{providerStats.subpadi.total}</p>
+          <div className="flex gap-2 text-[10px] mt-1">
+            <span className="text-green-500">{providerStats.subpadi.success} ✓</span>
+            <span className="text-red-500">{providerStats.subpadi.failed} ✗</span>
+          </div>
+        </div>
+        <div className="glass-card rounded-xl p-3 border border-purple-500/20">
+          <p className="text-xs text-muted-foreground">SMEPlug</p>
+          <p className="text-lg font-bold text-purple-600">{providerStats.smeplug.total}</p>
+          <div className="flex gap-2 text-[10px] mt-1">
+            <span className="text-green-500">{providerStats.smeplug.success} ✓</span>
+            <span className="text-red-500">{providerStats.smeplug.failed} ✗</span>
+          </div>
+        </div>
+        <div className="glass-card rounded-xl p-3 border border-orange-500/20">
+          <p className="text-xs text-muted-foreground">Fallbacks Used</p>
+          <p className="text-lg font-bold text-orange-500">{providerStats.fallbacks}</p>
+        </div>
+        <div className="glass-card rounded-xl p-3 border border-border">
+          <p className="text-xs text-muted-foreground">Success Rate</p>
+          <p className="text-lg font-bold text-green-500">
+            {orders.length > 0
+              ? Math.round(((providerStats.subpadi.success + providerStats.smeplug.success) / orders.length) * 100)
+              : 0}%
+          </p>
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -232,6 +306,17 @@ const AdminVTUOrdersTab = () => {
             <SelectItem value="airtime">Airtime</SelectItem>
             <SelectItem value="electricity">Electricity</SelectItem>
             <SelectItem value="cable">Cable TV</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={providerFilter} onValueChange={setProviderFilter}>
+          <SelectTrigger className="w-full sm:w-36 h-11 rounded-xl">
+            <SelectValue placeholder="Provider" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Providers</SelectItem>
+            <SelectItem value="subpadi">Subpadi</SelectItem>
+            <SelectItem value="smeplug">SMEPlug</SelectItem>
+            <SelectItem value="fallback">Fallback Only</SelectItem>
           </SelectContent>
         </Select>
         <Button
@@ -293,16 +378,7 @@ const AdminVTUOrdersTab = () => {
                       {order.profit ? formatCurrency(order.profit) : "—"}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <Badge variant="outline" className={order.provider_used === 'smeplug' ? 'border-purple-500 text-purple-600' : 'border-blue-500 text-blue-600'}>
-                          {order.provider_used?.toUpperCase() || 'SUBPADI'}
-                        </Badge>
-                        {order.fallback_attempted && (
-                          <span className="text-xs text-muted-foreground">
-                            (fallback used)
-                          </span>
-                        )}
-                      </div>
+                      {getProviderBadge(order.provider_used, order.fallback_attempted)}
                     </TableCell>
                     <TableCell>
                       <Badge className={getStatusColor(order.status)}>{order.status}</Badge>
@@ -374,12 +450,7 @@ const AdminVTUOrdersTab = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">API Provider</p>
-                  <Badge variant="outline" className={selectedOrder.provider_used === 'smeplug' ? 'border-purple-500 text-purple-600' : 'border-blue-500 text-blue-600'}>
-                    {selectedOrder.provider_used?.toUpperCase() || 'SUBPADI'}
-                  </Badge>
-                  {selectedOrder.fallback_attempted && (
-                    <span className="text-xs text-muted-foreground ml-2">(fallback)</span>
-                  )}
+                  {getProviderBadge(selectedOrder.provider_used, selectedOrder.fallback_attempted)}
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Status</p>
@@ -413,9 +484,20 @@ const AdminVTUOrdersTab = () => {
 
               {selectedOrder.api_response && (
                 <div>
-                  <p className="text-sm text-muted-foreground mb-2">API Response</p>
+                  <p className="text-sm text-muted-foreground mb-2">Primary API Response</p>
                   <pre className="bg-muted p-3 rounded-lg text-xs overflow-auto max-h-32">
                     {JSON.stringify(selectedOrder.api_response, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {selectedOrder.fallback_attempted && selectedOrder.fallback_response && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Fallback Response ({selectedOrder.fallback_provider?.toUpperCase() || "SMEPLUG"})
+                  </p>
+                  <pre className="bg-muted p-3 rounded-lg text-xs overflow-auto max-h-32">
+                    {JSON.stringify(selectedOrder.fallback_response, null, 2)}
                   </pre>
                 </div>
               )}
