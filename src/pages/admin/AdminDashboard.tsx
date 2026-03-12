@@ -193,6 +193,10 @@ const AdminDashboard = () => {
             <AdminDevicesTab />
           </TabsContent>
 
+          <TabsContent value="kyc">
+            <AdminKYCTab />
+          </TabsContent>
+
           <TabsContent value="referrals">
             <AdminReferralsTab />
           </TabsContent>
