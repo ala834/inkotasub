@@ -203,6 +203,12 @@ const ExamCards = () => {
                   <div key={i} className="h-32 rounded-2xl bg-muted animate-pulse" />
                 ))}
               </div>
+            ) : examPrices.length === 0 ? (
+              <div className="glass-card rounded-2xl p-6 text-center space-y-2">
+                <GraduationCap className="h-10 w-10 mx-auto text-muted-foreground" />
+                <p className="text-sm font-medium text-foreground">Result Checker service is currently unavailable.</p>
+                <p className="text-xs text-muted-foreground">Please try again later.</p>
+              </div>
             ) : (
               <div className="grid grid-cols-3 gap-3">
                 {examPrices.map((exam, index) => (
