@@ -205,8 +205,33 @@ serve(async (req) => {
     }
 
     if (apiSuccess) {
+      // Extract PIN/token data from API response
+      const responseData = (apiResponse as any);
+      const pins: string[] = [];
+      if (responseData?.data?.pins) {
+        pins.push(...(Array.isArray(responseData.data.pins) ? responseData.data.pins : [responseData.data.pins]));
+      } else if (responseData?.data?.pin) {
+        pins.push(responseData.data.pin);
+      } else if (responseData?.data?.cards) {
+        const cards = Array.isArray(responseData.data.cards) ? responseData.data.cards : [responseData.data.cards];
+        cards.forEach((c: any) => {
+          if (typeof c === 'string') pins.push(c);
+          else if (c?.pin && c?.serial) pins.push(`PIN: ${c.pin} | Serial: ${c.serial}`);
+          else if (c?.pin) pins.push(c.pin);
+        });
+      } else if (responseData?.pins) {
+        pins.push(...(Array.isArray(responseData.pins) ? responseData.pins : [responseData.pins]));
+      } else if (responseData?.pin) {
+        pins.push(responseData.pin);
+      } else if (responseData?.token) {
+        pins.push(responseData.token);
+      }
+
       await adminSupabase.from("wallets").update({ balance: newBalance }).eq("user_id", userId);
-      await adminSupabase.from("transactions").update({ status: "success" }).eq("id", transaction.id);
+      await adminSupabase.from("transactions").update({
+        status: "success",
+        metadata: { exam_type: examType.toUpperCase(), quantity, pins, provider_used: providerUsed },
+      }).eq("id", transaction.id);
       await adminSupabase.from("vtu_orders").insert({
         user_id: userId, transaction_id: transaction.id,
         service_type: "exam_pin", provider: examType.toUpperCase(),
@@ -218,29 +243,6 @@ serve(async (req) => {
       });
 
       checkAndRewardFirstTransaction(userId);
-
-      // Extract PIN/token data from API response for display to user
-      const responseData = (apiResponse as any);
-      const pins: string[] = [];
-      // Try common response patterns for PIN data
-      if (responseData?.data?.pins) {
-        pins.push(...(Array.isArray(responseData.data.pins) ? responseData.data.pins : [responseData.data.pins]));
-      } else if (responseData?.data?.pin) {
-        pins.push(responseData.data.pin);
-      } else if (responseData?.data?.cards) {
-        const cards = Array.isArray(responseData.data.cards) ? responseData.data.cards : [responseData.data.cards];
-        cards.forEach((c: any) => {
-          if (typeof c === 'string') pins.push(c);
-          else if (c?.pin) pins.push(c.pin);
-          else if (c?.serial) pins.push(`PIN: ${c.pin || 'N/A'} | Serial: ${c.serial}`);
-        });
-      } else if (responseData?.pins) {
-        pins.push(...(Array.isArray(responseData.pins) ? responseData.pins : [responseData.pins]));
-      } else if (responseData?.pin) {
-        pins.push(responseData.pin);
-      } else if (responseData?.token) {
-        pins.push(responseData.token);
-      }
 
       return new Response(
         JSON.stringify({ success: true, message: "Exam card purchased successfully", pins, reference }),

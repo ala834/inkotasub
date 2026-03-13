@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { ArrowDownLeft, ArrowUpRight, Copy, Check } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Copy, Check, Eye, EyeOff, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -30,7 +30,8 @@ const TransactionDetailsDialog = ({
   onOpenChange,
 }: TransactionDetailsDialogProps) => {
   const [copied, setCopied] = useState(false);
-
+  const [copiedPinIdx, setCopiedPinIdx] = useState<number | null>(null);
+  const [revealedPins, setRevealedPins] = useState<Set<number>>(new Set());
   if (!transaction) return null;
 
   const formatCurrency = (amount: number) => {
@@ -159,6 +160,59 @@ const TransactionDetailsDialog = ({
                     )}
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {/* Exam PIN Display */}
+            {transaction.metadata?.pins && Array.isArray(transaction.metadata.pins) && transaction.metadata.pins.length > 0 && (
+              <div className="py-3 border-b border-border space-y-3">
+                <div className="flex items-center gap-2">
+                  <GraduationCap className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold text-foreground">
+                    {transaction.metadata.exam_type || "Exam"} Result Checker PIN{transaction.metadata.pins.length > 1 ? "s" : ""}
+                  </span>
+                </div>
+                {transaction.metadata.pins.map((pin: string, idx: number) => (
+                  <div key={idx} className="rounded-xl border border-border bg-muted/50 p-3 space-y-1">
+                    {transaction.metadata!.pins.length > 1 && (
+                      <p className="text-xs text-muted-foreground font-medium">PIN {idx + 1}</p>
+                    )}
+                    <div className="flex items-center justify-between gap-2">
+                      <code className="flex-1 text-sm font-mono font-bold text-foreground break-all">
+                        {revealedPins.has(idx) ? pin : "••••••••••••"}
+                      </code>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => {
+                            setRevealedPins(prev => {
+                              const next = new Set(prev);
+                              next.has(idx) ? next.delete(idx) : next.add(idx);
+                              return next;
+                            });
+                          }}
+                        >
+                          {revealedPins.has(idx) ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => {
+                            navigator.clipboard.writeText(pin);
+                            setCopiedPinIdx(idx);
+                            toast.success("PIN copied!");
+                            setTimeout(() => setCopiedPinIdx(null), 2000);
+                          }}
+                        >
+                          {copiedPinIdx === idx ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
