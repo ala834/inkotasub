@@ -5,12 +5,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Default exam plans - can be overridden by SMEPlug API
 const DEFAULT_EXAM_PLANS = [
   { id: "waec", name: "WAEC", slug: "waec", amount: 3450, description: "West African Examination Council" },
   { id: "neco", name: "NECO", slug: "neco", amount: 1450, description: "National Examination Council" },
   { id: "nabteb", name: "NABTEB", slug: "nabteb", amount: 1450, description: "National Business & Technical Examinations Board" },
-  { id: "jamb", name: "JAMB", slug: "jamb", amount: 5450, description: "Joint Admissions & Matriculation Board" },
 ];
 
 serve(async (req) => {
@@ -19,52 +17,82 @@ serve(async (req) => {
   }
 
   try {
-    const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
-    
-    if (!smeplugApiKey) {
-      console.log("SMEPLUG_API_KEY not configured, using default prices");
-      return new Response(
-        JSON.stringify({ success: true, plans: DEFAULT_EXAM_PLANS, source: "default" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Try Subpadi first
+    const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
+    if (subpadiToken) {
+      try {
+        const response = await fetch("https://subpadi.com/api/v1/exam/", {
+          method: "GET",
+          headers: {
+            "Authorization": `Token ${subpadiToken}`,
+            "Content-Type": "application/json",
+          },
+        });
 
-    // Try to fetch exam card prices from SMEPlug
-    try {
-      const response = await fetch("https://smeplug.ng/api/v1/education/exam", {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${smeplugApiKey}`,
-          "Content-Type": "application/json",
-        },
-      });
+        if (response.ok) {
+          const data = await response.json();
+          console.log("Subpadi exam plans response:", data);
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log("SMEPlug exam plans response:", data);
-        
-        if (data?.data && Array.isArray(data.data)) {
-          const plans = data.data.map((exam: any) => ({
-            id: exam.slug || exam.id?.toString() || exam.name?.toLowerCase(),
-            name: exam.name,
-            slug: exam.slug || exam.name?.toLowerCase(),
-            amount: parseFloat(exam.amount || exam.price || 0),
-            description: exam.description || "",
-          }));
-          
-          return new Response(
-            JSON.stringify({ success: true, plans, source: "smeplug" }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          const plansArray = data?.data || data?.results || (Array.isArray(data) ? data : null);
+          if (plansArray && Array.isArray(plansArray) && plansArray.length > 0) {
+            const plans = plansArray.map((exam: any) => ({
+              id: exam.slug || exam.exam_type || exam.id?.toString() || exam.name?.toLowerCase(),
+              name: exam.name || exam.exam_type?.toUpperCase(),
+              slug: exam.slug || exam.exam_type || exam.name?.toLowerCase(),
+              amount: parseFloat(exam.amount || exam.price || exam.selling_price || 0),
+              description: exam.description || "",
+            }));
+
+            return new Response(
+              JSON.stringify({ success: true, plans, source: "subpadi" }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        } else {
+          console.warn("Subpadi exam API returned:", response.status);
         }
-      } else {
-        console.warn("SMEPlug exam API returned:", response.status);
+      } catch (apiError) {
+        console.error("Subpadi exam API error:", apiError);
       }
-    } catch (apiError) {
-      console.error("SMEPlug exam API error:", apiError);
     }
 
-    // Fallback to default plans
+    // Fallback to SMEPlug
+    const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
+    if (smeplugApiKey) {
+      try {
+        const response = await fetch("https://smeplug.ng/api/v1/education/exam", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${smeplugApiKey}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log("SMEPlug exam plans response:", data);
+
+          if (data?.data && Array.isArray(data.data)) {
+            const plans = data.data.map((exam: any) => ({
+              id: exam.slug || exam.id?.toString() || exam.name?.toLowerCase(),
+              name: exam.name,
+              slug: exam.slug || exam.name?.toLowerCase(),
+              amount: parseFloat(exam.amount || exam.price || 0),
+              description: exam.description || "",
+            }));
+
+            return new Response(
+              JSON.stringify({ success: true, plans, source: "smeplug" }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+      } catch (apiError) {
+        console.error("SMEPlug exam API error:", apiError);
+      }
+    }
+
+    // Fallback to defaults
     return new Response(
       JSON.stringify({ success: true, plans: DEFAULT_EXAM_PLANS, source: "default" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
