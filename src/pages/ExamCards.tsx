@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Loader2, GraduationCap, BookOpen, Award, FileText, Minus, Plus } from "lucide-react";
+import { ArrowLeft, Loader2, GraduationCap, BookOpen, Award, Minus, Plus, Copy, Check, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
@@ -22,35 +23,30 @@ const EXAM_TYPES: ExamType[] = [
   { id: "waec", name: "WAEC", slug: "waec", amount: 3450, description: "West African Examination Council" },
   { id: "neco", name: "NECO", slug: "neco", amount: 1450, description: "National Examination Council" },
   { id: "nabteb", name: "NABTEB", slug: "nabteb", amount: 1450, description: "National Business & Technical Examinations Board" },
-  { id: "jamb", name: "JAMB", slug: "jamb", amount: 5450, description: "Joint Admissions & Matriculation Board" },
 ];
 
 const examIcons: Record<string, React.ReactNode> = {
   waec: <GraduationCap className="h-6 w-6" />,
   neco: <BookOpen className="h-6 w-6" />,
   nabteb: <Award className="h-6 w-6" />,
-  jamb: <FileText className="h-6 w-6" />,
 };
 
 const examGradients: Record<string, string> = {
   waec: "from-emerald-500/20 to-teal-600/20 dark:from-emerald-500/10 dark:to-teal-600/10",
   neco: "from-blue-500/20 to-indigo-600/20 dark:from-blue-500/10 dark:to-indigo-600/10",
   nabteb: "from-amber-500/20 to-orange-600/20 dark:from-amber-500/10 dark:to-orange-600/10",
-  jamb: "from-purple-500/20 to-violet-600/20 dark:from-purple-500/10 dark:to-violet-600/10",
 };
 
 const examAccents: Record<string, string> = {
   waec: "text-emerald-600 dark:text-emerald-400",
   neco: "text-blue-600 dark:text-blue-400",
   nabteb: "text-amber-600 dark:text-amber-400",
-  jamb: "text-purple-600 dark:text-violet-400",
 };
 
 const examBorderAccents: Record<string, string> = {
   waec: "border-emerald-500/40",
   neco: "border-blue-500/40",
   nabteb: "border-amber-500/40",
-  jamb: "border-purple-500/40",
 };
 
 const ExamCards = () => {
@@ -62,6 +58,13 @@ const ExamCards = () => {
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [examPrices, setExamPrices] = useState<ExamType[]>(EXAM_TYPES);
+
+  // PIN display state
+  const [showPinResult, setShowPinResult] = useState(false);
+  const [purchasedPins, setPurchasedPins] = useState<string[]>([]);
+  const [purchaseRef, setPurchaseRef] = useState("");
+  const [revealedPins, setRevealedPins] = useState<Set<number>>(new Set());
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   useEffect(() => {
     fetchExamPrices();
@@ -107,6 +110,22 @@ const ExamCards = () => {
     if (validateForm()) setShowPinDialog(true);
   };
 
+  const handleCopyPin = (pin: string, index: number) => {
+    navigator.clipboard.writeText(pin);
+    setCopiedIndex(index);
+    toast.success("PIN copied to clipboard");
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  const toggleRevealPin = (index: number) => {
+    setRevealedPins(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
   const handlePurchaseWithPin = async (pin: string) => {
     if (!selectedExam) return;
     setIsLoading(true);
@@ -117,7 +136,18 @@ const ExamCards = () => {
       if (error) throw error;
       if (data?.success) {
         toast.success(`${selectedExam.name} PIN${quantity > 1 ? "s" : ""} purchased successfully!`);
-        navigate("/dashboard");
+
+        // Show PIN result dialog if PINs returned
+        if (data.pins && data.pins.length > 0) {
+          setPurchasedPins(data.pins);
+          setPurchaseRef(data.reference || "");
+          setRevealedPins(new Set());
+          setShowPinResult(true);
+        } else {
+          // No PINs in response — check transaction history
+          toast.info("Your PIN will appear in your transaction history shortly.");
+          navigate("/history");
+        }
       } else {
         throw new Error(data?.message || "Purchase failed");
       }
@@ -136,8 +166,8 @@ const ExamCards = () => {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-lg font-display font-bold">Exam Cards</h1>
-            <p className="text-xs text-muted-foreground">Purchase result checker PINs</p>
+            <h1 className="text-lg font-display font-bold">Result Checker</h1>
+            <p className="text-xs text-muted-foreground">Purchase exam result checker PINs</p>
           </div>
         </div>
       </header>
@@ -168,13 +198,13 @@ const ExamCards = () => {
           <div>
             <Label className="text-muted-foreground mb-3 block text-sm font-medium">Select Exam Body</Label>
             {loadingPrices ? (
-              <div className="grid grid-cols-2 gap-3">
-                {[1, 2, 3, 4].map((i) => (
+              <div className="grid grid-cols-3 gap-3">
+                {[1, 2, 3].map((i) => (
                   <div key={i} className="h-32 rounded-2xl bg-muted animate-pulse" />
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 {examPrices.map((exam, index) => (
                   <motion.button
                     key={exam.id}
@@ -228,30 +258,17 @@ const ExamCards = () => {
                 <div className="glass-card rounded-2xl p-5 space-y-4">
                   <Label className="text-muted-foreground text-sm font-medium">Number of PINs</Label>
                   <div className="flex items-center gap-4">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      disabled={quantity <= 1}
-                      className="rounded-xl h-11 w-11"
-                    >
+                    <Button variant="outline" size="icon" onClick={() => setQuantity(Math.max(1, quantity - 1))} disabled={quantity <= 1} className="rounded-xl h-11 w-11">
                       <Minus className="h-4 w-4" />
                     </Button>
                     <div className="flex-1 text-center">
                       <span className="text-3xl font-bold text-foreground">{quantity}</span>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setQuantity(Math.min(10, quantity + 1))}
-                      disabled={quantity >= 10}
-                      className="rounded-xl h-11 w-11"
-                    >
+                    <Button variant="outline" size="icon" onClick={() => setQuantity(Math.min(10, quantity + 1))} disabled={quantity >= 10} className="rounded-xl h-11 w-11">
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
 
-                  {/* Order Summary */}
                   <div className="border-t border-border/50 pt-4 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Exam Body</span>
@@ -297,10 +314,62 @@ const ExamCards = () => {
         onOpenChange={setShowPinDialog}
         onSubmit={handlePurchaseWithPin}
         title="Confirm Purchase"
-        description="Enter your PIN to buy exam card"
+        description="Enter your PIN to buy result checker"
         amount={totalAmount}
-        serviceName={`${selectedExam?.name || ""} Exam PIN${quantity > 1 ? ` x${quantity}` : ""}`}
+        serviceName={`${selectedExam?.name || ""} Result Checker${quantity > 1 ? ` x${quantity}` : ""}`}
       />
+
+      {/* Purchased PIN Display Dialog */}
+      <Dialog open={showPinResult} onOpenChange={setShowPinResult}>
+        <DialogContent className="max-w-sm mx-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              Purchase Successful
+            </DialogTitle>
+            <DialogDescription>
+              Your {selectedExam?.name} result checker PIN{purchasedPins.length > 1 ? "s" : ""} {purchasedPins.length > 1 ? "are" : "is"} ready. Keep {purchasedPins.length > 1 ? "them" : "it"} safe!
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 mt-2">
+            {purchasedPins.map((pin, index) => (
+              <div key={index} className="rounded-xl border border-border bg-muted/50 p-4 space-y-2">
+                {purchasedPins.length > 1 && (
+                  <p className="text-xs text-muted-foreground font-medium">PIN {index + 1}</p>
+                )}
+                <div className="flex items-center justify-between gap-2">
+                  <code className="flex-1 text-base font-mono font-bold text-foreground break-all">
+                    {revealedPins.has(index) ? pin : "••••••••••••"}
+                  </code>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleRevealPin(index)}>
+                      {revealedPins.has(index) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleCopyPin(pin, index)}>
+                      {copiedIndex === index ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {purchaseRef && (
+              <p className="text-xs text-muted-foreground text-center">Ref: {purchaseRef}</p>
+            )}
+
+            <Button
+              className="w-full mt-2"
+              onClick={() => {
+                setShowPinResult(false);
+                navigate("/history");
+              }}
+            >
+              View Transaction History
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

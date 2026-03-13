@@ -25,7 +25,7 @@ const mainServices = [
   { icon: Wifi, label: "Data Bundle", color: "#3B82F6", path: "/data", serviceKey: "data" as const },
   { icon: Zap, label: "Electricity", color: "#F97316", path: "/electricity", serviceKey: "electricity" as const },
   { icon: Tv, label: "Cable TV", color: "#8B5CF6", path: "/cable-tv", serviceKey: "cable" as const },
-  { icon: GraduationCap, label: "Exam Cards", color: "#EC4899", path: "/exam-cards", serviceKey: "exam_pin" as const },
+  { icon: GraduationCap, label: "Result Checker", color: "#EC4899", path: "/exam-cards", serviceKey: "exam_pin" as const },
   { icon: Send, label: "Transfer", color: "#2563EB", path: "/transfer", serviceKey: null },
 ];
 
