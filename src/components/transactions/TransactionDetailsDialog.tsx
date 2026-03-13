@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { ArrowDownLeft, ArrowUpRight, Copy, Check } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Copy, Check, Eye, EyeOff, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { toast } from "sonner";
