@@ -244,29 +244,6 @@ serve(async (req) => {
 
       checkAndRewardFirstTransaction(userId);
 
-      // Extract PIN/token data from API response for display to user
-      const responseData = (apiResponse as any);
-      const pins: string[] = [];
-      // Try common response patterns for PIN data
-      if (responseData?.data?.pins) {
-        pins.push(...(Array.isArray(responseData.data.pins) ? responseData.data.pins : [responseData.data.pins]));
-      } else if (responseData?.data?.pin) {
-        pins.push(responseData.data.pin);
-      } else if (responseData?.data?.cards) {
-        const cards = Array.isArray(responseData.data.cards) ? responseData.data.cards : [responseData.data.cards];
-        cards.forEach((c: any) => {
-          if (typeof c === 'string') pins.push(c);
-          else if (c?.pin) pins.push(c.pin);
-          else if (c?.serial) pins.push(`PIN: ${c.pin || 'N/A'} | Serial: ${c.serial}`);
-        });
-      } else if (responseData?.pins) {
-        pins.push(...(Array.isArray(responseData.pins) ? responseData.pins : [responseData.pins]));
-      } else if (responseData?.pin) {
-        pins.push(responseData.pin);
-      } else if (responseData?.token) {
-        pins.push(responseData.token);
-      }
-
       return new Response(
         JSON.stringify({ success: true, message: "Exam card purchased successfully", pins, reference }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
