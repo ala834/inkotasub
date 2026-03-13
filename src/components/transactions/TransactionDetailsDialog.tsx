@@ -30,7 +30,8 @@ const TransactionDetailsDialog = ({
   onOpenChange,
 }: TransactionDetailsDialogProps) => {
   const [copied, setCopied] = useState(false);
-
+  const [copiedPinIdx, setCopiedPinIdx] = useState<number | null>(null);
+  const [revealedPins, setRevealedPins] = useState<Set<number>>(new Set());
   if (!transaction) return null;
 
   const formatCurrency = (amount: number) => {
