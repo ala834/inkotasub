@@ -88,9 +88,8 @@ serve(async (req) => {
       
       // Migrate legacy plaintext PIN to hashed
       if (needsPinMigration(senderProfile.transaction_pin)) {
-        const salt = await bcrypt.genSalt(10);
-        updates.transaction_pin = await bcrypt.hash(transactionPin, salt);
-        console.log('Migrated legacy PIN to bcrypt hash for user:', user.id);
+        updates.transaction_pin = await hashPin(transactionPin);
+        console.log('Migrated legacy PIN to PBKDF2 hash for user:', user.id);
       }
 
       if (senderProfile.failed_pin_attempts > 0 || needsPinMigration(senderProfile.transaction_pin)) {

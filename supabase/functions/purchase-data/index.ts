@@ -81,8 +81,7 @@ serve(async (req) => {
 
       const updates: Record<string, any> = { failed_pin_attempts: 0, pin_locked_until: null };
       if (needsPinMigration(profile.transaction_pin)) {
-        const salt = await bcrypt.genSalt(10);
-        updates.transaction_pin = await bcrypt.hash(transactionPin, salt);
+        updates.transaction_pin = await hashPin(transactionPin);
       }
       if (profile.failed_pin_attempts > 0 || needsPinMigration(profile.transaction_pin)) {
         await adminSupabase.from("profiles").update(updates).eq("user_id", userId);
