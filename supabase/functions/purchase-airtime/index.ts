@@ -1,24 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 import { purchaseAirtime, generateReference } from "../_shared/inkota-service-layer.ts";
 import { subpadiPurchaseAirtime } from "../_shared/subpadi-provider.ts";
 import { executeWithFallback } from "../_shared/provider-fallback.ts";
 import { checkAndRewardFirstTransaction } from "../_shared/referral-reward.ts";
+import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-async function comparePin(plaintextPin: string, hashedPin: string): Promise<boolean> {
-  if (!hashedPin.startsWith('$2')) return plaintextPin === hashedPin;
-  return await bcrypt.compare(plaintextPin, hashedPin);
-}
-
-function needsPinMigration(storedPin: string): boolean {
-  return !storedPin.startsWith('$2');
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
