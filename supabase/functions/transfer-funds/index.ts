@@ -79,7 +79,7 @@ serve(async (req) => {
       
       if (!pinValid) {
         const newAttempts = (senderProfile.failed_pin_attempts || 0) + 1;
-        const lockUntil = newAttempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null;
+        const lockUntil = newAttempts >= 3 ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null;
         
         await supabase
           .from('profiles')
@@ -88,8 +88,8 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ 
-            error: newAttempts >= 5 ? 'Account locked for 30 minutes' : 'Invalid transaction PIN', 
-            attemptsRemaining: Math.max(0, 5 - newAttempts),
+            error: newAttempts >= 3 ? 'Account locked for 30 minutes due to too many failed attempts' : 'Invalid transaction PIN', 
+            attemptsRemaining: Math.max(0, 3 - newAttempts),
             success: false 
           }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
