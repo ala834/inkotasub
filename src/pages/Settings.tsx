@@ -636,12 +636,28 @@ const Settings = () => {
       <Dialog open={changePinOpen} onOpenChange={setChangePinOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Set Transaction PIN</DialogTitle>
+            <DialogTitle>{profile?.transaction_pin ? "Change" : "Set"} Transaction PIN</DialogTitle>
             <DialogDescription>
-              Enter a 4-digit PIN to secure your transactions.
+              {profile?.transaction_pin
+                ? "Enter your current PIN and set a new 4-digit PIN."
+                : "Enter a 4-digit PIN to secure your transactions."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {profile?.transaction_pin && (
+              <div className="space-y-2">
+                <Label htmlFor="currentPin">Current PIN</Label>
+                <Input
+                  id="currentPin"
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={currentPin}
+                  onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Enter current PIN"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="newPin">New PIN</Label>
               <Input
@@ -671,7 +687,9 @@ const Settings = () => {
             <Button variant="outline" onClick={() => setChangePinOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleChangePin}>Set PIN</Button>
+            <Button onClick={handleChangePin}>
+              {profile?.transaction_pin ? "Update" : "Set"} PIN
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
