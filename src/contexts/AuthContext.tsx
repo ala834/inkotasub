@@ -11,6 +11,7 @@ interface Profile {
   phone_number: string | null;
   avatar_url: string | null;
   referral_code: string | null;
+  transaction_pin: string | null;
 }
 
 interface AuthContextType {
