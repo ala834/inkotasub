@@ -39,6 +39,7 @@ const CableTV = () => {
   const [customerName, setCustomerName] = useState("");
   const [isValidated, setIsValidated] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("cable");
 
   useEffect(() => {
