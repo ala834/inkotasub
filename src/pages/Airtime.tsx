@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import PhoneInputWithNetwork from "@/components/common/PhoneInputWithNetwork";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
+import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import RecentNumbers from "@/components/common/RecentNumbers";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 
