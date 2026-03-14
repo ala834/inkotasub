@@ -180,7 +180,7 @@ const Settings = () => {
     }
   };
 
-  const handleChangePin = () => {
+  const handleChangePin = async () => {
     if (newPin !== confirmPin) {
       toast.error("PINs do not match");
       return;
@@ -189,11 +189,26 @@ const Settings = () => {
       toast.error("PIN must be 4 digits");
       return;
     }
-    toast.success("Transaction PIN updated successfully");
-    setChangePinOpen(false);
-    setCurrentPin("");
-    setNewPin("");
-    setConfirmPin("");
+
+    const hasExistingPin = !!profile?.transaction_pin;
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-pin", {
+        body: hasExistingPin
+          ? { action: "change", current_pin: currentPin, new_pin: newPin }
+          : { action: "set", new_pin: newPin },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      toast.success(data?.message || "Transaction PIN updated successfully");
+      setChangePinOpen(false);
+      setCurrentPin("");
+      setNewPin("");
+      setConfirmPin("");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update PIN");
+    }
   };
 
   const handleLogout = async () => {
