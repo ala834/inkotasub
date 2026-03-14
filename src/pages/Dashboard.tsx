@@ -1,16 +1,26 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import WalletCard from "@/components/wallet/WalletCard";
 import ServicesGrid from "@/components/services/ServicesGrid";
+import PinSetupDialog from "@/components/common/PinSetupDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWallet } from "@/hooks/useWallet";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const { wallet } = useWallet();
+  const [showPinSetup, setShowPinSetup] = useState(false);
+
+  // Prompt PIN setup if user has no transaction PIN
+  useEffect(() => {
+    if (profile && !profile.transaction_pin) {
+      setShowPinSetup(true);
+    }
+  }, [profile]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -60,6 +70,15 @@ const Dashboard = () => {
       </main>
 
       <BottomNav />
+
+      {/* PIN Setup Prompt for new users */}
+      <PinSetupDialog
+        open={showPinSetup}
+        onOpenChange={setShowPinSetup}
+        onSuccess={() => {
+          refreshProfile?.();
+        }}
+      />
     </div>
   );
 };
