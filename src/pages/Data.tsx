@@ -124,7 +124,12 @@ const Data = () => {
   };
 
   const handlePurchaseClick = () => {
-    if (validateForm()) setShowPinDialog(true);
+    if (validateForm()) setShowConfirmDialog(true);
+  };
+
+  const handleConfirmPay = () => {
+    setShowConfirmDialog(false);
+    setShowPinDialog(true);
   };
 
   const handlePurchaseWithPin = async (pin: string) => {
