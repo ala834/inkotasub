@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import PhoneInputWithNetwork from "@/components/common/PhoneInputWithNetwork";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
+import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import RecentNumbers from "@/components/common/RecentNumbers";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 
@@ -24,6 +25,7 @@ const Airtime = () => {
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [contactName, setContactName] = useState<string | undefined>();
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("airtime");
 
@@ -54,8 +56,13 @@ const Airtime = () => {
 
   const handlePurchaseClick = () => {
     if (validateForm()) {
-      setShowPinDialog(true);
+      setShowConfirmDialog(true);
     }
+  };
+
+  const handleConfirmPay = () => {
+    setShowConfirmDialog(false);
+    setShowPinDialog(true);
   };
 
   const handlePurchaseWithPin = async (pin: string) => {
@@ -170,12 +177,26 @@ const Airtime = () => {
         </motion.div>
       </main>
 
+      <TransactionConfirmationDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        onConfirm={handleConfirmPay}
+        title="Confirm Airtime Purchase"
+        amount={parseFloat(amount) || 0}
+        walletBalanceAfter={(wallet?.balance || 0) - (parseFloat(amount) || 0)}
+        details={[
+          { label: "Service", value: "Airtime" },
+          { label: "Network", value: detectedNetwork?.toUpperCase() || "" },
+          { label: "Phone Number", value: phoneNumber },
+        ]}
+      />
+
       <PinEntryDialog
         open={showPinDialog}
         onOpenChange={setShowPinDialog}
         onSubmit={handlePurchaseWithPin}
-        title="Confirm Purchase"
-        description="Enter your PIN to buy airtime"
+        title="Enter PIN"
+        description="Enter your PIN to complete payment"
         amount={parseFloat(amount) || 0}
         serviceName={`${detectedNetwork?.toUpperCase()} Airtime`}
       />

@@ -17,6 +17,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
+import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import RecentNumbers from "@/components/common/RecentNumbers";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 
@@ -45,6 +46,7 @@ const Electricity = () => {
   const [customerName, setCustomerName] = useState("");
   const [isValidated, setIsValidated] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("electricity");
 
   const handleValidate = async () => {
@@ -88,7 +90,12 @@ const Electricity = () => {
   };
 
   const handlePurchaseClick = () => {
-    if (validateForm()) setShowPinDialog(true);
+    if (validateForm()) setShowConfirmDialog(true);
+  };
+
+  const handleConfirmPay = () => {
+    setShowConfirmDialog(false);
+    setShowPinDialog(true);
   };
 
   const handlePurchaseWithPin = async (pin: string) => {
@@ -259,12 +266,28 @@ const Electricity = () => {
         </motion.div>
       </main>
 
+      <TransactionConfirmationDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        onConfirm={handleConfirmPay}
+        title="Confirm Electricity Payment"
+        amount={parseFloat(amount) || 0}
+        walletBalanceAfter={(wallet?.balance || 0) - (parseFloat(amount) || 0)}
+        details={[
+          { label: "Service", value: "Electricity" },
+          { label: "Provider", value: selectedDisco?.name || disco },
+          { label: "Meter Type", value: meterType.charAt(0).toUpperCase() + meterType.slice(1) },
+          { label: "Meter Number", value: meterNumber },
+          { label: "Customer", value: customerName },
+        ]}
+      />
+
       <PinEntryDialog
         open={showPinDialog}
         onOpenChange={setShowPinDialog}
         onSubmit={handlePurchaseWithPin}
-        title="Confirm Payment"
-        description="Enter your PIN to pay electricity bill"
+        title="Enter PIN"
+        description="Enter your PIN to complete payment"
         amount={parseFloat(amount) || 0}
         serviceName={`${selectedDisco?.name || disco} - ${meterType}`}
       />
