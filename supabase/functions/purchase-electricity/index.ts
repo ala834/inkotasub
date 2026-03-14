@@ -1,22 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 import { subpadiPurchaseElectricity, isSubpadiConfigured } from "../_shared/subpadi-provider.ts";
 import { checkAndRewardFirstTransaction } from "../_shared/referral-reward.ts";
+import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-async function comparePin(plaintextPin: string, hashedPin: string): Promise<boolean> {
-  if (!hashedPin.startsWith('$2')) return plaintextPin === hashedPin;
-  return await bcrypt.compare(plaintextPin, hashedPin);
-}
-
-function needsPinMigration(storedPin: string): boolean {
-  return !storedPin.startsWith('$2');
-}
 
 const discoMapping: Record<string, string> = {
   "ikeja": "ikeja-electric", "eko": "eko-electric", "abuja": "abuja-electric",
