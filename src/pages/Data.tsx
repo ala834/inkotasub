@@ -36,6 +36,7 @@ const Data = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [contactName, setContactName] = useState<string | undefined>();
