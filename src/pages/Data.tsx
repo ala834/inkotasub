@@ -299,12 +299,28 @@ const Data = () => {
         </motion.div>
       </main>
 
+      <TransactionConfirmationDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        onConfirm={handleConfirmPay}
+        title="Confirm Data Purchase"
+        amount={selectedPlan?.amount || 0}
+        walletBalanceAfter={(wallet?.balance || 0) - (selectedPlan?.amount || 0)}
+        details={[
+          { label: "Service", value: "Data Bundle" },
+          { label: "Network", value: detectedNetwork?.toUpperCase() || "" },
+          { label: "Phone Number", value: phoneNumber },
+          { label: "Plan", value: selectedPlan?.name || "" },
+          { label: "Validity", value: selectedPlan?.validity || "" },
+        ]}
+      />
+
       <PinEntryDialog
         open={showPinDialog}
         onOpenChange={setShowPinDialog}
         onSubmit={handlePurchaseWithPin}
-        title="Confirm Purchase"
-        description="Enter your PIN to buy data"
+        title="Enter PIN"
+        description="Enter your PIN to complete payment"
         amount={selectedPlan?.amount || 0}
         serviceName={`${detectedNetwork?.toUpperCase()} ${selectedPlan?.name} Data`}
       />

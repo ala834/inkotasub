@@ -305,12 +305,28 @@ const CableTV = () => {
         </motion.div>
       </main>
 
+      <TransactionConfirmationDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        onConfirm={handleConfirmPay}
+        title="Confirm Cable Subscription"
+        amount={selectedPlan?.amount || 0}
+        walletBalanceAfter={(wallet?.balance || 0) - (selectedPlan?.amount || 0)}
+        details={[
+          { label: "Service", value: "Cable TV" },
+          { label: "Provider", value: selectedProvider?.name || provider },
+          { label: "Smart Card", value: smartCardNumber },
+          { label: "Customer", value: customerName },
+          { label: "Plan", value: selectedPlan?.name || "" },
+        ]}
+      />
+
       <PinEntryDialog
         open={showPinDialog}
         onOpenChange={setShowPinDialog}
         onSubmit={handlePurchaseWithPin}
-        title="Confirm Subscription"
-        description="Enter your PIN to subscribe"
+        title="Enter PIN"
+        description="Enter your PIN to complete payment"
         amount={selectedPlan?.amount || 0}
         serviceName={`${selectedProvider?.name || provider} - ${selectedPlan?.name || ""}`}
       />

@@ -177,12 +177,26 @@ const Airtime = () => {
         </motion.div>
       </main>
 
+      <TransactionConfirmationDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        onConfirm={handleConfirmPay}
+        title="Confirm Airtime Purchase"
+        amount={parseFloat(amount) || 0}
+        walletBalanceAfter={(wallet?.balance || 0) - (parseFloat(amount) || 0)}
+        details={[
+          { label: "Service", value: "Airtime" },
+          { label: "Network", value: detectedNetwork?.toUpperCase() || "" },
+          { label: "Phone Number", value: phoneNumber },
+        ]}
+      />
+
       <PinEntryDialog
         open={showPinDialog}
         onOpenChange={setShowPinDialog}
         onSubmit={handlePurchaseWithPin}
-        title="Confirm Purchase"
-        description="Enter your PIN to buy airtime"
+        title="Enter PIN"
+        description="Enter your PIN to complete payment"
         amount={parseFloat(amount) || 0}
         serviceName={`${detectedNetwork?.toUpperCase()} Airtime`}
       />

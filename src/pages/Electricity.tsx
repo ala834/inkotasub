@@ -266,12 +266,28 @@ const Electricity = () => {
         </motion.div>
       </main>
 
+      <TransactionConfirmationDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        onConfirm={handleConfirmPay}
+        title="Confirm Electricity Payment"
+        amount={parseFloat(amount) || 0}
+        walletBalanceAfter={(wallet?.balance || 0) - (parseFloat(amount) || 0)}
+        details={[
+          { label: "Service", value: "Electricity" },
+          { label: "Provider", value: selectedDisco?.name || disco },
+          { label: "Meter Type", value: meterType.charAt(0).toUpperCase() + meterType.slice(1) },
+          { label: "Meter Number", value: meterNumber },
+          { label: "Customer", value: customerName },
+        ]}
+      />
+
       <PinEntryDialog
         open={showPinDialog}
         onOpenChange={setShowPinDialog}
         onSubmit={handlePurchaseWithPin}
-        title="Confirm Payment"
-        description="Enter your PIN to pay electricity bill"
+        title="Enter PIN"
+        description="Enter your PIN to complete payment"
         amount={parseFloat(amount) || 0}
         serviceName={`${selectedDisco?.name || disco} - ${meterType}`}
       />
