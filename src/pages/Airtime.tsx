@@ -56,8 +56,13 @@ const Airtime = () => {
 
   const handlePurchaseClick = () => {
     if (validateForm()) {
-      setShowPinDialog(true);
+      setShowConfirmDialog(true);
     }
+  };
+
+  const handleConfirmPay = () => {
+    setShowConfirmDialog(false);
+    setShowPinDialog(true);
   };
 
   const handlePurchaseWithPin = async (pin: string) => {
