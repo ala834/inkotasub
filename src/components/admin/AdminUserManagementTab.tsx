@@ -7,6 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -29,7 +36,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, RefreshCw, User, MoreVertical, Ban, CheckCircle, Eye, Wallet, KeyRound, History } from "lucide-react";
+import {
+  Search,
+  RefreshCw,
+  User,
+  MoreVertical,
+  Ban,
+  CheckCircle,
+  Eye,
+  Wallet,
+  KeyRound,
+  History,
+  Lock,
+  Building2,
+  Mail,
+  Phone,
+  Filter,
+} from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -48,10 +71,17 @@ interface UserProfile {
   };
   transaction_count?: number;
   email?: string;
+  virtual_account?: {
+    account_number: string;
+    account_name: string;
+    bank_name: string;
+    provider: string | null;
+    is_active: boolean | null;
+  };
 }
 
 const AdminUserManagementTab = () => {
-  const { user: currentAdmin } = useAuth();
+  const { user: currentAdmin, session } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -62,6 +92,14 @@ const AdminUserManagementTab = () => {
   const [pinResetReason, setPinResetReason] = useState("");
   const [showTransactionsDialog, setShowTransactionsDialog] = useState(false);
   const [userTransactions, setUserTransactions] = useState<any[]>([]);
+  const [showWalletAdjustDialog, setShowWalletAdjustDialog] = useState(false);
+  const [walletAdjustUser, setWalletAdjustUser] = useState<UserProfile | null>(null);
+  const [walletAdjustAmount, setWalletAdjustAmount] = useState("");
+  const [walletAdjustType, setWalletAdjustType] = useState<"credit" | "debit">("credit");
+  const [walletAdjustReason, setWalletAdjustReason] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "suspended">("all");
+  const [balanceFilter, setBalanceFilter] = useState<"all" | "0-1000" | "1000-10000" | "10000-50000" | "50000+">("all");
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -77,29 +115,34 @@ const AdminUserManagementTab = () => {
 
       if (error) throw error;
 
-      // Fetch wallets
       const userIds = profiles?.map((p) => p.user_id) || [];
-      const { data: wallets } = await supabase
-        .from("wallets")
-        .select("user_id, balance")
-        .in("user_id", userIds);
 
-      // Fetch transaction counts
-      const { data: txCounts } = await supabase
-        .from("transactions")
-        .select("user_id")
-        .in("user_id", userIds);
+      // Fetch wallets, transactions, virtual accounts, emails in parallel
+      const [walletsRes, txRes, vaRes, emailsRes] = await Promise.all([
+        supabase.from("wallets").select("user_id, balance").in("user_id", userIds),
+        supabase.from("transactions").select("user_id").in("user_id", userIds),
+        supabase.from("virtual_accounts").select("user_id, account_number, account_name, bank_name, provider, is_active").in("user_id", userIds),
+        session?.access_token
+          ? supabase.functions.invoke("admin-get-user-emails", {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            })
+          : Promise.resolve({ data: { emails: {} }, error: null }),
+      ]);
 
-      const walletMap = new Map(wallets?.map((w) => [w.user_id, w]));
+      const walletMap = new Map(walletsRes.data?.map((w) => [w.user_id, w]));
       const txCountMap = new Map<string, number>();
-      txCounts?.forEach((tx) => {
+      txRes.data?.forEach((tx) => {
         txCountMap.set(tx.user_id, (txCountMap.get(tx.user_id) || 0) + 1);
       });
+      const vaMap = new Map(vaRes.data?.map((va) => [va.user_id, va]));
+      const emailMap: Record<string, string> = emailsRes?.data?.emails || {};
 
       const usersWithData = profiles?.map((profile) => ({
         ...profile,
         wallet: walletMap.get(profile.user_id),
         transaction_count: txCountMap.get(profile.user_id) || 0,
+        virtual_account: vaMap.get(profile.user_id),
+        email: emailMap[profile.user_id] || undefined,
       })) || [];
 
       setUsers(usersWithData);
@@ -144,11 +187,21 @@ const AdminUserManagementTab = () => {
         )
       );
 
-      await logAdminActivity(suspend ? "suspend_user" : "unsuspend_user", userId);
-      toast.success(suspend ? "User suspended successfully" : "User unsuspended successfully");
+      // Notify user
+      await supabase.from("notifications").insert({
+        user_id: userId,
+        title: suspend ? "Account Suspended" : "Account Activated",
+        message: suspend
+          ? "Your account has been suspended by an administrator. Contact support for more information."
+          : "Your account has been reactivated. You can now use all services.",
+        type: suspend ? "warning" : "success",
+      });
+
+      await logAdminActivity(suspend ? "suspend_user" : "activate_user", userId);
+      toast.success(suspend ? "User suspended" : "User activated");
     } catch (error) {
       console.error("Failed to update user:", error);
-      toast.error("Failed to update user");
+      toast.error("Failed to update user status");
     } finally {
       setIsUpdating(false);
     }
@@ -164,22 +217,17 @@ const AdminUserManagementTab = () => {
     try {
       const { error } = await supabase
         .from("profiles")
-        .update({ 
-          transaction_pin: null, 
-          failed_pin_attempts: 0, 
-          pin_locked_until: null 
-        })
+        .update({ transaction_pin: null, failed_pin_attempts: 0, pin_locked_until: null })
         .eq("user_id", pinResetUser.user_id);
 
       if (error) throw error;
 
       await logAdminActivity("reset_transaction_pin", pinResetUser.user_id, { reason: pinResetReason });
 
-      // Create notification for user
       await supabase.from("notifications").insert({
         user_id: pinResetUser.user_id,
         title: "Transaction PIN Reset",
-        message: "Your transaction PIN has been reset by an administrator. Please set a new PIN in your settings.",
+        message: "Your transaction PIN has been reset by an administrator. Please set a new PIN.",
         type: "warning",
       });
 
@@ -196,16 +244,76 @@ const AdminUserManagementTab = () => {
     }
   };
 
+  const handleWalletAdjust = async () => {
+    if (!walletAdjustUser || !walletAdjustAmount || !walletAdjustReason.trim()) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    const amount = parseFloat(walletAdjustAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    const currentBalance = parseFloat(walletAdjustUser.wallet?.balance as unknown as string) || 0;
+    if (walletAdjustType === "debit" && amount > currentBalance) {
+      toast.error("Debit amount exceeds current balance");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const newBalance = walletAdjustType === "credit"
+        ? currentBalance + amount
+        : currentBalance - amount;
+
+      const { error: walletError } = await supabase
+        .from("wallets")
+        .update({ balance: newBalance })
+        .eq("user_id", walletAdjustUser.user_id);
+
+      if (walletError) throw walletError;
+
+      await logAdminActivity("wallet_adjustment", walletAdjustUser.user_id, {
+        type: walletAdjustType,
+        amount,
+        previous_balance: currentBalance,
+        new_balance: newBalance,
+        reason: walletAdjustReason,
+      });
+
+      await supabase.from("notifications").insert({
+        user_id: walletAdjustUser.user_id,
+        title: `Wallet ${walletAdjustType === "credit" ? "Credited" : "Debited"}`,
+        message: `Your wallet has been ${walletAdjustType === "credit" ? "credited with" : "debited by"} ₦${amount.toLocaleString()}. Reason: ${walletAdjustReason}`,
+        type: walletAdjustType === "credit" ? "success" : "warning",
+      });
+
+      toast.success(`Wallet ${walletAdjustType}ed successfully`);
+      setShowWalletAdjustDialog(false);
+      setWalletAdjustUser(null);
+      setWalletAdjustAmount("");
+      setWalletAdjustReason("");
+      fetchUsers();
+    } catch (error) {
+      console.error("Failed to adjust wallet:", error);
+      toast.error("Failed to adjust wallet");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleViewTransactions = async (userProfile: UserProfile) => {
     setSelectedUser(userProfile);
     setShowTransactionsDialog(true);
-    
+
     const { data } = await supabase
       .from("transactions")
       .select("*")
       .eq("user_id", userProfile.user_id)
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(50);
 
     setUserTransactions(data || []);
   };
@@ -218,26 +326,58 @@ const AdminUserManagementTab = () => {
     }).format(amount);
   };
 
-  const filteredUsers = users.filter(
-    (u) =>
-      u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  const getBalance = (user: UserProfile): number => {
+    return parseFloat(user.wallet?.balance as unknown as string) || 0;
+  };
+
+  const filteredUsers = users.filter((u) => {
+    // Text search: phone, email, name
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      !q ||
+      u.full_name?.toLowerCase().includes(q) ||
       u.phone_number?.includes(searchQuery) ||
-      u.user_id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      u.email?.toLowerCase().includes(q) ||
+      u.user_id.toLowerCase().includes(q);
+
+    // Status filter
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "active" && !u.suspended_at) ||
+      (statusFilter === "suspended" && !!u.suspended_at);
+
+    // Balance filter
+    const balance = getBalance(u);
+    let matchesBalance = true;
+    if (balanceFilter === "0-1000") matchesBalance = balance >= 0 && balance <= 1000;
+    else if (balanceFilter === "1000-10000") matchesBalance = balance > 1000 && balance <= 10000;
+    else if (balanceFilter === "10000-50000") matchesBalance = balance > 10000 && balance <= 50000;
+    else if (balanceFilter === "50000+") matchesBalance = balance > 50000;
+
+    return matchesSearch && matchesStatus && matchesBalance;
+  });
 
   return (
     <div className="space-y-4">
-      {/* Search */}
+      {/* Search & Filters */}
       <div className="flex gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, phone, or user ID..."
+            placeholder="Search by name, phone, email..."
             className="pl-10 h-11 rounded-xl"
           />
         </div>
+        <Button
+          variant={showFilters ? "default" : "outline"}
+          size="icon"
+          onClick={() => setShowFilters(!showFilters)}
+          className="h-11 w-11 rounded-xl"
+        >
+          <Filter className="h-5 w-5" />
+        </Button>
         <Button
           variant="outline"
           size="icon"
@@ -249,21 +389,53 @@ const AdminUserManagementTab = () => {
         </Button>
       </div>
 
+      {/* Filter Row */}
+      {showFilters && (
+        <div className="flex gap-3 flex-wrap">
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+            <SelectTrigger className="w-[160px] rounded-xl">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="suspended">Suspended</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={balanceFilter} onValueChange={(v) => setBalanceFilter(v as any)}>
+            <SelectTrigger className="w-[180px] rounded-xl">
+              <SelectValue placeholder="Balance Range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Balances</SelectItem>
+              <SelectItem value="0-1000">₦0 – ₦1,000</SelectItem>
+              <SelectItem value="1000-10000">₦1,000 – ₦10,000</SelectItem>
+              <SelectItem value="10000-50000">₦10,000 – ₦50,000</SelectItem>
+              <SelectItem value="50000+">₦50,000+</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="glass-card rounded-2xl p-4 text-center">
           <p className="text-2xl font-bold">{users.length}</p>
           <p className="text-sm text-muted-foreground">Total Users</p>
         </div>
         <div className="glass-card rounded-2xl p-4 text-center">
-          <p className="text-2xl font-bold">{users.filter((u) => u.is_agent).length}</p>
-          <p className="text-sm text-muted-foreground">Agents</p>
+          <p className="text-2xl font-bold">{users.filter((u) => !u.suspended_at).length}</p>
+          <p className="text-sm text-muted-foreground">Active</p>
         </div>
         <div className="glass-card rounded-2xl p-4 text-center">
           <p className="text-2xl font-bold text-destructive">
             {users.filter((u) => u.suspended_at).length}
           </p>
           <p className="text-sm text-muted-foreground">Suspended</p>
+        </div>
+        <div className="glass-card rounded-2xl p-4 text-center">
+          <p className="text-2xl font-bold">{users.filter((u) => u.is_agent).length}</p>
+          <p className="text-sm text-muted-foreground">Agents</p>
         </div>
       </div>
 
@@ -279,9 +451,12 @@ const AdminUserManagementTab = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
+                  <TableHead>Email</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>PIN</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
-                  <TableHead className="text-right">Transactions</TableHead>
+                  <TableHead className="text-right">Txns</TableHead>
+                  <TableHead>Virtual Acc.</TableHead>
                   <TableHead>Joined</TableHead>
                   <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
@@ -291,43 +466,50 @@ const AdminUserManagementTab = () => {
                   <TableRow key={user.id} className={user.suspended_at ? "opacity-60" : ""}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden shrink-0">
                           {user.avatar_url ? (
-                            <img
-                              src={user.avatar_url}
-                              alt=""
-                              className="w-10 h-10 rounded-full object-cover"
-                            />
+                            <img src={user.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
                           ) : (
                             <User className="h-5 w-5 text-primary" />
                           )}
                         </div>
-                        <div>
-                          <p className="font-medium">{user.full_name || "No name"}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {user.phone_number || "No phone"}
-                          </p>
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{user.full_name || "No name"}</p>
+                          <p className="text-xs text-muted-foreground truncate">{user.phone_number || "No phone"}</p>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1 flex-wrap">
-                        {user.is_agent && (
-                          <Badge className="bg-primary/10 text-primary">Agent</Badge>
-                        )}
-                        {user.suspended_at && (
-                          <Badge variant="destructive">Suspended</Badge>
-                        )}
-                        {!user.is_agent && !user.suspended_at && (
-                          <Badge variant="secondary">User</Badge>
-                        )}
-                      </div>
+                      <p className="text-sm truncate max-w-[180px]">{user.email || "—"}</p>
+                    </TableCell>
+                    <TableCell>
+                      {user.suspended_at ? (
+                        <Badge variant="destructive">Suspended</Badge>
+                      ) : (
+                        <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Active</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="gap-1">
+                        <Lock className="h-3 w-3" />
+                        {user.transaction_pin ? "Set" : "Not Set"}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {user.wallet ? formatCurrency(parseFloat(user.wallet.balance as unknown as string)) : "—"}
+                      {user.wallet ? formatCurrency(getBalance(user)) : "—"}
                     </TableCell>
                     <TableCell className="text-right">{user.transaction_count}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell>
+                      {user.virtual_account ? (
+                        <div className="text-xs">
+                          <p className="font-medium">{user.virtual_account.account_number}</p>
+                          <p className="text-muted-foreground">{user.virtual_account.provider || "paystack"}</p>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">None</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {format(new Date(user.created_at), "MMM d, yyyy")}
                     </TableCell>
                     <TableCell className="text-center">
@@ -349,6 +531,15 @@ const AdminUserManagementTab = () => {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onClick={() => {
+                              setWalletAdjustUser(user);
+                              setShowWalletAdjustDialog(true);
+                            }}
+                          >
+                            <Wallet className="h-4 w-4 mr-2" />
+                            Adjust Wallet
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
                               setPinResetUser(user);
                               setShowPinResetDialog(true);
                             }}
@@ -358,12 +549,9 @@ const AdminUserManagementTab = () => {
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {user.suspended_at ? (
-                            <DropdownMenuItem
-                              onClick={() => handleSuspendUser(user.user_id, false)}
-                              disabled={isUpdating}
-                            >
+                            <DropdownMenuItem onClick={() => handleSuspendUser(user.user_id, false)} disabled={isUpdating}>
                               <CheckCircle className="h-4 w-4 mr-2" />
-                              Unsuspend User
+                              Activate User
                             </DropdownMenuItem>
                           ) : (
                             <DropdownMenuItem
@@ -382,7 +570,7 @@ const AdminUserManagementTab = () => {
                 ))}
                 {filteredUsers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       No users found
                     </TableCell>
                   </TableRow>
@@ -394,8 +582,8 @@ const AdminUserManagementTab = () => {
       )}
 
       {/* User Details Dialog */}
-      <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
-        <DialogContent>
+      <Dialog open={!!selectedUser && !showTransactionsDialog} onOpenChange={() => setSelectedUser(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>User Details</DialogTitle>
             <DialogDescription>
@@ -406,33 +594,34 @@ const AdminUserManagementTab = () => {
           {selectedUser && (
             <div className="space-y-4">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden shrink-0">
                   {selectedUser.avatar_url ? (
-                    <img
-                      src={selectedUser.avatar_url}
-                      alt=""
-                      className="w-16 h-16 rounded-full object-cover"
-                    />
+                    <img src={selectedUser.avatar_url} alt="" className="w-16 h-16 rounded-full object-cover" />
                   ) : (
                     <User className="h-8 w-8 text-primary" />
                   )}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="font-semibold text-lg">{selectedUser.full_name || "No name"}</p>
-                  <p className="text-muted-foreground">{selectedUser.phone_number || "No phone"}</p>
+                  <div className="flex items-center gap-1 text-muted-foreground text-sm">
+                    <Phone className="h-3 w-3" />
+                    <span>{selectedUser.phone_number || "No phone"}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-muted-foreground text-sm">
+                    <Mail className="h-3 w-3" />
+                    <span>{selectedUser.email || "No email"}</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="bg-muted rounded-lg p-3">
                   <div className="flex items-center gap-2 text-muted-foreground mb-1">
                     <Wallet className="h-4 w-4" />
                     <span className="text-sm">Balance</span>
                   </div>
                   <p className="font-semibold">
-                    {selectedUser.wallet
-                      ? formatCurrency(parseFloat(selectedUser.wallet.balance as unknown as string))
-                      : "N/A"}
+                    {selectedUser.wallet ? formatCurrency(getBalance(selectedUser)) : "N/A"}
                   </p>
                 </div>
                 <div className="bg-muted rounded-lg p-3">
@@ -441,22 +630,61 @@ const AdminUserManagementTab = () => {
                 </div>
                 <div className="bg-muted rounded-lg p-3">
                   <p className="text-sm text-muted-foreground mb-1">Status</p>
-                  <div className="flex gap-1">
-                    {selectedUser.is_agent && <Badge className="bg-primary/10 text-primary">Agent</Badge>}
-                    {selectedUser.suspended_at ? (
-                      <Badge variant="destructive">Suspended</Badge>
-                    ) : (
-                      <Badge variant="secondary">Active</Badge>
-                    )}
-                  </div>
+                  {selectedUser.suspended_at ? (
+                    <Badge variant="destructive">Suspended</Badge>
+                  ) : (
+                    <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Active</Badge>
+                  )}
+                </div>
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-sm text-muted-foreground mb-1">Password</p>
+                  <Badge variant="outline" className="gap-1">
+                    <Lock className="h-3 w-3" />
+                    Encrypted
+                  </Badge>
+                </div>
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-sm text-muted-foreground mb-1">Transaction PIN</p>
+                  <Badge variant="outline" className="gap-1">
+                    <Lock className="h-3 w-3" />
+                    {selectedUser.transaction_pin ? "Set (Encrypted)" : "Not Set"}
+                  </Badge>
                 </div>
                 <div className="bg-muted rounded-lg p-3">
                   <p className="text-sm text-muted-foreground mb-1">Joined</p>
-                  <p className="font-semibold">
+                  <p className="font-semibold text-sm">
                     {format(new Date(selectedUser.created_at), "MMM d, yyyy")}
                   </p>
                 </div>
               </div>
+
+              {/* Virtual Account Info */}
+              {selectedUser.virtual_account && (
+                <div className="bg-muted rounded-lg p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                    <Building2 className="h-4 w-4" />
+                    <span className="text-sm font-medium">Virtual Account</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Account Number</p>
+                      <p className="font-semibold">{selectedUser.virtual_account.account_number}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Bank</p>
+                      <p className="font-semibold">{selectedUser.virtual_account.bank_name}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Account Name</p>
+                      <p className="font-semibold">{selectedUser.virtual_account.account_name}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Provider</p>
+                      <p className="font-semibold capitalize">{selectedUser.virtual_account.provider || "paystack"}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {selectedUser.suspended_at && (
                 <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
@@ -475,13 +703,14 @@ const AdminUserManagementTab = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       {/* PIN Reset Dialog */}
       <Dialog open={showPinResetDialog} onOpenChange={setShowPinResetDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reset Transaction PIN</DialogTitle>
             <DialogDescription>
-              Reset the transaction PIN for {pinResetUser?.full_name || "this user"}. They will need to set a new PIN.
+              Reset the transaction PIN for {pinResetUser?.full_name || "this user"}.
             </DialogDescription>
           </DialogHeader>
 
@@ -504,19 +733,93 @@ const AdminUserManagementTab = () => {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowPinResetDialog(false);
-              setPinResetUser(null);
-              setPinResetReason("");
-            }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPinResetDialog(false);
+                setPinResetUser(null);
+                setPinResetReason("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleResetPin} disabled={isUpdating || !pinResetReason.trim()}>
+              {isUpdating ? "Resetting..." : "Reset PIN"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Wallet Adjustment Dialog */}
+      <Dialog open={showWalletAdjustDialog} onOpenChange={setShowWalletAdjustDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adjust Wallet Balance</DialogTitle>
+            <DialogDescription>
+              {walletAdjustUser?.full_name || "User"} — Current balance:{" "}
+              {walletAdjustUser?.wallet ? formatCurrency(getBalance(walletAdjustUser)) : "N/A"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Adjustment Type</Label>
+              <Select value={walletAdjustType} onValueChange={(v) => setWalletAdjustType(v as "credit" | "debit")}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="credit">Credit (Add funds)</SelectItem>
+                  <SelectItem value="debit">Debit (Remove funds)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adjust-amount">Amount (₦) *</Label>
+              <Input
+                id="adjust-amount"
+                type="number"
+                value={walletAdjustAmount}
+                onChange={(e) => setWalletAdjustAmount(e.target.value)}
+                placeholder="Enter amount"
+                min="1"
+                className="rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adjust-reason">Reason *</Label>
+              <Textarea
+                id="adjust-reason"
+                value={walletAdjustReason}
+                onChange={(e) => setWalletAdjustReason(e.target.value)}
+                placeholder="Enter reason for this adjustment..."
+                rows={3}
+              />
+            </div>
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+              <p className="text-sm text-amber-600">
+                This action will be logged for audit purposes. Please ensure the reason is accurate.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowWalletAdjustDialog(false);
+                setWalletAdjustUser(null);
+                setWalletAdjustAmount("");
+                setWalletAdjustReason("");
+              }}
+            >
               Cancel
             </Button>
             <Button
-              variant="destructive"
-              onClick={handleResetPin}
-              disabled={isUpdating || !pinResetReason.trim()}
+              onClick={handleWalletAdjust}
+              disabled={isUpdating || !walletAdjustAmount || !walletAdjustReason.trim()}
             >
-              {isUpdating ? "Resetting..." : "Reset PIN"}
+              {isUpdating ? "Processing..." : `${walletAdjustType === "credit" ? "Credit" : "Debit"} Wallet`}
             </Button>
           </DialogFooter>
         </DialogContent>
