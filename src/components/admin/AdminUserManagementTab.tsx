@@ -52,6 +52,7 @@ import {
   Mail,
   Phone,
   Filter,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -330,6 +331,32 @@ const AdminUserManagementTab = () => {
     return parseFloat(user.wallet?.balance as unknown as string) || 0;
   };
 
+  const exportCSV = () => {
+    const headers = ["Full Name", "Email", "Phone Number", "Status", "PIN Status", "Wallet Balance", "Transactions", "Virtual Account", "Bank/Provider", "Agent", "Joined"];
+    const rows = filteredUsers.map((u) => [
+      u.full_name || "No name",
+      u.email || "",
+      u.phone_number || "",
+      u.suspended_at ? "Suspended" : "Active",
+      u.transaction_pin ? "Encrypted" : "Not Set",
+      getBalance(u).toFixed(2),
+      String(u.transaction_count || 0),
+      u.virtual_account?.account_number || "",
+      u.virtual_account ? `${u.virtual_account.bank_name} (${u.virtual_account.provider || "N/A"})` : "",
+      u.is_agent ? "Yes" : "No",
+      format(new Date(u.created_at), "yyyy-MM-dd"),
+    ]);
+    const csvContent = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `inkota-users-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredUsers.length} users to CSV`);
+  };
+
   const filteredUsers = users.filter((u) => {
     // Text search: phone, email, name
     const q = searchQuery.toLowerCase();
@@ -377,6 +404,16 @@ const AdminUserManagementTab = () => {
           className="h-11 w-11 rounded-xl"
         >
           <Filter className="h-5 w-5" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={exportCSV}
+          disabled={isLoading || filteredUsers.length === 0}
+          className="h-11 w-11 rounded-xl"
+          title="Export CSV"
+        >
+          <Download className="h-5 w-5" />
         </Button>
         <Button
           variant="outline"
