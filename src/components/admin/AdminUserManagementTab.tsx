@@ -408,6 +408,16 @@ const AdminUserManagementTab = () => {
         <Button
           variant="outline"
           size="icon"
+          onClick={exportCSV}
+          disabled={isLoading || filteredUsers.length === 0}
+          className="h-11 w-11 rounded-xl"
+          title="Export CSV"
+        >
+          <Download className="h-5 w-5" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
           onClick={fetchUsers}
           disabled={isLoading}
           className="h-11 w-11 rounded-xl"
