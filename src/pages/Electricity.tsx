@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import RecentNumbers from "@/components/common/RecentNumbers";
