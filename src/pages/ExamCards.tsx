@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 
 interface ExamType {
@@ -133,23 +134,20 @@ const ExamCards = () => {
       const { data, error } = await supabase.functions.invoke("purchase-exam-pin", {
         body: { examType: selectedExam.slug, quantity, amount: totalAmount, transaction_pin: pin },
       });
-      if (error) throw error;
-      if (data?.success) {
-        toast.success(`${selectedExam.name} PIN${quantity > 1 ? "s" : ""} purchased successfully!`);
-
-        // Show PIN result dialog if PINs returned
-        if (data.pins && data.pins.length > 0) {
-          setPurchasedPins(data.pins);
-          setPurchaseRef(data.reference || "");
-          setRevealedPins(new Set());
-          setShowPinResult(true);
-        } else {
-          // No PINs in response — check transaction history
-          toast.info("Your PIN will appear in your transaction history shortly.");
-          navigate("/history");
-        }
+      if (error || !data?.success) {
+        const message = parseEdgeFunctionError(error, data, "Failed to purchase exam PIN");
+        if (!message.includes("PIN") && !message.includes("locked")) toast.error(message);
+        throw new Error(message);
+      }
+      toast.success(`${selectedExam.name} PIN${quantity > 1 ? "s" : ""} purchased successfully!`);
+      if (data.pins && data.pins.length > 0) {
+        setPurchasedPins(data.pins);
+        setPurchaseRef(data.reference || "");
+        setRevealedPins(new Set());
+        setShowPinResult(true);
       } else {
-        throw new Error(data?.message || "Purchase failed");
+        toast.info("Your PIN will appear in your transaction history shortly.");
+        navigate("/history");
       }
     } catch (error: any) {
       throw new Error(error.message || "Failed to purchase exam PIN");

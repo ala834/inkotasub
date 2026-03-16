@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
 import PhoneInputWithNetwork from "@/components/common/PhoneInputWithNetwork";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
@@ -145,14 +146,14 @@ const Data = () => {
           transaction_pin: pin,
         },
       });
-      if (error) throw error;
-      if (data?.success) {
-        addRecentNumber(phoneNumber, contactName);
-        toast.success("Data bundle purchased successfully!");
-        navigate("/dashboard");
-      } else {
-        throw new Error(data?.message || "Purchase failed");
+      if (error || !data?.success) {
+        const message = parseEdgeFunctionError(error, data, "Failed to purchase data");
+        if (!message.includes("PIN") && !message.includes("locked")) toast.error(message);
+        throw new Error(message);
       }
+      addRecentNumber(phoneNumber, contactName);
+      toast.success("Data bundle purchased successfully!");
+      navigate("/dashboard");
     } catch (error: any) {
       throw new Error(error.message || "Failed to purchase data");
     } finally {
