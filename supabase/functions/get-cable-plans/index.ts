@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 serve(async (req) => {
@@ -29,41 +29,80 @@ serve(async (req) => {
       }
     }
 
-    // Call SMEPlug API for cable plans
-    const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
-    let basePlans = [];
+    let basePlans: any[] = [];
+    let source = "fallback";
 
-    if (smeplugApiKey) {
+    // Try Subpadi first
+    const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
+    if (subpadiToken) {
       try {
-        console.log("Fetching cable plans from SMEPlug for provider:", provider);
-
-        const response = await fetch(`https://smeplug.ng/api/v1/cable/plans?service_id=${provider.toLowerCase()}`, {
+        console.log("Fetching cable plans from Subpadi for provider:", provider);
+        const response = await fetch(`https://subpadi.com/api/v1/cable/plans?service_id=${provider.toLowerCase()}`, {
           method: "GET",
           headers: {
-            "Authorization": `Bearer ${smeplugApiKey}`,
+            "Authorization": `Token ${subpadiToken}`,
             "Content-Type": "application/json",
           },
         });
 
         const apiResponse = await response.json();
-        console.log("SMEPlug cable plans response:", JSON.stringify(apiResponse).substring(0, 500));
+        console.log("Subpadi cable plans response:", JSON.stringify(apiResponse).substring(0, 500));
 
-        if (apiResponse?.status === "success" && apiResponse?.data) {
-          const plans = Array.isArray(apiResponse.data) ? apiResponse.data : apiResponse.data?.plans || [];
-          basePlans = plans.map((plan: any) => ({
-            id: plan.plan_id || plan.id?.toString(),
-            name: plan.plan_name || plan.name,
-            amount: parseFloat(plan.price || plan.amount || 0),
-          }));
-        } else {
-          basePlans = getFallbackPlans(provider);
+        if (response.ok && apiResponse) {
+          const plans = Array.isArray(apiResponse?.data) ? apiResponse.data
+            : apiResponse?.data?.plans ? apiResponse.data.plans
+            : apiResponse?.results ? apiResponse.results
+            : Array.isArray(apiResponse) ? apiResponse : [];
+
+          if (plans.length > 0) {
+            basePlans = plans.map((plan: any) => ({
+              id: (plan.plan_id || plan.id)?.toString(),
+              name: plan.plan_name || plan.name,
+              amount: parseFloat(plan.price || plan.amount || plan.selling_price || 0),
+            }));
+            source = "subpadi";
+            console.log("Subpadi cable plans loaded:", basePlans.length);
+          }
         }
       } catch (apiError) {
-        console.error("SMEPlug API error:", apiError);
-        basePlans = getFallbackPlans(provider);
+        console.error("Subpadi cable plans error:", apiError);
       }
-    } else {
+    }
+
+    // Fallback to SMEPlug
+    if (basePlans.length === 0) {
+      const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
+      if (smeplugApiKey) {
+        try {
+          console.log("Falling back to SMEPlug for cable plans, provider:", provider);
+          const response = await fetch(`https://smeplug.ng/api/v1/cable/plans?service_id=${provider.toLowerCase()}`, {
+            method: "GET",
+            headers: {
+              "Authorization": `Bearer ${smeplugApiKey}`,
+              "Content-Type": "application/json",
+            },
+          });
+
+          const apiResponse = await response.json();
+          if (apiResponse?.status === "success" && apiResponse?.data) {
+            const plans = Array.isArray(apiResponse.data) ? apiResponse.data : apiResponse.data?.plans || [];
+            basePlans = plans.map((plan: any) => ({
+              id: plan.plan_id || plan.id?.toString(),
+              name: plan.plan_name || plan.name,
+              amount: parseFloat(plan.price || plan.amount || 0),
+            }));
+            source = "smeplug";
+          }
+        } catch (apiError) {
+          console.error("SMEPlug cable plans error:", apiError);
+        }
+      }
+    }
+
+    // Final fallback
+    if (basePlans.length === 0) {
       basePlans = getFallbackPlans(provider);
+      source = "fallback";
     }
 
     // Get pricing config
@@ -98,7 +137,7 @@ serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ plans: pricedPlans }),
+      JSON.stringify({ plans: pricedPlans, source }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {

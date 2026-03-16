@@ -6,7 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Save, RefreshCw, AlertTriangle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Save, RefreshCw, AlertTriangle, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface AppSetting {
@@ -21,6 +22,8 @@ const AdminSettingsTab = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<Record<string, string>>({});
+  const [subpadiStatus, setSubpadiStatus] = useState<any>(null);
+  const [isTestingSubpadi, setIsTestingSubpadi] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -65,15 +68,25 @@ const AdminSettingsTab = () => {
     }
   };
 
-  const settingLabels: Record<string, { label: string; type: "text" | "textarea" | "url" | "email" }> = {
-    app_name: { label: "Application Name", type: "text" },
-    support_email: { label: "Support Email", type: "email" },
-    support_phone: { label: "Support Phone (Call)", type: "text" },
-    whatsapp_number: { label: "WhatsApp Number", type: "text" },
-    logo_url: { label: "Logo URL", type: "url" },
-    terms_url: { label: "Terms of Service URL", type: "url" },
-    privacy_url: { label: "Privacy Policy URL", type: "url" },
-    refund_policy: { label: "Refund Policy", type: "textarea" },
+  const testSubpadiConnection = async () => {
+    setIsTestingSubpadi(true);
+    setSubpadiStatus(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("test-subpadi");
+      if (error) throw error;
+      setSubpadiStatus(data);
+      if (data?.connected) {
+        toast.success("Subpadi API connected successfully!");
+      } else {
+        toast.error(data?.message || "Subpadi connection failed");
+      }
+    } catch (error) {
+      console.error("Subpadi test error:", error);
+      setSubpadiStatus({ connected: false, message: "Failed to reach test endpoint" });
+      toast.error("Failed to test Subpadi connection");
+    } finally {
+      setIsTestingSubpadi(false);
+    }
   };
 
   if (isLoading) {
@@ -101,6 +114,65 @@ const AdminSettingsTab = () => {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
+        {/* API Connection Test Card */}
+        <Card className="glass-card border-0 md:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wifi className="h-4 w-4 text-primary" />
+              API Provider Status
+            </CardTitle>
+            <CardDescription>Test connection to VTU service providers</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-4">
+              <Button onClick={testSubpadiConnection} disabled={isTestingSubpadi} variant="outline">
+                {isTestingSubpadi ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : subpadiStatus?.connected ? (
+                  <Wifi className="h-4 w-4 mr-2 text-green-500" />
+                ) : subpadiStatus ? (
+                  <WifiOff className="h-4 w-4 mr-2 text-red-500" />
+                ) : (
+                  <Wifi className="h-4 w-4 mr-2" />
+                )}
+                Test Subpadi Connection
+              </Button>
+              {subpadiStatus && (
+                <Badge variant={subpadiStatus.connected ? "default" : "destructive"}>
+                  {subpadiStatus.connected ? "Connected" : "Disconnected"}
+                </Badge>
+              )}
+            </div>
+
+            {subpadiStatus && (
+              <div className="p-4 bg-muted rounded-lg space-y-2 text-sm">
+                <p className="font-medium">{subpadiStatus.message}</p>
+                {subpadiStatus.services && Object.entries(subpadiStatus.services).map(([key, val]: [string, any]) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="capitalize">{key.replace(/_/g, ' ')}</span>
+                    <div className="flex items-center gap-2">
+                      {val.plan_count !== undefined && (
+                        <span className="text-muted-foreground">{val.plan_count} plans</span>
+                      )}
+                      {val.data?.balance !== undefined && (
+                        <span className="text-muted-foreground">₦{Number(val.data.balance).toLocaleString()}</span>
+                      )}
+                      <Badge variant={val.ok ? "default" : "destructive"} className="text-xs">
+                        {val.ok ? `OK (${val.status})` : `Error (${val.status})`}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+                {subpadiStatus.timestamp && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Tested at: {new Date(subpadiStatus.timestamp).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* System Controls Card */}
         <Card className="glass-card border-0 md:col-span-2">
           <CardHeader>
