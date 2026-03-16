@@ -79,44 +79,19 @@ const Airtime = () => {
         },
       });
 
-      // Handle non-2xx responses from edge function
-      if (error) {
-        const errorMsg = error.message || "";
-        if (errorMsg.includes("Failed to fetch") || errorMsg.includes("NetworkError")) {
-          throw new Error("Network error. Please check your internet connection and try again.");
+      if (error || !data?.success) {
+        const message = parseEdgeFunctionError(error, data, "Failed to purchase airtime");
+        if (!message.includes("PIN") && !message.includes("locked")) {
+          toast.error(message);
         }
-        // Try to parse error body for structured messages
-        throw new Error(errorMsg || "Service unavailable. Please try again later.");
+        throw new Error(message);
       }
 
-      if (data?.success) {
-        addRecentNumber(phoneNumber, contactName);
-        toast.success("Airtime purchased successfully!");
-        navigate("/dashboard");
-      } else {
-        // Map backend error messages to user-friendly ones
-        const msg = data?.error || data?.message || "Purchase failed";
-        if (msg.includes("Insufficient balance")) {
-          throw new Error("Insufficient wallet balance. Please fund your wallet first.");
-        } else if (msg.includes("Invalid transaction PIN") || msg.includes("Invalid PIN")) {
-          throw new Error(data?.attemptsRemaining != null
-            ? `Invalid PIN. ${data.attemptsRemaining} attempt(s) remaining.`
-            : "Invalid PIN. Please try again.");
-        } else if (msg.includes("locked")) {
-          throw new Error("Account locked due to too many failed PIN attempts. Try again in 30 minutes.");
-        } else if (msg.includes("PIN required")) {
-          throw new Error("Transaction PIN is required to complete this payment.");
-        } else {
-          throw new Error(msg);
-        }
-      }
+      addRecentNumber(phoneNumber, contactName);
+      toast.success("Airtime purchased successfully!");
+      navigate("/dashboard");
     } catch (error: any) {
-      const message = error.message || "Failed to purchase airtime";
-      // Show specific toast for non-PIN errors
-      if (!message.includes("PIN") && !message.includes("locked")) {
-        toast.error(message);
-      }
-      throw new Error(message);
+      throw new Error(error.message || "Failed to purchase airtime");
     } finally {
       setIsLoading(false);
     }

@@ -112,14 +112,14 @@ const Electricity = () => {
           transaction_pin: pin,
         },
       });
-      if (error) throw error;
-      if (data?.success) {
-        addRecentNumber(meterNumber, customerName || undefined);
-        toast.success(`Electricity token: ${data.token}`);
-        navigate("/dashboard");
-      } else {
-        throw new Error(data?.message || "Purchase failed");
+      if (error || !data?.success) {
+        const message = parseEdgeFunctionError(error, data, "Failed to purchase electricity");
+        if (!message.includes("PIN") && !message.includes("locked")) toast.error(message);
+        throw new Error(message);
       }
+      addRecentNumber(meterNumber, customerName || undefined);
+      toast.success(`Electricity token: ${data.token}`);
+      navigate("/dashboard");
     } catch (error: any) {
       throw new Error(error.message || "Failed to purchase electricity");
     } finally {
