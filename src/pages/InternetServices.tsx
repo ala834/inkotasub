@@ -101,7 +101,7 @@ const InternetServices = () => {
           <div className="glass-card rounded-2xl p-4 flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Wallet Balance</p>
-              <p className="text-xl font-bold text-foreground">₦{wallet?.balance.toLocaleString() || "0.00"}</p>
+              <p className="text-xl font-bold text-foreground">₦{(wallet?.balance ?? 0).toLocaleString()}</p>
             </div>
             <Button variant="outline" size="sm" onClick={() => navigate("/fund-wallet")} className="rounded-xl">Fund Wallet</Button>
           </div>
