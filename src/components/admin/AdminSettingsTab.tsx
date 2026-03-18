@@ -173,6 +173,37 @@ const AdminSettingsTab = () => {
           </CardContent>
         </Card>
 
+        {/* Service Visibility Card */}
+        <Card className="glass-card border-0 md:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wifi className="h-4 w-4 text-primary" />
+              Service Visibility
+            </CardTitle>
+            <CardDescription>Enable or disable services on the dashboard</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {[
+              { key: "service_airtime_enabled", label: "Airtime", desc: "Mobile airtime top-up" },
+              { key: "service_data_enabled", label: "Data Bundle", desc: "Mobile data plans" },
+              { key: "service_electricity_enabled", label: "Electricity", desc: "Electricity bill payment" },
+              { key: "service_cable_enabled", label: "Cable TV", desc: "Cable TV subscriptions" },
+              { key: "service_exam_pin_enabled", label: "Result Checker", desc: "WAEC, NECO, NABTEB exam PINs" },
+            ].map((svc) => (
+              <div key={svc.key} className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                <div>
+                  <Label className="text-base font-medium">{svc.label}</Label>
+                  <p className="text-sm text-muted-foreground">{svc.desc}</p>
+                </div>
+                <Switch
+                  checked={formData[svc.key] === "true"}
+                  onCheckedChange={(checked) => handleChange(svc.key, checked ? "true" : "false")}
+                />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
         {/* System Controls Card */}
         <Card className="glass-card border-0 md:col-span-2">
           <CardHeader>
