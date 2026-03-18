@@ -108,6 +108,20 @@ serve(async (req) => {
       results.cable_plans = { status: 0, ok: false, error: e instanceof Error ? e.message : "Failed" };
     }
 
+    // Test exam plans endpoint
+    try {
+      const res = await fetch("https://subpadi.com/api/v1/exam/", {
+        method: "GET",
+        headers,
+      });
+      const data = await res.json();
+      const plansArray = data?.data || data?.results || (Array.isArray(data) ? data : []);
+      const planCount = Array.isArray(plansArray) ? plansArray.length : 0;
+      results.exam_plans = { status: res.status, ok: res.ok, plan_count: planCount };
+    } catch (e) {
+      results.exam_plans = { status: 0, ok: false, error: e instanceof Error ? e.message : "Failed" };
+    }
+
     const allOk = Object.values(results).every((r: any) => r.ok);
 
     return new Response(
