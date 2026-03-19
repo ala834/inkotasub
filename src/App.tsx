@@ -88,6 +88,7 @@ const App = () => {
               <Route path="/faq" element={<FAQ />} />
               <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><AdminDashboard /></ProtectedRoute>} />
               <Route path="/payment-callback" element={<ProtectedRoute><PaymentCallback /></ProtectedRoute>} />
+              <Route path="/receipt/:id" element={<ProtectedRoute><TransactionReceipt /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
