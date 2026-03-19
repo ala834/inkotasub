@@ -38,6 +38,7 @@ import BulkAirtime from "./pages/BulkAirtime";
 import BulkData from "./pages/BulkData";
 import InternetServices from "./pages/InternetServices";
 import ProfitCalculator from "./pages/ProfitCalculator";
+import TransactionReceipt from "./pages/TransactionReceipt";
 
 const queryClient = new QueryClient();
 
