@@ -446,11 +446,23 @@ const TransactionReceipt = () => {
           </Button>
         </motion.div>
 
-        {/* Branding */}
+        {/* Branding - visible on screen */}
         <p className="text-center text-xs text-muted-foreground mt-6">
           INKOTA SUB LTD • Powered by Lovable
         </p>
-      </div>
+
+        {/* Watermark - hidden on screen, shown during image capture */}
+        <div
+          data-watermark
+          className="items-center justify-center gap-2 mt-6 pb-2"
+          style={{ display: "none" }}
+        >
+          <img src={inkotaLogo} alt="INKOTA SUB" className="w-8 h-8 rounded-lg" />
+          <div className="text-center">
+            <p className="text-sm font-bold text-foreground">INKOTA SUB LTD</p>
+            <p className="text-[10px] text-muted-foreground">www.inkotasub.com • Reliable VTU Services</p>
+          </div>
+        </div>
     </div>
   );
 };
