@@ -20,12 +20,11 @@ import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import TransactionDetailsDialog from "@/components/transactions/TransactionDetailsDialog";
 
 const History = () => {
+  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "success" | "failed">("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const { transactions, isLoading } = useTransactions({
     status: statusFilter,
