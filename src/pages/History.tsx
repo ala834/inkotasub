@@ -17,7 +17,7 @@ import { useTransactions, Transaction } from "@/hooks/useTransactions";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
-import TransactionDetailsDialog from "@/components/transactions/TransactionDetailsDialog";
+
 
 const History = () => {
   const navigate = useNavigate();
