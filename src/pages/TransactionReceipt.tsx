@@ -20,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { toPng } from "html-to-image";
+import inkotaLogo from "@/assets/inkota-logo.png";
 
 interface Transaction {
   id: string;
