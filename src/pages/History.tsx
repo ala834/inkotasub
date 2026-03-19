@@ -59,8 +59,7 @@ const History = () => {
   };
 
   const handleTransactionClick = (transaction: Transaction) => {
-    setSelectedTransaction(transaction);
-    setDetailsOpen(true);
+    navigate(`/receipt/${transaction.id}`);
   };
 
   return (
