@@ -15,11 +15,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { toPng } from "html-to-image";
 
 interface Transaction {
   id: string;
@@ -127,28 +127,76 @@ const TransactionReceipt = () => {
     return "Wallet Balance";
   };
 
-  const handleShareReceipt = async () => {
-    const text = [
-      "INKOTA SUB - Transaction Receipt",
-      `Amount: ${formatCurrency(transaction!.amount)}`,
-      `Status: ${transaction!.status.toUpperCase()}`,
-      `Service: ${getServiceName()}`,
-      getRecipient() ? `Recipient: ${getRecipient()}` : null,
-      `Reference: ${transaction!.reference || transaction!.id}`,
-      `Date: ${format(new Date(transaction!.created_at), "MMM d, yyyy h:mm a")}`,
-    ]
-      .filter(Boolean)
-      .join("\n");
+  const generateReceiptImage = async (): Promise<Blob | null> => {
+    if (!receiptRef.current) return null;
+    try {
+      const dataUrl = await toPng(receiptRef.current, {
+        pixelRatio: 3,
+        backgroundColor: window.getComputedStyle(document.body).backgroundColor || "#ffffff",
+      });
+      const res = await fetch(dataUrl);
+      return await res.blob();
+    } catch {
+      return null;
+    }
+  };
 
-    if (navigator.share) {
+  const handleDownloadReceipt = async () => {
+    toast.loading("Generating receipt image...", { id: "download" });
+    const blob = await generateReceiptImage();
+    if (!blob) {
+      toast.error("Failed to generate image", { id: "download" });
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `INKOTA-Receipt-${transaction!.reference || transaction!.id}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Receipt downloaded!", { id: "download" });
+  };
+
+  const handleShareReceipt = async () => {
+    toast.loading("Preparing receipt...", { id: "share" });
+    const blob = await generateReceiptImage();
+
+    if (blob && navigator.share && navigator.canShare?.({ files: [new File([blob], "receipt.png", { type: "image/png" })] })) {
+      const file = new File([blob], `INKOTA-Receipt-${transaction!.reference || transaction!.id}.png`, { type: "image/png" });
       try {
-        await navigator.share({ title: "Transaction Receipt", text });
+        await navigator.share({
+          title: "Transaction Receipt",
+          text: `INKOTA SUB Receipt - ${formatCurrency(transaction!.amount)}`,
+          files: [file],
+        });
+        toast.dismiss("share");
       } catch {
-        // user cancelled
+        toast.dismiss("share");
       }
     } else {
-      navigator.clipboard.writeText(text);
-      toast.success("Receipt copied to clipboard!");
+      // Fallback: download the image
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `INKOTA-Receipt-${transaction!.reference || transaction!.id}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Receipt downloaded — share it from your gallery!", { id: "share" });
+      } else {
+        // Text fallback
+        const text = [
+          "INKOTA SUB - Transaction Receipt",
+          `Amount: ${formatCurrency(transaction!.amount)}`,
+          `Status: ${transaction!.status.toUpperCase()}`,
+          `Service: ${getServiceName()}`,
+          getRecipient() ? `Recipient: ${getRecipient()}` : null,
+          `Reference: ${transaction!.reference || transaction!.id}`,
+          `Date: ${format(new Date(transaction!.created_at), "MMM d, yyyy h:mm a")}`,
+        ].filter(Boolean).join("\n");
+        navigator.clipboard.writeText(text);
+        toast.success("Receipt text copied to clipboard!", { id: "share" });
+      }
     }
   };
 
@@ -363,22 +411,32 @@ const TransactionReceipt = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="flex gap-3 mt-6"
+          className="space-y-3 mt-6"
         >
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1 h-12 rounded-xl gap-2 border-border"
+              onClick={handleDownloadReceipt}
+            >
+              <Download className="h-4 w-4" />
+              Download
+            </Button>
+            <Button
+              className="flex-1 h-12 rounded-xl gap-2 gradient-primary text-primary-foreground"
+              onClick={handleShareReceipt}
+            >
+              <Share2 className="h-4 w-4" />
+              Share Receipt
+            </Button>
+          </div>
           <Button
-            variant="outline"
-            className="flex-1 h-12 rounded-xl gap-2 border-border"
+            variant="ghost"
+            className="w-full h-11 rounded-xl gap-2 text-muted-foreground hover:text-destructive"
             onClick={handleReportIssue}
           >
             <AlertTriangle className="h-4 w-4" />
             Report Issue
-          </Button>
-          <Button
-            className="flex-1 h-12 rounded-xl gap-2 gradient-primary text-primary-foreground"
-            onClick={handleShareReceipt}
-          >
-            <Share2 className="h-4 w-4" />
-            Share Receipt
           </Button>
         </motion.div>
 
