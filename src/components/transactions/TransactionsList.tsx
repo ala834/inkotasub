@@ -130,7 +130,8 @@ const TransactionsList = () => {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 + index * 0.05 }}
-                className="flex items-center gap-4 py-3"
+                className="flex items-center gap-4 py-3 cursor-pointer hover:bg-muted/50 rounded-xl px-2 -mx-2 transition-colors"
+                onClick={() => navigate(`/receipt/${tx.id}`)}
               >
                 <div className={cn(
                   "w-12 h-12 rounded-2xl flex items-center justify-center",
