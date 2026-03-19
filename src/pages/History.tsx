@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Filter, Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import { Button } from "@/components/ui/button";
@@ -16,15 +17,14 @@ import { useTransactions, Transaction } from "@/hooks/useTransactions";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
-import TransactionDetailsDialog from "@/components/transactions/TransactionDetailsDialog";
+
 
 const History = () => {
+  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "success" | "failed">("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const { transactions, isLoading } = useTransactions({
     status: statusFilter,
@@ -59,8 +59,7 @@ const History = () => {
   };
 
   const handleTransactionClick = (transaction: Transaction) => {
-    setSelectedTransaction(transaction);
-    setDetailsOpen(true);
+    navigate(`/receipt/${transaction.id}`);
   };
 
   return (
@@ -212,12 +211,6 @@ const History = () => {
       </main>
 
       <BottomNav />
-
-      <TransactionDetailsDialog
-        transaction={selectedTransaction}
-        open={detailsOpen}
-        onOpenChange={setDetailsOpen}
-      />
     </div>
   );
 };
