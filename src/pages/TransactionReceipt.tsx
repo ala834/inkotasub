@@ -130,6 +130,9 @@ const TransactionReceipt = () => {
 
   const generateReceiptImage = async (): Promise<Blob | null> => {
     if (!receiptRef.current) return null;
+    // Show watermark elements during capture
+    const watermarks = receiptRef.current.querySelectorAll("[data-watermark]");
+    watermarks.forEach((el) => (el as HTMLElement).style.display = "flex");
     try {
       const dataUrl = await toPng(receiptRef.current, {
         pixelRatio: 3,
@@ -139,6 +142,8 @@ const TransactionReceipt = () => {
       return await res.blob();
     } catch {
       return null;
+    } finally {
+      watermarks.forEach((el) => (el as HTMLElement).style.display = "none");
     }
   };
 
