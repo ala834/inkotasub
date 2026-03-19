@@ -411,22 +411,32 @@ const TransactionReceipt = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="flex gap-3 mt-6"
+          className="space-y-3 mt-6"
         >
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1 h-12 rounded-xl gap-2 border-border"
+              onClick={handleDownloadReceipt}
+            >
+              <Download className="h-4 w-4" />
+              Download
+            </Button>
+            <Button
+              className="flex-1 h-12 rounded-xl gap-2 gradient-primary text-primary-foreground"
+              onClick={handleShareReceipt}
+            >
+              <Share2 className="h-4 w-4" />
+              Share Receipt
+            </Button>
+          </div>
           <Button
-            variant="outline"
-            className="flex-1 h-12 rounded-xl gap-2 border-border"
+            variant="ghost"
+            className="w-full h-11 rounded-xl gap-2 text-muted-foreground hover:text-destructive"
             onClick={handleReportIssue}
           >
             <AlertTriangle className="h-4 w-4" />
             Report Issue
-          </Button>
-          <Button
-            className="flex-1 h-12 rounded-xl gap-2 gradient-primary text-primary-foreground"
-            onClick={handleShareReceipt}
-          >
-            <Share2 className="h-4 w-4" />
-            Share Receipt
           </Button>
         </motion.div>
 
