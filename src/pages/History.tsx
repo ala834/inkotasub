@@ -211,12 +211,6 @@ const History = () => {
       </main>
 
       <BottomNav />
-
-      <TransactionDetailsDialog
-        transaction={selectedTransaction}
-        open={detailsOpen}
-        onOpenChange={setDetailsOpen}
-      />
     </div>
   );
 };
