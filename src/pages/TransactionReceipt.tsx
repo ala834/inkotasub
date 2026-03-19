@@ -463,6 +463,7 @@ const TransactionReceipt = () => {
             <p className="text-[10px] text-muted-foreground">www.inkotasub.com • Reliable VTU Services</p>
           </div>
         </div>
+      </div>
     </div>
   );
 };
