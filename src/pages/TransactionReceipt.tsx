@@ -20,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { toPng } from "html-to-image";
+import inkotaLogo from "@/assets/inkota-logo.png";
 
 interface Transaction {
   id: string;
@@ -129,6 +130,9 @@ const TransactionReceipt = () => {
 
   const generateReceiptImage = async (): Promise<Blob | null> => {
     if (!receiptRef.current) return null;
+    // Show watermark elements during capture
+    const watermarks = receiptRef.current.querySelectorAll("[data-watermark]");
+    watermarks.forEach((el) => (el as HTMLElement).style.display = "flex");
     try {
       const dataUrl = await toPng(receiptRef.current, {
         pixelRatio: 3,
@@ -138,6 +142,8 @@ const TransactionReceipt = () => {
       return await res.blob();
     } catch {
       return null;
+    } finally {
+      watermarks.forEach((el) => (el as HTMLElement).style.display = "none");
     }
   };
 
@@ -440,10 +446,23 @@ const TransactionReceipt = () => {
           </Button>
         </motion.div>
 
-        {/* Branding */}
+        {/* Branding - visible on screen */}
         <p className="text-center text-xs text-muted-foreground mt-6">
           INKOTA SUB LTD • Powered by Lovable
         </p>
+
+        {/* Watermark - hidden on screen, shown during image capture */}
+        <div
+          data-watermark
+          className="items-center justify-center gap-2 mt-6 pb-2"
+          style={{ display: "none" }}
+        >
+          <img src={inkotaLogo} alt="INKOTA SUB" className="w-8 h-8 rounded-lg" />
+          <div className="text-center">
+            <p className="text-sm font-bold text-foreground">INKOTA SUB LTD</p>
+            <p className="text-[10px] text-muted-foreground">www.inkotasub.com • Reliable VTU Services</p>
+          </div>
+        </div>
       </div>
     </div>
   );
