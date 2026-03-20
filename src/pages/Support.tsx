@@ -242,6 +242,7 @@ const Support = () => {
         </motion.div>
       </main>
 
+      <SupportChatWidget />
       <BottomNav />
     </div>
   );
