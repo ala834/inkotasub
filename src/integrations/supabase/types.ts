@@ -572,6 +572,74 @@ export type Database = {
         }
         Relationships: []
       }
+      support_conversations: {
+        Row: {
+          assigned_admin_id: string | null
+          created_at: string
+          id: string
+          last_message_at: string
+          status: string
+          subject: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_admin_id?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          status?: string
+          subject?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_admin_id?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          status?: string
+          subject?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      support_messages: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          message: string
+          sender_id: string
+          sender_type: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          message: string
+          sender_id: string
+          sender_type?: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          sender_id?: string
+          sender_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "support_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transactions: {
         Row: {
           amount: number

@@ -19,6 +19,7 @@ import {
   ClipboardList,
   Package,
   UserCog,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,7 @@ import AdminReferralsTab from "@/components/admin/AdminReferralsTab";
 import AdminDevicesTab from "@/components/admin/AdminDevicesTab";
 import AdminKYCTab from "@/components/admin/AdminKYCTab";
 import AdminManagementTab from "@/components/admin/AdminManagementTab";
+import AdminSupportChatTab from "@/components/admin/AdminSupportChatTab";
 
 type TabDef = {
   value: string;
@@ -60,6 +62,7 @@ const allTabs: TabDef[] = [
   { value: "users", label: "Users", icon: Users, superOnly: true },
   { value: "agents", label: "Agents", icon: UserCheck, superOnly: true },
   { value: "transactions", label: "Transactions", icon: Activity },
+  { value: "support-chat", label: "Support Chat", icon: MessageCircle },
   { value: "orders", label: "VTU Orders", icon: ShoppingCart },
   { value: "wallets", label: "Wallets", icon: Wallet, superOnly: true },
   { value: "virtual-accounts", label: "Virtual Accounts", icon: Building2, superOnly: true },
@@ -163,6 +166,7 @@ const AdminDashboard = () => {
           {isSuperAdmin && <TabsContent value="users"><AdminUserManagementTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="agents"><AdminAgentsTab /></TabsContent>}
           <TabsContent value="transactions"><AdminTransactionsTab /></TabsContent>
+          <TabsContent value="support-chat"><AdminSupportChatTab /></TabsContent>
           <TabsContent value="orders"><AdminVTUOrdersTab /></TabsContent>
           {isSuperAdmin && <TabsContent value="wallets"><AdminWalletsTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="virtual-accounts"><AdminVirtualAccountsTab /></TabsContent>}
