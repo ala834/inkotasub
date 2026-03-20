@@ -279,7 +279,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
     setProfile(null);
     setIsAdmin(false);
+    setAdminRole(null);
   };
+
+  const isSuperAdmin = adminRole === 'super_admin';
 
   return (
     <AuthContext.Provider
@@ -289,6 +292,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         profile,
         isLoading,
         isAdmin,
+        isSuperAdmin,
+        adminRole,
         signUp,
         signIn,
         signOut,
