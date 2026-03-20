@@ -166,6 +166,7 @@ const AdminDashboard = () => {
           {isSuperAdmin && <TabsContent value="users"><AdminUserManagementTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="agents"><AdminAgentsTab /></TabsContent>}
           <TabsContent value="transactions"><AdminTransactionsTab /></TabsContent>
+          <TabsContent value="support-chat"><AdminSupportChatTab /></TabsContent>
           <TabsContent value="orders"><AdminVTUOrdersTab /></TabsContent>
           {isSuperAdmin && <TabsContent value="wallets"><AdminWalletsTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="virtual-accounts"><AdminVirtualAccountsTab /></TabsContent>}
