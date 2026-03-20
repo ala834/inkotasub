@@ -45,6 +45,7 @@ import AdminReferralsTab from "@/components/admin/AdminReferralsTab";
 import AdminDevicesTab from "@/components/admin/AdminDevicesTab";
 import AdminKYCTab from "@/components/admin/AdminKYCTab";
 import AdminManagementTab from "@/components/admin/AdminManagementTab";
+import AdminSupportChatTab from "@/components/admin/AdminSupportChatTab";
 
 type TabDef = {
   value: string;
