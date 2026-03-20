@@ -14,12 +14,16 @@ interface Profile {
   transaction_pin: string | null;
 }
 
+type AdminRole = 'super_admin' | 'sub_admin' | null;
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   isLoading: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
+  adminRole: AdminRole;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -34,6 +38,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminRole, setAdminRole] = useState<AdminRole>(null);
   const virtualAccountCreationAttempted = useRef<Set<string>>(new Set());
 
   const fetchProfile = async (userId: string) => {
@@ -53,10 +58,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("role", "admin")
-      .single();
+      .in("role", ["admin", "moderator"]);
     
-    setIsAdmin(!!data);
+    if (data && data.length > 0) {
+      const hasAdmin = data.some(r => r.role === 'admin');
+      const hasModerator = data.some(r => r.role === 'moderator');
+      setIsAdmin(hasAdmin || hasModerator);
+      setAdminRole(hasAdmin ? 'super_admin' : hasModerator ? 'sub_admin' : null);
+    } else {
+      setIsAdmin(false);
+      setAdminRole(null);
+    }
   };
 
   const ensureVirtualAccount = async (userId: string, accessToken: string) => {
@@ -267,7 +279,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
     setProfile(null);
     setIsAdmin(false);
+    setAdminRole(null);
   };
+
+  const isSuperAdmin = adminRole === 'super_admin';
 
   return (
     <AuthContext.Provider
@@ -277,6 +292,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         profile,
         isLoading,
         isAdmin,
+        isSuperAdmin,
+        adminRole,
         signUp,
         signIn,
         signOut,

@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
@@ -20,7 +20,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify the caller is an admin
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -39,24 +38,38 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check admin role
+    // Check admin or moderator role
     const { data: roleData } = await userClient
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
-      .eq("role", "admin")
-      .single();
+      .in("role", ["admin", "moderator"])
+      .limit(1);
 
-    if (!roleData) {
+    if (!roleData || roleData.length === 0) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Use service role to list all users from auth
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
+    const body = await req.json().catch(() => ({}));
+
+    // Search by email - return user ID for a specific email
+    if (body.searchEmail) {
+      const { data: foundUsers } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      const found = foundUsers?.users?.find(
+        u => u.email?.toLowerCase() === body.searchEmail.toLowerCase()
+      );
+      return new Response(
+        JSON.stringify({ userId: found?.id || null }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Default: return email map for given userIds or all users
     const emailMap: Record<string, string> = {};
     let page = 1;
     const perPage = 1000;
