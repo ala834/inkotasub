@@ -58,10 +58,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
-      .eq("role", "admin")
-      .single();
+      .in("role", ["admin", "moderator"]);
     
-    setIsAdmin(!!data);
+    if (data && data.length > 0) {
+      const hasAdmin = data.some(r => r.role === 'admin');
+      const hasModerator = data.some(r => r.role === 'moderator');
+      setIsAdmin(hasAdmin || hasModerator);
+      setAdminRole(hasAdmin ? 'super_admin' : hasModerator ? 'sub_admin' : null);
+    } else {
+      setIsAdmin(false);
+      setAdminRole(null);
+    }
   };
 
   const ensureVirtualAccount = async (userId: string, accessToken: string) => {
