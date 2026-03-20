@@ -14,12 +14,16 @@ interface Profile {
   transaction_pin: string | null;
 }
 
+type AdminRole = 'super_admin' | 'sub_admin' | null;
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   isLoading: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
+  adminRole: AdminRole;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
