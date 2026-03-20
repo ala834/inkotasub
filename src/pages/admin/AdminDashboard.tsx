@@ -62,6 +62,7 @@ const allTabs: TabDef[] = [
   { value: "users", label: "Users", icon: Users, superOnly: true },
   { value: "agents", label: "Agents", icon: UserCheck, superOnly: true },
   { value: "transactions", label: "Transactions", icon: Activity },
+  { value: "support-chat", label: "Support Chat", icon: MessageCircle },
   { value: "orders", label: "VTU Orders", icon: ShoppingCart },
   { value: "wallets", label: "Wallets", icon: Wallet, superOnly: true },
   { value: "virtual-accounts", label: "Virtual Accounts", icon: Building2, superOnly: true },
