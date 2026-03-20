@@ -463,6 +463,26 @@ const TransactionReceipt = () => {
             <p className="text-[10px] text-muted-foreground">www.inkotasub.com • Reliable VTU Services</p>
           </div>
         </div>
+
+        {/* Diagonal watermark overlay - hidden on screen, shown during image capture */}
+        <div
+          data-watermark
+          className="absolute inset-0 items-center justify-center overflow-hidden pointer-events-none"
+          style={{ display: "none" }}
+        >
+          <div
+            className="flex flex-col items-center gap-1 opacity-[0.07]"
+            style={{ transform: "rotate(-35deg)" }}
+          >
+            <img src={inkotaLogo} alt="" className="w-16 h-16 rounded-xl" />
+            <p className="text-2xl font-extrabold tracking-widest text-foreground whitespace-nowrap">
+              INKOTA SUB LTD
+            </p>
+            <p className="text-xs font-semibold tracking-wider text-foreground whitespace-nowrap">
+              www.inkotasub.com
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
