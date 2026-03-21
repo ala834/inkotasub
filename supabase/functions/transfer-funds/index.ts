@@ -7,6 +7,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+const TRANSFER_FEE = 10;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -20,8 +22,7 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -30,12 +31,11 @@ serve(async (req) => {
     
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const { recipient_identifier, amount, description, transactionPin } = await req.json();
+    const { recipient_identifier, amount, description, transaction_pin } = await req.json();
 
     // Get sender's profile to validate PIN
     const { data: senderProfile } = await supabase
@@ -54,15 +54,14 @@ serve(async (req) => {
 
     // Validate transaction PIN if set
     if (senderProfile?.transaction_pin) {
-      if (!transactionPin) {
+      if (!transaction_pin) {
         return new Response(
           JSON.stringify({ error: 'Transaction PIN required', requiresPin: true, success: false }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      // Use secure bcrypt comparison
-      const pinValid = await comparePin(transactionPin, senderProfile.transaction_pin);
+      const pinValid = await comparePin(transaction_pin, senderProfile.transaction_pin);
       
       if (!pinValid) {
         const newAttempts = (senderProfile.failed_pin_attempts || 0) + 1;
@@ -86,63 +85,54 @@ serve(async (req) => {
       // Reset failed attempts on successful PIN
       const updates: Record<string, any> = { failed_pin_attempts: 0, pin_locked_until: null };
       
-      // Migrate legacy plaintext PIN to hashed
       if (needsPinMigration(senderProfile.transaction_pin)) {
-        updates.transaction_pin = await hashPin(transactionPin);
+        updates.transaction_pin = await hashPin(transaction_pin);
         console.log('Migrated legacy PIN to PBKDF2 hash for user:', user.id);
       }
 
       if (senderProfile.failed_pin_attempts > 0 || needsPinMigration(senderProfile.transaction_pin)) {
-        await supabase
-          .from('profiles')
-          .update(updates)
-          .eq('user_id', user.id);
+        await supabase.from('profiles').update(updates).eq('user_id', user.id);
       }
     }
 
     // Validate inputs
     if (!recipient_identifier || !amount) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const transferAmount = parseFloat(amount);
     if (isNaN(transferAmount) || transferAmount <= 0) {
       return new Response(JSON.stringify({ error: 'Invalid amount' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     if (transferAmount < 100) {
       return new Response(JSON.stringify({ error: 'Minimum transfer amount is ₦100' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Find recipient by phone or email
+    const totalDeduction = transferAmount + TRANSFER_FEE;
+
+    // Find recipient
     const identifier = recipient_identifier.trim().toLowerCase();
     let recipientQuery = supabase.from('profiles').select('user_id, full_name, phone_number');
     
-    // Check if it's an email (contains @) or phone number
     if (identifier.includes('@')) {
-      // Search by email in auth.users via profiles
       const { data: authUsers } = await supabase.auth.admin.listUsers();
       const matchedUser = authUsers?.users?.find(u => u.email?.toLowerCase() === identifier);
       
       if (!matchedUser) {
         return new Response(JSON.stringify({ error: 'Recipient not found' }), {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       
       recipientQuery = supabase.from('profiles').select('user_id, full_name, phone_number').eq('user_id', matchedUser.id);
     } else {
-      // Search by phone number
       recipientQuery = supabase.from('profiles').select('user_id, full_name, phone_number').eq('phone_number', identifier);
     }
 
@@ -150,78 +140,53 @@ serve(async (req) => {
 
     if (recipientError || !recipientProfile) {
       return new Response(JSON.stringify({ error: 'Recipient not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     if (recipientProfile.user_id === user.id) {
       return new Response(JSON.stringify({ error: 'Cannot transfer to yourself' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // Get sender's wallet
     const { data: senderWallet, error: senderWalletError } = await supabase
-      .from('wallets')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+      .from('wallets').select('*').eq('user_id', user.id).single();
 
     if (senderWalletError || !senderWallet) {
       return new Response(JSON.stringify({ error: 'Sender wallet not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const currentBalance = parseFloat(senderWallet.balance);
-    if (currentBalance < transferAmount) {
-      return new Response(JSON.stringify({ error: 'Insufficient balance' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    if (currentBalance < totalDeduction) {
+      return new Response(JSON.stringify({ error: 'Insufficient balance (including ₦10 transfer fee)' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // Get recipient's wallet
     const { data: recipientWallet, error: recipientWalletError } = await supabase
-      .from('wallets')
-      .select('*')
-      .eq('user_id', recipientProfile.user_id)
-      .single();
+      .from('wallets').select('*').eq('user_id', recipientProfile.user_id).single();
 
     if (recipientWalletError || !recipientWallet) {
       return new Response(JSON.stringify({ error: 'Recipient wallet not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const reference = `TRF_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Check for duplicate transaction
-    const { data: existingTx } = await supabase
-      .from('transactions')
-      .select('id')
-      .eq('reference', reference)
-      .single();
-
-    if (existingTx) {
-      return new Response(JSON.stringify({ error: 'Duplicate transaction detected' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Debit sender
-    const senderNewBalance = currentBalance - transferAmount;
+    // Debit sender (amount + fee)
+    const senderNewBalance = currentBalance - totalDeduction;
     await supabase
       .from('wallets')
       .update({ balance: senderNewBalance, updated_at: new Date().toISOString() })
       .eq('user_id', user.id);
 
-    // Credit recipient
+    // Credit recipient (amount only, no fee)
     const recipientCurrentBalance = parseFloat(recipientWallet.balance);
     const recipientNewBalance = recipientCurrentBalance + transferAmount;
     await supabase
@@ -230,21 +195,27 @@ serve(async (req) => {
       .eq('user_id', recipientProfile.user_id);
 
     const senderName = senderProfile?.full_name || user.email;
+    const recipientName = recipientProfile.full_name || recipientProfile.phone_number;
 
-    // Create sender transaction (debit)
+    // Create sender transaction (debit - total including fee)
     await supabase.from('transactions').insert({
       user_id: user.id,
       type: 'debit',
-      amount: transferAmount,
+      amount: totalDeduction,
       balance_before: currentBalance,
       balance_after: senderNewBalance,
       status: 'success',
       reference,
-      description: description || `Transfer to ${recipientProfile.full_name || recipientProfile.phone_number}`,
-      metadata: { recipient_id: recipientProfile.user_id, recipient_name: recipientProfile.full_name }
+      description: description || `Transfer to ${recipientName}`,
+      metadata: { 
+        recipient_id: recipientProfile.user_id, 
+        recipient_name: recipientName,
+        transfer_amount: transferAmount,
+        transfer_fee: TRANSFER_FEE
+      }
     });
 
-    // Create recipient transaction (credit)
+    // Create recipient transaction (credit - amount only)
     await supabase.from('transactions').insert({
       user_id: recipientProfile.user_id,
       type: 'credit',
@@ -257,12 +228,25 @@ serve(async (req) => {
       metadata: { sender_id: user.id, sender_name: senderName }
     });
 
+    // Record ₦10 fee as a VTU order for system profit tracking
+    await supabase.from('vtu_orders').insert({
+      user_id: user.id,
+      service_type: 'airtime',
+      amount: TRANSFER_FEE,
+      cost_price: 0,
+      profit: TRANSFER_FEE,
+      status: 'success',
+      provider: 'internal',
+      recipient: recipientProfile.user_id,
+      provider_used: 'internal_transfer_fee',
+    });
+
     // Create notifications
     await supabase.from('notifications').insert([
       {
         user_id: user.id,
         title: 'Transfer Successful',
-        message: `You sent ₦${transferAmount.toLocaleString()} to ${recipientProfile.full_name || recipientProfile.phone_number}`,
+        message: `You sent ₦${transferAmount.toLocaleString()} to ${recipientName} (Fee: ₦${TRANSFER_FEE})`,
         type: 'success'
       },
       {
@@ -273,14 +257,16 @@ serve(async (req) => {
       }
     ]);
 
-    console.log(`Transfer successful: ${user.id} -> ${recipientProfile.user_id}, Amount: ${transferAmount}`);
+    console.log(`Transfer successful: ${user.id} -> ${recipientProfile.user_id}, Amount: ${transferAmount}, Fee: ${TRANSFER_FEE}`);
 
     return new Response(JSON.stringify({
       success: true,
       message: 'Transfer successful',
       data: {
         amount: transferAmount,
-        recipient: recipientProfile.full_name || recipientProfile.phone_number,
+        fee: TRANSFER_FEE,
+        total_deducted: totalDeduction,
+        recipient: recipientName,
         reference,
         new_balance: senderNewBalance
       }
@@ -291,8 +277,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Transfer error:', error);
     return new Response(JSON.stringify({ error: 'Transfer failed' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

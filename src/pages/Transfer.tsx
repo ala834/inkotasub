@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Search, Send, User } from "lucide-react";
+import { ArrowLeft, Search, Send, User, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,9 @@ import BottomNav from "@/components/layout/BottomNav";
 import { useWallet } from "@/hooks/useWallet";
 import { supabase } from "@/integrations/supabase/client";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
+import TransferConfirmationDialog from "@/components/transfer/TransferConfirmationDialog";
+
+const TRANSFER_FEE = 10;
 
 const Transfer = () => {
   const navigate = useNavigate();
@@ -23,6 +26,7 @@ const Transfer = () => {
   const [recipientInfo, setRecipientInfo] = useState<{ name: string; phone: string } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   const searchRecipient = async () => {
     if (!recipient.trim()) {
@@ -32,7 +36,6 @@ const Transfer = () => {
 
     setIsSearching(true);
     try {
-      // Search by phone number first
       const { data: profileByPhone } = await supabase
         .from("profiles")
         .select("full_name, phone_number")
@@ -41,14 +44,13 @@ const Transfer = () => {
 
       if (profileByPhone) {
         setRecipientInfo({
-          name: profileByPhone.full_name || "Unknown",
+          name: profileByPhone.full_name || "Unknown User",
           phone: profileByPhone.phone_number || recipient,
         });
         toast.success("Recipient found!");
         return;
       }
 
-      // If contains @, treat as email - we'll validate on submit
       if (recipient.includes("@")) {
         setRecipientInfo({
           name: recipient.split("@")[0],
@@ -68,35 +70,37 @@ const Transfer = () => {
     }
   };
 
+  const transferAmount = parseFloat(amount) || 0;
+  const totalDeduction = transferAmount + TRANSFER_FEE;
+
   const validateForm = () => {
-    if (!recipient.trim()) {
-      toast.error("Enter recipient phone or email");
+    if (!recipientInfo) {
+      toast.error("Search for a recipient first");
       return false;
     }
-
-    const transferAmount = parseFloat(amount);
-    if (isNaN(transferAmount) || transferAmount <= 0) {
+    if (transferAmount <= 0) {
       toast.error("Enter a valid amount");
       return false;
     }
-
-    if (transferAmount > (wallet?.balance || 0)) {
-      toast.error("Insufficient balance");
+    if (totalDeduction > (wallet?.balance || 0)) {
+      toast.error("Insufficient balance (including ₦10 fee)");
       return false;
     }
-
     return true;
   };
 
   const handleTransferClick = () => {
     if (validateForm()) {
-      setShowPinDialog(true);
+      setShowConfirmDialog(true);
     }
   };
 
-  const handleTransferWithPin = async (pin: string) => {
-    const transferAmount = parseFloat(amount);
+  const handleConfirmTransfer = () => {
+    setShowConfirmDialog(false);
+    setShowPinDialog(true);
+  };
 
+  const handleTransferWithPin = async (pin: string) => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("transfer-funds", {
@@ -122,24 +126,19 @@ const Transfer = () => {
     }
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-NG", {
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("en-NG", {
       style: "currency",
       currency: "NGN",
       minimumFractionDigits: 2,
     }).format(value);
-  };
 
   return (
     <div className="min-h-screen gradient-hero pb-24">
       <Header />
 
       <main className="container mx-auto px-4 py-6 max-w-lg">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <button
             onClick={() => navigate(-1)}
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4"
@@ -147,12 +146,8 @@ const Transfer = () => {
             <ArrowLeft className="h-5 w-5" />
             Back
           </button>
-          <h1 className="text-2xl font-display font-bold text-foreground">
-            Transfer Money
-          </h1>
-          <p className="text-muted-foreground">
-            Send money to other INKOTA users
-          </p>
+          <h1 className="text-2xl font-display font-bold text-foreground">Transfer Money</h1>
+          <p className="text-muted-foreground">Send money to other INKOTA users</p>
         </motion.div>
 
         {/* Balance Display */}
@@ -163,9 +158,7 @@ const Transfer = () => {
           className="glass-card p-4 rounded-2xl mb-6"
         >
           <p className="text-sm text-muted-foreground">Available Balance</p>
-          <p className="text-2xl font-bold text-primary">
-            {formatCurrency(wallet?.balance || 0)}
-          </p>
+          <p className="text-2xl font-bold text-primary">{formatCurrency(wallet?.balance || 0)}</p>
         </motion.div>
 
         {/* Transfer Form */}
@@ -190,12 +183,7 @@ const Transfer = () => {
                 }}
                 className="flex-1"
               />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={searchRecipient}
-                disabled={isSearching}
-              >
+              <Button variant="outline" size="icon" onClick={searchRecipient} disabled={isSearching}>
                 <Search className="h-4 w-4" />
               </Button>
             </div>
@@ -231,6 +219,31 @@ const Transfer = () => {
             />
           </div>
 
+          {/* Transfer Breakdown */}
+          {transferAmount > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-card p-4 rounded-xl space-y-2"
+            >
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Transfer Amount</span>
+                <span className="font-medium text-foreground">{formatCurrency(transferAmount)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Transfer Fee
+                </span>
+                <span className="font-medium text-foreground">{formatCurrency(TRANSFER_FEE)}</span>
+              </div>
+              <div className="border-t border-border pt-2 flex justify-between text-sm font-semibold">
+                <span className="text-foreground">Total Deduction</span>
+                <span className="text-primary">{formatCurrency(totalDeduction)}</span>
+              </div>
+            </motion.div>
+          )}
+
           {/* Description */}
           <div className="space-y-2">
             <Label htmlFor="description">Description (Optional)</Label>
@@ -246,7 +259,7 @@ const Transfer = () => {
           {/* Transfer Button */}
           <Button
             onClick={handleTransferClick}
-            disabled={isLoading || !recipient || !amount}
+            disabled={isLoading || !recipientInfo || !amount}
             className="w-full h-12 text-lg"
           >
             {isLoading ? (
@@ -263,6 +276,18 @@ const Transfer = () => {
 
       <BottomNav />
 
+      {/* Confirmation Dialog */}
+      <TransferConfirmationDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        onConfirm={handleConfirmTransfer}
+        recipientName={recipientInfo?.name || ""}
+        recipientIdentifier={recipientInfo?.phone || ""}
+        amount={transferAmount}
+        fee={TRANSFER_FEE}
+        total={totalDeduction}
+      />
+
       {/* PIN Entry Dialog */}
       <PinEntryDialog
         open={showPinDialog}
@@ -270,7 +295,7 @@ const Transfer = () => {
         onSubmit={handleTransferWithPin}
         title="Confirm Transfer"
         description="Enter your PIN to send money"
-        amount={parseFloat(amount) || 0}
+        amount={totalDeduction}
         serviceName={`Transfer to ${recipientInfo?.name || recipient}`}
       />
     </div>
