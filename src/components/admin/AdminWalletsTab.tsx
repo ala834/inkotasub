@@ -67,66 +67,39 @@ const AdminWalletsTab = () => {
       return;
     }
 
+    const amountNum = parseFloat(amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    if (adjustmentType === "debit" && amountNum > selectedWallet.balance) {
+      toast.error("Insufficient balance");
+      return;
+    }
+
     setIsAdjusting(true);
     try {
-      const amountNum = parseFloat(amount);
-      const newBalance =
-        adjustmentType === "credit"
-          ? selectedWallet.balance + amountNum
-          : selectedWallet.balance - amountNum;
-
-      if (newBalance < 0) {
-        toast.error("Insufficient balance");
-        setIsAdjusting(false);
-        return;
-      }
-
-      const { error } = await supabase
-        .from("wallets")
-        .update({ balance: newBalance })
-        .eq("id", selectedWallet.id);
+      const { data, error } = await supabase.functions.invoke("admin-adjust-wallet", {
+        body: {
+          wallet_id: selectedWallet.id,
+          user_id: selectedWallet.user_id,
+          adjustment_type: adjustmentType,
+          amount: amountNum,
+          reason: reason.trim(),
+        },
+      });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      // Create transaction record with reason
-      await supabase.from("transactions").insert({
-        user_id: selectedWallet.user_id,
-        type: adjustmentType,
-        amount: amountNum,
-        balance_before: selectedWallet.balance,
-        balance_after: newBalance,
-        status: "success",
-        description: `Admin ${adjustmentType === "credit" ? "credit" : "debit"}: ${reason}`,
-        metadata: { admin_id: currentAdmin?.id, reason },
-      });
-
-      // Log admin activity
-      if (currentAdmin) {
-        await supabase.from("admin_activity_log").insert({
-          admin_id: currentAdmin.id,
-          action: `wallet_${adjustmentType}`,
-          target_user_id: selectedWallet.user_id,
-          target_type: "wallet",
-          target_id: selectedWallet.id,
-          details: { amount: amountNum, reason, new_balance: newBalance },
-        } as any);
-      }
-
-      // Create notification for user
-      await supabase.from("notifications").insert({
-        user_id: selectedWallet.user_id,
-        title: adjustmentType === "credit" ? "Wallet Credited" : "Wallet Debited",
-        message: `Your wallet has been ${adjustmentType === "credit" ? "credited with" : "debited by"} ₦${amountNum.toLocaleString()}. Reason: ${reason}`,
-        type: adjustmentType === "credit" ? "success" : "warning",
-      });
-
-      toast.success(`Wallet ${adjustmentType === "credit" ? "credited" : "debited"} successfully`);
+      toast.success(data.message || `Wallet ${adjustmentType === "credit" ? "credited" : "debited"} successfully`);
       setSelectedWallet(null);
       setAmount("");
       setReason("");
       fetchWallets();
-    } catch (error) {
-      toast.error("Failed to adjust wallet");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to adjust wallet");
     } finally {
       setIsAdjusting(false);
     }
