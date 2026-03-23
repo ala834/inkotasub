@@ -12,7 +12,8 @@ import {
   Calculator,
   MessageCircle,
   Layers,
-  Radio
+  Radio,
+  CreditCard
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
