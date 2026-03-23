@@ -39,6 +39,7 @@ import BulkData from "./pages/BulkData";
 import InternetServices from "./pages/InternetServices";
 import ProfitCalculator from "./pages/ProfitCalculator";
 import TransactionReceipt from "./pages/TransactionReceipt";
+import RechargeCard from "./pages/RechargeCard";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,7 @@ const App = () => {
               <Route path="/bulk-airtime" element={<ProtectedRoute><BulkAirtime /></ProtectedRoute>} />
               <Route path="/bulk-data" element={<ProtectedRoute><BulkData /></ProtectedRoute>} />
               <Route path="/internet-services" element={<ProtectedRoute><InternetServices /></ProtectedRoute>} />
+              <Route path="/recharge-card" element={<ProtectedRoute><RechargeCard /></ProtectedRoute>} />
               <Route path="/calculator" element={<ProtectedRoute><ProfitCalculator /></ProtectedRoute>} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<Terms />} />

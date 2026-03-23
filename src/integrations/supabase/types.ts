@@ -944,7 +944,13 @@ export type Database = {
       app_role: "admin" | "moderator" | "user"
       kyc_level: "level_1" | "level_2" | "level_3"
       kyc_status: "pending" | "approved" | "rejected"
-      service_type: "airtime" | "data" | "electricity" | "cable" | "exam_pin"
+      service_type:
+        | "airtime"
+        | "data"
+        | "electricity"
+        | "cable"
+        | "exam_pin"
+        | "recharge_card"
       transaction_status: "pending" | "success" | "failed"
       transaction_type: "credit" | "debit"
     }
@@ -1077,7 +1083,14 @@ export const Constants = {
       app_role: ["admin", "moderator", "user"],
       kyc_level: ["level_1", "level_2", "level_3"],
       kyc_status: ["pending", "approved", "rejected"],
-      service_type: ["airtime", "data", "electricity", "cable", "exam_pin"],
+      service_type: [
+        "airtime",
+        "data",
+        "electricity",
+        "cable",
+        "exam_pin",
+        "recharge_card",
+      ],
       transaction_status: ["pending", "success", "failed"],
       transaction_type: ["credit", "debit"],
     },

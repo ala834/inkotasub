@@ -12,7 +12,8 @@ import {
   Calculator,
   MessageCircle,
   Layers,
-  Radio
+  Radio,
+  CreditCard
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -26,6 +27,7 @@ const mainServices = [
   { icon: Zap, label: "Electricity", color: "#F97316", path: "/electricity", serviceKey: "electricity" as const },
   { icon: Tv, label: "Cable TV", color: "#8B5CF6", path: "/cable-tv", serviceKey: "cable" as const },
   { icon: GraduationCap, label: "Result Checker", color: "#EC4899", path: "/exam-cards", serviceKey: "exam_pin" as const },
+  { icon: CreditCard, label: "Recharge Card", color: "#D946EF", path: "/recharge-card", serviceKey: null },
   { icon: Send, label: "Transfer", color: "#2563EB", path: "/transfer", serviceKey: null },
 ];
 
