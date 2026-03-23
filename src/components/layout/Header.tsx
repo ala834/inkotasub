@@ -12,7 +12,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import NotificationsDropdown from "@/components/notifications/NotificationsDropdown";
-import inkotaLogo from "@/assets/inkota-logo.png";
+import AppLogo from "@/components/common/AppLogo";
 
 interface HeaderProps {
   onMenuClick?: () => void;
