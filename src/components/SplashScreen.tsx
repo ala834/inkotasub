@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import inkotaLogo from "@/assets/inkota-logo.png";
+import AppLogo from "@/components/common/AppLogo";
 
 interface SplashScreenProps {
   onComplete: () => void;
