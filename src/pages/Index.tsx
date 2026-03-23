@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Smartphone, Shield, Zap, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import inkotaLogo from "@/assets/inkota-logo.png";
+import AppLogo from "@/components/common/AppLogo";
 
 const features = [
   {
@@ -30,7 +30,7 @@ const Index = () => {
       {/* Header */}
       <header className="container mx-auto px-4 py-6">
         <div className="flex items-center gap-2">
-          <img src={inkotaLogo} alt="INKOTA SUB" className="w-10 h-10 object-contain" />
+          <AppLogo className="w-10 h-10" />
           <span className="font-display font-bold text-xl text-foreground">
             INKOTA<span className="text-primary">SUB</span>
           </span>
