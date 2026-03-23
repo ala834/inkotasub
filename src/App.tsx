@@ -39,6 +39,7 @@ import BulkData from "./pages/BulkData";
 import InternetServices from "./pages/InternetServices";
 import ProfitCalculator from "./pages/ProfitCalculator";
 import TransactionReceipt from "./pages/TransactionReceipt";
+import RechargeCard from "./pages/RechargeCard";
 
 const queryClient = new QueryClient();
 
