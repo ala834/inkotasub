@@ -39,14 +39,14 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
         />
 
         {/* Logo */}
-        <motion.img
-          src={inkotaLogo}
-          alt="INKOTA SUB"
-          className="w-28 h-28 object-contain relative z-10"
+        <motion.div
+          className="relative z-10"
           initial={{ scale: 0.3, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
-        />
+        >
+          <AppLogo className="w-28 h-28" />
+        </motion.div>
 
         {/* Brand name */}
         <motion.h1
