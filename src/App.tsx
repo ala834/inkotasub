@@ -58,6 +58,7 @@ const App = () => {
           <Toaster />
           <Sonner />
           {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
+          <PWAInstallPrompt />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
