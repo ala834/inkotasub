@@ -1,15 +1,23 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { WifiOff, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AppLogo from "@/components/common/AppLogo";
+import { toast } from "sonner";
 
 const OfflineFallback = () => {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isRetrying, setIsRetrying] = useState(false);
+  const wasOffline = useRef(false);
 
   useEffect(() => {
-    const goOffline = () => setIsOffline(true);
-    const goOnline = () => setIsOffline(false);
+    const goOffline = () => { setIsOffline(true); wasOffline.current = true; };
+    const goOnline = () => {
+      setIsOffline(false);
+      if (wasOffline.current) {
+        toast.success("You're back online!", { description: "Your connection has been restored." });
+        wasOffline.current = false;
+      }
+    };
     window.addEventListener("offline", goOffline);
     window.addEventListener("online", goOnline);
     return () => {
