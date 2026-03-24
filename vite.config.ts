@@ -81,6 +81,7 @@ export default defineConfig(({ mode }) => ({
             purpose: "apple touch icon",
           },
         ],
+      },
     }),
   ].filter(Boolean),
   resolve: {
