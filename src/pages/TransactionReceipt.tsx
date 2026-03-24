@@ -448,7 +448,7 @@ const TransactionReceipt = () => {
 
         {/* Branding - visible on screen */}
         <p className="text-center text-xs text-muted-foreground mt-6">
-          INKOTA SUB LTD • Powered by Lovable
+          INKOTA SUB LTD
         </p>
 
         {/* Watermark - hidden on screen, shown during image capture */}
