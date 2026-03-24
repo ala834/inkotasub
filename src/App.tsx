@@ -60,6 +60,7 @@ const App = () => {
           <Sonner />
           {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
           <PWAInstallPrompt />
+          <OfflineFallback />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
