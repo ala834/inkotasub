@@ -81,7 +81,7 @@ serve(async (req) => {
       .eq("reference", reference)
       .single();
 
-    const userId = claims.claims.sub;
+    // userId already set on line 36 from authenticated user
 
     // Validate reference ownership - transaction must belong to requesting user
     if (existingTx && existingTx.user_id !== userId) {

@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     }
 
     const userId = user.id;
-    const userEmail = claims.claims.email;
+    const userEmail = user.email;
 
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const adminSupabase = createClient(supabaseUrl, supabaseServiceRoleKey);
