@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
 
 interface EnabledServices {
   data: boolean;
@@ -10,80 +11,47 @@ interface EnabledServices {
 }
 
 export const useEnabledServices = () => {
+  const { settings, isLoading: settingsLoading, version } = useAppSettings();
   const [enabledServices, setEnabledServices] = useState<EnabledServices>({
     data: true,
     airtime: true,
     electricity: true,
     cable: true,
-    exam_pin: true, // Enabled via SMEPlug provider
+    exam_pin: true,
   });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchEnabledServices();
-  }, []);
+    // Derive from global settings
+    const serviceMap: EnabledServices = {
+      data: settings.service_data_enabled !== "false",
+      airtime: settings.service_airtime_enabled !== "false",
+      electricity: settings.service_electricity_enabled !== "false",
+      cable: settings.service_cable_enabled !== "false",
+      exam_pin: settings.service_exam_pin_enabled !== "false",
+    };
 
-  const fetchEnabledServices = async () => {
-    try {
-      // Fetch app settings for service availability
-      const { data: settings } = await supabase
-        .from("app_settings")
-        .select("key, value")
-        .in("key", [
-          "service_data_enabled",
-          "service_airtime_enabled",
-          "service_electricity_enabled",
-          "service_cable_enabled",
-          "service_exam_pin_enabled",
-        ]);
-
-      if (settings) {
-        const serviceMap: EnabledServices = {
-          data: true,
-          airtime: true,
-          electricity: true,
-          cable: true,
-          exam_pin: true, // Enabled via SMEPlug provider
-        };
-
-        settings.forEach((setting) => {
-          const key = setting.key.replace("service_", "").replace("_enabled", "");
-          if (key in serviceMap) {
-            serviceMap[key as keyof EnabledServices] = setting.value === "true";
-          }
-        });
-
-        setEnabledServices(serviceMap);
-      }
-
-      // Also check if there are any enabled plans for each service
+    // Also check plans availability
+    const checkPlans = async () => {
       const { data: plansData } = await supabase
         .from("service_plans")
-        .select("service_type, is_enabled")
+        .select("service_type")
         .eq("is_enabled", true);
 
       if (plansData) {
-        const hasEnabledPlans: Record<string, boolean> = {};
-        plansData.forEach((plan) => {
-          hasEnabledPlans[plan.service_type] = true;
-        });
-
-        // If there are no enabled plans for a service, consider it disabled
-        setEnabledServices((prev) => ({
-          ...prev,
-          data: prev.data && (hasEnabledPlans.data ?? true),
-          airtime: prev.airtime, // Airtime doesn't use plans table
-          electricity: prev.electricity, // Uses provider list
-          cable: prev.cable, // Uses provider list
-          exam_pin: prev.exam_pin, // Exam cards via SMEPlug
-        }));
+        const hasPlans: Record<string, boolean> = {};
+        plansData.forEach((p) => { hasPlans[p.service_type] = true; });
+        serviceMap.data = serviceMap.data && (hasPlans.data ?? true);
       }
-    } catch (error) {
-      console.error("Error fetching enabled services:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  return { enabledServices, isLoading, refetch: fetchEnabledServices };
+      setEnabledServices(serviceMap);
+      setIsLoading(false);
+    };
+
+    if (!settingsLoading) {
+      checkPlans();
+    }
+  }, [settings, settingsLoading, version]);
+
+  return { enabledServices, isLoading, refetch: () => {} };
 };
