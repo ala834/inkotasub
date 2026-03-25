@@ -130,61 +130,6 @@ serve(async (req) => {
           }
         } catch (apiError) {
           console.error("SMEPlug data plans error:", apiError);
-        }
-      }
-        const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
-        if (smeplugApiKey) {
-          try {
-            const networkId = NETWORK_MAP[network.toUpperCase()];
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-            const response = await fetch(`https://smeplug.ng/api/v1/data/plans?network_id=${networkId}`, {
-              method: "GET",
-              headers: {
-                "Authorization": `Bearer ${smeplugApiKey}`,
-                "Content-Type": "application/json",
-              },
-              signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
-
-            const apiResponse = await response.json();
-            if ((apiResponse?.status === true || apiResponse?.status === "success") && apiResponse?.data) {
-              let plans: any[] = [];
-              if (typeof apiResponse.data === 'object' && !Array.isArray(apiResponse.data)) {
-                for (const key of Object.keys(apiResponse.data)) {
-                  const group = apiResponse.data[key];
-                  if (Array.isArray(group)) plans = plans.concat(group);
-                }
-              } else if (Array.isArray(apiResponse.data)) {
-                plans = apiResponse.data;
-              }
-              if (plans.length === 0 && apiResponse.data?.plans) {
-                plans = Array.isArray(apiResponse.data.plans) ? apiResponse.data.plans : [];
-              }
-
-              basePlans = plans
-                .filter((plan: any) => parseFloat(plan.price || plan.amount || 0) > 0)
-                .map((plan: any) => {
-                  const planName = plan.plan_name || plan.name || "";
-                  return {
-                    id: (plan.plan_id || plan.id)?.toString(),
-                    name: planName,
-                    amount: parseFloat(plan.price || plan.amount || 0),
-                    baseAmount: parseFloat(plan.price || plan.amount || 0),
-                    validity: plan.validity || plan.duration || "30 Days",
-                    dataSize: extractDataSize(planName),
-                    category: categorizePlan(planName),
-                  };
-                });
-              basePlans.sort((a: any, b: any) => a.dataSize - b.dataSize);
-              source = "smeplug";
-            }
-          } catch (apiError) {
-            console.error("SMEPlug data plans error:", apiError);
-          }
-        }
       }
 
       // Final fallback
