@@ -64,9 +64,9 @@ serve(async (req) => {
       }
     }
 
-    // Check cache for base plans
+    // Check cache for base plans (skip cache if forceRefresh)
     const cacheKey = `data-plans:${network.toUpperCase()}`;
-    let basePlans: any[] | null = getCached<any[]>(cacheKey);
+    let basePlans: any[] | null = forceRefresh ? null : getCached<any[]>(cacheKey);
     let source = "cache";
 
     if (!basePlans) {
