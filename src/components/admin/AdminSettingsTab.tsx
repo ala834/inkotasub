@@ -145,8 +145,21 @@ const AdminSettingsTab = () => {
             </div>
 
             {subpadiStatus && (
-              <div className="p-4 bg-muted rounded-lg space-y-2 text-sm">
-                <p className="font-medium">{subpadiStatus.message}</p>
+              <div className={`p-4 rounded-lg space-y-2 text-sm ${subpadiStatus.connected ? 'bg-green-500/10 border border-green-500/20' : 'bg-destructive/10 border border-destructive/20'}`}>
+                <div className="flex items-center gap-2">
+                  {subpadiStatus.connected ? (
+                    <Wifi className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <WifiOff className="h-4 w-4 text-destructive" />
+                  )}
+                  <p className="font-medium">{subpadiStatus.message}</p>
+                </div>
+                {!subpadiStatus.connected && (
+                  <div className="flex items-center gap-2 text-destructive text-xs mt-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    <span>Provider is disconnected. Check API key configuration or contact Subpadi support.</span>
+                  </div>
+                )}
                 {subpadiStatus.services && Object.entries(subpadiStatus.services).map(([key, val]: [string, any]) => (
                   <div key={key} className="flex items-center justify-between">
                     <span className="capitalize">{key.replace(/_/g, ' ')}</span>
