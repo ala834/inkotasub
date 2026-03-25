@@ -119,6 +119,34 @@ export function logProviderTransaction(
   console.log('==================================');
 }
 
+const SMEPLUG_TIMEOUT_MS = 10000;
+const SMEPLUG_MAX_RETRIES = 2;
+
+// Fetch with timeout and retry for SMEPlug
+async function smeplugFetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = SMEPLUG_MAX_RETRIES,
+): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), SMEPLUG_TIMEOUT_MS);
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.error(`SMEPlug attempt ${attempt + 1}/${retries + 1} failed:`, lastError.message);
+      if (attempt < retries) {
+        await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 1000));
+      }
+    }
+  }
+  throw lastError || new Error("SMEPlug API request failed after retries");
+}
+
 // SMEPlug airtime purchase
 export async function purchaseAirtime(request: AirtimePurchaseRequest): Promise<NormalizedTransactionResponse> {
   const apiKey = Deno.env.get("SMEPLUG_API_KEY");
@@ -132,7 +160,7 @@ export async function purchaseAirtime(request: AirtimePurchaseRequest): Promise<
   }
 
   try {
-    const response = await fetch("https://smeplug.ng/api/v1/airtime/purchase", {
+    const response = await smeplugFetchWithRetry("https://smeplug.ng/api/v1/airtime/purchase", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
@@ -174,7 +202,7 @@ export async function purchaseData(request: DataPurchaseRequest): Promise<Normal
   }
 
   try {
-    const response = await fetch("https://smeplug.ng/api/v1/data/purchase", {
+    const response = await smeplugFetchWithRetry("https://smeplug.ng/api/v1/data/purchase", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
