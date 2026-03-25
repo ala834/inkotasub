@@ -5,6 +5,7 @@ import { subpadiPurchaseData } from "../_shared/subpadi-provider.ts";
 import { executeWithFallback } from "../_shared/provider-fallback.ts";
 import { checkAndRewardFirstTransaction } from "../_shared/referral-reward.ts";
 import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,6 +39,13 @@ serve(async (req) => {
     }
 
     const userId = user.id;
+
+    // Rate limiting: 5 purchases per minute
+    const rateCheck = checkRateLimit(userId, "purchase-data", { maxRequests: 5, windowMs: 60000 });
+    if (!rateCheck.allowed) {
+      return rateLimitResponse(rateCheck.retryAfterMs!, corsHeaders);
+    }
+
     const { network, phoneNumber, planId, amount, transaction_pin: transactionPin } = await req.json();
 
     const adminSupabase = createClient(
@@ -113,7 +121,20 @@ serve(async (req) => {
     }
     const profit = sellingPrice - costPrice;
 
-    const { data: wallet } = await supabase.from("wallets").select("balance").eq("user_id", userId).single();
+    // Acquire advisory lock to prevent concurrent wallet modifications
+    const { data: lockAcquired } = await adminSupabase.rpc("try_advisory_lock", {
+      lock_key: Math.abs(hashString(userId)),
+    });
+
+    if (!lockAcquired) {
+      return new Response(
+        JSON.stringify({ error: "Another transaction is being processed. Please wait and try again.", success: false }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check wallet with admin client for accuracy after lock
+    const { data: wallet } = await adminSupabase.from("wallets").select("balance").eq("user_id", userId).single();
     if (!wallet) throw new Error("Wallet not found");
 
     const currentBalance = parseFloat(wallet.balance as unknown as string);
@@ -193,3 +214,12 @@ serve(async (req) => {
     );
   }
 });
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return hash;
+}
