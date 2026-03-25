@@ -33,6 +33,7 @@ serve(async (req) => {
     const body = await req.json();
     const network = body.network || body.provider;
     const includeBasePrice = body.includeBasePrice;
+    const forceRefresh = body.forceRefresh === true;
 
     if (!network) {
       return new Response(
@@ -63,27 +64,31 @@ serve(async (req) => {
       }
     }
 
-    // Check cache for base plans
+    // Check cache for base plans (skip cache if forceRefresh)
     const cacheKey = `data-plans:${network.toUpperCase()}`;
-    let basePlans: any[] | null = getCached<any[]>(cacheKey);
+    let basePlans: any[] | null = forceRefresh ? null : getCached<any[]>(cacheKey);
     let source = "cache";
 
     if (!basePlans) {
       basePlans = [];
       source = "fallback";
 
-      // Try Subpadi first
-      const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
-      if (subpadiToken) {
+      // Note: Subpadi does not expose a data plans listing API endpoint.
+      // Plans are fetched from SMEPlug which serves as the plan catalog.
+      // Subpadi is used as the primary *purchase* provider via provider-fallback.
+
+      // Fetch from SMEPlug (primary plan catalog)
+      const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
+      if (smeplugApiKey) {
         try {
           const networkId = NETWORK_MAP[network.toUpperCase()];
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-          const response = await fetch(`https://subpadi.com/api/v1/data/plans?network_id=${networkId}`, {
+          const response = await fetch(`https://smeplug.ng/api/v1/data/plans?network_id=${networkId}`, {
             method: "GET",
             headers: {
-              "Authorization": `Token ${subpadiToken}`,
+              "Authorization": `Bearer ${smeplugApiKey}`,
               "Content-Type": "application/json",
             },
             signal: controller.signal,
@@ -91,105 +96,41 @@ serve(async (req) => {
           clearTimeout(timeoutId);
 
           const apiResponse = await response.json();
-          console.log("Subpadi data plans status:", response.status);
+          console.log("SMEPlug data plans status:", response.status);
 
-          if (response.ok && apiResponse) {
+          if ((apiResponse?.status === true || apiResponse?.status === "success") && apiResponse?.data) {
             let plans: any[] = [];
-            if (apiResponse?.data && typeof apiResponse.data === 'object' && !Array.isArray(apiResponse.data)) {
+            if (typeof apiResponse.data === 'object' && !Array.isArray(apiResponse.data)) {
               for (const key of Object.keys(apiResponse.data)) {
                 const group = apiResponse.data[key];
                 if (Array.isArray(group)) plans = plans.concat(group);
               }
-            } else if (Array.isArray(apiResponse?.data)) {
+            } else if (Array.isArray(apiResponse.data)) {
               plans = apiResponse.data;
-            } else if (apiResponse?.results && Array.isArray(apiResponse.results)) {
-              plans = apiResponse.results;
-            } else if (Array.isArray(apiResponse)) {
-              plans = apiResponse;
             }
-            if (apiResponse?.data?.plans && Array.isArray(apiResponse.data.plans)) {
-              plans = apiResponse.data.plans;
+            if (plans.length === 0 && apiResponse.data?.plans) {
+              plans = Array.isArray(apiResponse.data.plans) ? apiResponse.data.plans : [];
             }
 
-            if (plans.length > 0) {
-              basePlans = plans
-                .filter((plan: any) => parseFloat(plan.price || plan.amount || plan.selling_price || 0) > 0)
-                .map((plan: any) => {
-                  const planName = plan.plan_name || plan.name || plan.data_plan || "";
-                  const price = parseFloat(plan.price || plan.amount || plan.selling_price || 0);
-                  return {
-                    id: (plan.plan_id || plan.id)?.toString(),
-                    name: planName,
-                    amount: price,
-                    baseAmount: price,
-                    validity: plan.validity || plan.duration || "30 Days",
-                    dataSize: extractDataSize(planName),
-                    category: categorizePlan(planName),
-                  };
-                });
-              basePlans.sort((a: any, b: any) => a.dataSize - b.dataSize);
-              source = "subpadi";
-            }
+            basePlans = plans
+              .filter((plan: any) => parseFloat(plan.price || plan.amount || 0) > 0)
+              .map((plan: any) => {
+                const planName = plan.plan_name || plan.name || "";
+                return {
+                  id: (plan.plan_id || plan.id)?.toString(),
+                  name: planName,
+                  amount: parseFloat(plan.price || plan.amount || 0),
+                  baseAmount: parseFloat(plan.price || plan.amount || 0),
+                  validity: plan.validity || plan.duration || "30 Days",
+                  dataSize: extractDataSize(planName),
+                  category: categorizePlan(planName),
+                };
+              });
+            basePlans.sort((a: any, b: any) => a.dataSize - b.dataSize);
+            source = "smeplug";
           }
         } catch (apiError) {
-          console.error("Subpadi data plans error:", apiError);
-        }
-      }
-
-      // Fallback to SMEPlug
-      if (basePlans.length === 0) {
-        const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
-        if (smeplugApiKey) {
-          try {
-            const networkId = NETWORK_MAP[network.toUpperCase()];
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-            const response = await fetch(`https://smeplug.ng/api/v1/data/plans?network_id=${networkId}`, {
-              method: "GET",
-              headers: {
-                "Authorization": `Bearer ${smeplugApiKey}`,
-                "Content-Type": "application/json",
-              },
-              signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
-
-            const apiResponse = await response.json();
-            if ((apiResponse?.status === true || apiResponse?.status === "success") && apiResponse?.data) {
-              let plans: any[] = [];
-              if (typeof apiResponse.data === 'object' && !Array.isArray(apiResponse.data)) {
-                for (const key of Object.keys(apiResponse.data)) {
-                  const group = apiResponse.data[key];
-                  if (Array.isArray(group)) plans = plans.concat(group);
-                }
-              } else if (Array.isArray(apiResponse.data)) {
-                plans = apiResponse.data;
-              }
-              if (plans.length === 0 && apiResponse.data?.plans) {
-                plans = Array.isArray(apiResponse.data.plans) ? apiResponse.data.plans : [];
-              }
-
-              basePlans = plans
-                .filter((plan: any) => parseFloat(plan.price || plan.amount || 0) > 0)
-                .map((plan: any) => {
-                  const planName = plan.plan_name || plan.name || "";
-                  return {
-                    id: (plan.plan_id || plan.id)?.toString(),
-                    name: planName,
-                    amount: parseFloat(plan.price || plan.amount || 0),
-                    baseAmount: parseFloat(plan.price || plan.amount || 0),
-                    validity: plan.validity || plan.duration || "30 Days",
-                    dataSize: extractDataSize(planName),
-                    category: categorizePlan(planName),
-                  };
-                });
-              basePlans.sort((a: any, b: any) => a.dataSize - b.dataSize);
-              source = "smeplug";
-            }
-          } catch (apiError) {
-            console.error("SMEPlug data plans error:", apiError);
-          }
+          console.error("SMEPlug data plans error:", apiError);
         }
       }
 
