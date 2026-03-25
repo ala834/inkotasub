@@ -131,6 +131,7 @@ serve(async (req) => {
           }
         } catch (apiError) {
           console.error("SMEPlug data plans error:", apiError);
+        }
       }
 
       // Final fallback
