@@ -80,7 +80,8 @@ serve(async (req) => {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-          const response = await fetch(`https://subpadi.com/api/v1/data/plans?network_id=${networkId}`, {
+          // Subpadi API: GET /api/data/ returns all plans, filter by network_id client-side
+          const response = await fetch(`https://subpadi.com/api/data/`, {
             method: "GET",
             headers: {
               "Authorization": `Token ${subpadiToken}`,
@@ -91,38 +92,52 @@ serve(async (req) => {
           clearTimeout(timeoutId);
 
           const apiResponse = await response.json();
-          console.log("Subpadi data plans status:", response.status);
+          console.log("Subpadi data plans status:", response.status, "type:", typeof apiResponse);
 
           if (response.ok && apiResponse) {
-            let plans: any[] = [];
-            if (apiResponse?.data && typeof apiResponse.data === 'object' && !Array.isArray(apiResponse.data)) {
+            // Extract plans array from various response shapes
+            let allPlans: any[] = [];
+            if (Array.isArray(apiResponse)) {
+              allPlans = apiResponse;
+            } else if (apiResponse?.data && typeof apiResponse.data === 'object' && !Array.isArray(apiResponse.data)) {
+              // Grouped by network or category: { "1": [...], "2": [...] } or { "MTN": [...] }
               for (const key of Object.keys(apiResponse.data)) {
                 const group = apiResponse.data[key];
-                if (Array.isArray(group)) plans = plans.concat(group);
+                if (Array.isArray(group)) allPlans = allPlans.concat(group);
               }
             } else if (Array.isArray(apiResponse?.data)) {
-              plans = apiResponse.data;
+              allPlans = apiResponse.data;
             } else if (apiResponse?.results && Array.isArray(apiResponse.results)) {
-              plans = apiResponse.results;
-            } else if (Array.isArray(apiResponse)) {
-              plans = apiResponse;
+              allPlans = apiResponse.results;
             }
-            if (apiResponse?.data?.plans && Array.isArray(apiResponse.data.plans)) {
-              plans = apiResponse.data.plans;
+            if (allPlans.length === 0 && apiResponse?.data?.plans && Array.isArray(apiResponse.data.plans)) {
+              allPlans = apiResponse.data.plans;
             }
 
-            if (plans.length > 0) {
-              basePlans = plans
-                .filter((plan: any) => parseFloat(plan.price || plan.amount || plan.selling_price || 0) > 0)
+            console.log(`Subpadi returned ${allPlans.length} total plans, filtering for network_id=${networkId}`);
+
+            // Filter plans for the requested network
+            const networkPlans = allPlans.filter((plan: any) => {
+              const planNetworkId = parseInt(plan.network || plan.network_id || plan.network_name || "0", 10);
+              // Also match by network name string
+              const planNetworkName = (plan.network_name || plan.network || "").toString().toUpperCase();
+              return planNetworkId === networkId || planNetworkName === network.toUpperCase();
+            });
+
+            console.log(`Filtered to ${networkPlans.length} plans for ${network}`);
+
+            if (networkPlans.length > 0) {
+              basePlans = networkPlans
+                .filter((plan: any) => parseFloat(plan.price || plan.amount || plan.selling_price || plan.plan_amount || 0) > 0)
                 .map((plan: any) => {
-                  const planName = plan.plan_name || plan.name || plan.data_plan || "";
-                  const price = parseFloat(plan.price || plan.amount || plan.selling_price || 0);
+                  const planName = plan.plan_name || plan.name || plan.data_plan || plan.plan || "";
+                  const price = parseFloat(plan.price || plan.amount || plan.selling_price || plan.plan_amount || 0);
                   return {
-                    id: (plan.plan_id || plan.id)?.toString(),
+                    id: (plan.plan_id || plan.id || plan.dataplan_id)?.toString(),
                     name: planName,
                     amount: price,
                     baseAmount: price,
-                    validity: plan.validity || plan.duration || "30 Days",
+                    validity: plan.validity || plan.month_validate || plan.duration || "30 Days",
                     dataSize: extractDataSize(planName),
                     category: categorizePlan(planName),
                   };
