@@ -81,20 +81,48 @@ serve(async (req) => {
           const timeoutId = setTimeout(() => controller.abort(), 10000);
 
           // Subpadi API: GET /api/data/ returns all plans, filter by network_id client-side
-          const response = await fetch(`https://subpadi.com/api/data/`, {
-            method: "GET",
-            headers: {
-              "Authorization": `Token ${subpadiToken}`,
-              "Content-Type": "application/json",
-            },
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
+          // Try Subpadi v1 endpoint first, then fallback to /api/data/
+          const subpadiUrls = [
+            `https://subpadi.com/api/v1/data/plans?network_id=${networkId}`,
+            `https://subpadi.com/api/data/`,
+          ];
 
-          const apiResponse = await response.json();
-          console.log("Subpadi data plans status:", response.status, "type:", typeof apiResponse);
+          let apiResponse: any = null;
+          let subpadiSuccess = false;
 
-          if (response.ok && apiResponse) {
+          for (const url of subpadiUrls) {
+            try {
+              const ctrl = new AbortController();
+              const tid = setTimeout(() => ctrl.abort(), 10000);
+              const res = await fetch(url, {
+                method: "GET",
+                headers: {
+                  "Authorization": `Token ${subpadiToken}`,
+                  "Content-Type": "application/json",
+                },
+                signal: ctrl.signal,
+              });
+              clearTimeout(tid);
+              
+              const contentType = res.headers.get("content-type") || "";
+              if (!contentType.includes("json")) {
+                console.log(`Subpadi ${url} returned non-JSON (${contentType}), skipping`);
+                continue;
+              }
+
+              apiResponse = await res.json();
+              console.log("Subpadi data plans from:", url, "status:", res.status, "keys:", Object.keys(apiResponse || {}));
+              
+              if (res.ok && apiResponse) {
+                subpadiSuccess = true;
+                break;
+              }
+            } catch (e) {
+              console.error(`Subpadi ${url} error:`, e instanceof Error ? e.message : e);
+            }
+          }
+
+          if (subpadiSuccess && apiResponse) {
             // Extract plans array from various response shapes
             let allPlans: any[] = [];
             if (Array.isArray(apiResponse)) {
