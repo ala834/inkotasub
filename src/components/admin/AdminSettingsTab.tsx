@@ -56,12 +56,23 @@ const AdminSettingsTab = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      // Get current max version
+      const { data: versionData } = await supabase
+        .from("app_settings")
+        .select("version")
+        .order("version", { ascending: false })
+        .limit(1)
+        .single();
+
+      const nextVersion = ((versionData as any)?.version || 0) + 1;
+
       const updates = Object.entries(formData).map(([key, value]) =>
-        supabase.from("app_settings").update({ value }).eq("key", key)
+        supabase.from("app_settings").update({ value, version: nextVersion } as any).eq("key", key)
       );
 
       await Promise.all(updates);
-      toast.success("Settings saved successfully");
+      await refetchGlobal();
+      toast.success("Settings saved and synced globally");
     } catch (error) {
       console.error("Failed to save settings:", error);
       toast.error("Failed to save settings");
