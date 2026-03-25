@@ -205,7 +205,17 @@ const Data = () => {
             <div className="glass-card rounded-2xl p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-muted-foreground">{detectedNetwork.toUpperCase()} Data Plans</p>
-                <span className="text-xs text-muted-foreground">{filteredPlans.length} plan{filteredPlans.length !== 1 ? "s" : ""}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{filteredPlans.length} plan{filteredPlans.length !== 1 ? "s" : ""}</span>
+                  <button
+                    onClick={() => fetchDataPlans(true)}
+                    disabled={loadingPlans}
+                    className="p-1 rounded-md hover:bg-muted transition-colors"
+                    title="Refresh plans"
+                  >
+                    <RefreshCw className={cn("h-3.5 w-3.5 text-muted-foreground", loadingPlans && "animate-spin")} />
+                  </button>
+                </div>
               </div>
 
               <div className="relative">
