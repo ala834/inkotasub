@@ -223,6 +223,7 @@ export type Database = {
           attempts: number
           code: string
           created_at: string
+          email: string | null
           expires_at: string
           id: string
           is_verified: boolean
@@ -233,6 +234,7 @@ export type Database = {
           attempts?: number
           code: string
           created_at?: string
+          email?: string | null
           expires_at: string
           id?: string
           is_verified?: boolean
@@ -243,6 +245,7 @@ export type Database = {
           attempts?: number
           code?: string
           created_at?: string
+          email?: string | null
           expires_at?: string
           id?: string
           is_verified?: boolean
