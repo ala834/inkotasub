@@ -70,7 +70,7 @@ const Data = () => {
     setLoadingPlans(true);
     try {
       const { data, error } = await supabase.functions.invoke("get-data-plans", {
-        body: { network: detectedNetwork },
+        body: { network: detectedNetwork, forceRefresh },
       });
       if (error) throw error;
       if (data?.plans && data.plans.length > 0) {
