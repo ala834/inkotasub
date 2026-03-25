@@ -129,9 +129,9 @@ const AdminSettingsTab = () => {
                 {isTestingSubpadi ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : subpadiStatus?.connected ? (
-                  <Wifi className="h-4 w-4 mr-2 text-green-500" />
+                  <Wifi className="h-4 w-4 mr-2 text-primary" />
                 ) : subpadiStatus ? (
-                  <WifiOff className="h-4 w-4 mr-2 text-red-500" />
+                  <WifiOff className="h-4 w-4 mr-2 text-destructive" />
                 ) : (
                   <Wifi className="h-4 w-4 mr-2" />
                 )}
