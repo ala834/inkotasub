@@ -65,7 +65,7 @@ const Data = () => {
     }
   }, [detectedNetwork]);
 
-  const fetchDataPlans = async () => {
+  const fetchDataPlans = async (forceRefresh = false) => {
     if (!detectedNetwork) return;
     setLoadingPlans(true);
     try {
