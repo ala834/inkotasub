@@ -19,6 +19,7 @@ interface AppSetting {
 }
 
 const AdminSettingsTab = () => {
+  const { version: globalVersion, refetch: refetchGlobal } = useAppSettings();
   const [settings, setSettings] = useState<AppSetting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
