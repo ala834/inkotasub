@@ -81,10 +81,12 @@ serve(async (req) => {
           const timeoutId = setTimeout(() => controller.abort(), 10000);
 
           // Subpadi API: GET /api/data/ returns all plans, filter by network_id client-side
-          // Try Subpadi v1 endpoint first, then fallback to /api/data/
+          // Try multiple Subpadi endpoints for data plans
           const subpadiUrls = [
+            `https://subpadi.com/api/v1/data/?network_id=${networkId}`,
             `https://subpadi.com/api/v1/data/plans?network_id=${networkId}`,
-            `https://subpadi.com/api/data/`,
+            `https://subpadi.com/api/v1/data/plans/?network_id=${networkId}`,
+            `https://subpadi.com/api/data/?network_id=${networkId}`,
           ];
 
           let apiResponse: any = null;
@@ -111,9 +113,24 @@ serve(async (req) => {
               }
 
               apiResponse = await res.json();
-              console.log("Subpadi data plans from:", url, "status:", res.status, "keys:", Object.keys(apiResponse || {}));
-              
-              if (res.ok && apiResponse) {
+              console.log("Subpadi data plans from:", url, "status:", res.status, "keys:", JSON.stringify(Object.keys(apiResponse || {})));
+
+              // Check if it's a paginated list of transactions (not plans) 
+              if (apiResponse?.results && Array.isArray(apiResponse.results) && apiResponse.results.length > 0) {
+                // Check if results contain plan-like objects (have plan_name/name and price/amount)
+                const firstItem = apiResponse.results[0];
+                const looksLikePlan = firstItem.plan_name || firstItem.plan || firstItem.data_plan || 
+                                      (firstItem.name && (firstItem.price || firstItem.amount || firstItem.selling_price));
+                if (looksLikePlan) {
+                  subpadiSuccess = true;
+                  break;
+                } else {
+                  console.log("Subpadi results don't look like plans, first item keys:", JSON.stringify(Object.keys(firstItem)));
+                  continue;
+                }
+              }
+
+              if (res.ok && apiResponse && (Array.isArray(apiResponse) || apiResponse?.data)) {
                 subpadiSuccess = true;
                 break;
               }
