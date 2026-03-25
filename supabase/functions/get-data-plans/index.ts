@@ -33,6 +33,7 @@ serve(async (req) => {
     const body = await req.json();
     const network = body.network || body.provider;
     const includeBasePrice = body.includeBasePrice;
+    const forceRefresh = body.forceRefresh === true;
 
     if (!network) {
       return new Response(
