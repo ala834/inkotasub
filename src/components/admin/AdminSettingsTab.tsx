@@ -145,7 +145,7 @@ const AdminSettingsTab = () => {
             </div>
 
             {subpadiStatus && (
-              <div className={`p-4 rounded-lg space-y-2 text-sm ${subpadiStatus.connected ? 'bg-green-500/10 border border-green-500/20' : 'bg-destructive/10 border border-destructive/20'}`}>
+              <div className={`p-4 rounded-lg space-y-2 text-sm ${subpadiStatus.connected ? 'bg-primary/10 border border-primary/20' : 'bg-destructive/10 border border-destructive/20'}`}>
                 <div className="flex items-center gap-2">
                   {subpadiStatus.connected ? (
                     <Wifi className="h-4 w-4 text-green-500" />
