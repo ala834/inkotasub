@@ -53,5 +53,13 @@ function mapErrorMessage(msg: string, data?: any): string {
   if (msg.includes("Wallet not found")) {
     return "Wallet not found. Please contact support.";
   }
+  if (msg.includes("Too many requests") || msg.includes("rate limit")) {
+    return data?.retryAfter
+      ? `Too many requests. Please wait ${data.retryAfter} seconds.`
+      : "Too many requests. Please slow down and try again.";
+  }
+  if (msg.includes("Another transaction")) {
+    return "A transaction is already being processed. Please wait a moment.";
+  }
   return msg;
 }
