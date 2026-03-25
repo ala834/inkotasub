@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCached, setCache } from "../_shared/plan-cache.ts";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,6 +22,8 @@ function categorizePlan(planName: string): string {
   return 'General';
 }
 
+const PLAN_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -37,6 +41,13 @@ serve(async (req) => {
       );
     }
 
+    // Rate limit: 20 plan fetches per minute per IP (no auth required)
+    const clientId = req.headers.get("x-forwarded-for") || "anonymous";
+    const rateCheck = checkRateLimit(clientId, "get-data-plans", { maxRequests: 20, windowMs: 60000 });
+    if (!rateCheck.allowed) {
+      return rateLimitResponse(rateCheck.retryAfterMs!, corsHeaders);
+    }
+
     const authHeader = req.headers.get("Authorization");
     let isAgent = false;
     if (authHeader?.startsWith("Bearer ")) {
@@ -52,135 +63,149 @@ serve(async (req) => {
       }
     }
 
-    let basePlans: any[] = [];
-    let source = "fallback";
+    // Check cache for base plans
+    const cacheKey = `data-plans:${network.toUpperCase()}`;
+    let basePlans: any[] | null = getCached<any[]>(cacheKey);
+    let source = "cache";
 
-    // Try Subpadi first
-    const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
-    if (subpadiToken) {
-      try {
-        const networkId = NETWORK_MAP[network.toUpperCase()];
-        console.log("Fetching data plans from Subpadi for network:", network, "networkId:", networkId);
+    if (!basePlans) {
+      basePlans = [];
+      source = "fallback";
 
-        const response = await fetch(`https://subpadi.com/api/v1/data/plans?network_id=${networkId}`, {
-          method: "GET",
-          headers: {
-            "Authorization": `Token ${subpadiToken}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        const apiResponse = await response.json();
-        console.log("Subpadi data plans status:", response.status, "body:", JSON.stringify(apiResponse).substring(0, 500));
-
-        if (response.ok && apiResponse) {
-          let plans: any[] = [];
-
-          // Handle various response formats
-          if (apiResponse?.data && typeof apiResponse.data === 'object' && !Array.isArray(apiResponse.data)) {
-            for (const key of Object.keys(apiResponse.data)) {
-              const group = apiResponse.data[key];
-              if (Array.isArray(group)) plans = plans.concat(group);
-            }
-          } else if (Array.isArray(apiResponse?.data)) {
-            plans = apiResponse.data;
-          } else if (apiResponse?.results && Array.isArray(apiResponse.results)) {
-            plans = apiResponse.results;
-          } else if (Array.isArray(apiResponse)) {
-            plans = apiResponse;
-          }
-
-          if (apiResponse?.data?.plans && Array.isArray(apiResponse.data.plans)) {
-            plans = apiResponse.data.plans;
-          }
-
-          if (plans.length > 0) {
-            basePlans = plans
-              .filter((plan: any) => parseFloat(plan.price || plan.amount || plan.selling_price || 0) > 0)
-              .map((plan: any) => {
-                const planName = plan.plan_name || plan.name || plan.data_plan || "";
-                const price = parseFloat(plan.price || plan.amount || plan.selling_price || 0);
-                return {
-                  id: (plan.plan_id || plan.id)?.toString(),
-                  name: planName,
-                  amount: price,
-                  baseAmount: price,
-                  validity: plan.validity || plan.duration || "30 Days",
-                  dataSize: extractDataSize(planName),
-                  category: categorizePlan(planName),
-                };
-              });
-            basePlans.sort((a: any, b: any) => a.dataSize - b.dataSize);
-            source = "subpadi";
-            console.log("Subpadi data plans loaded:", basePlans.length);
-          }
-        }
-      } catch (apiError) {
-        console.error("Subpadi data plans error:", apiError);
-      }
-    }
-
-    // Fallback to SMEPlug if Subpadi returned no plans
-    if (basePlans.length === 0) {
-      const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
-      if (smeplugApiKey) {
+      // Try Subpadi first
+      const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
+      if (subpadiToken) {
         try {
           const networkId = NETWORK_MAP[network.toUpperCase()];
-          console.log("Falling back to SMEPlug for data plans, network:", network);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-          const response = await fetch(`https://smeplug.ng/api/v1/data/plans?network_id=${networkId}`, {
+          const response = await fetch(`https://subpadi.com/api/v1/data/plans?network_id=${networkId}`, {
             method: "GET",
             headers: {
-              "Authorization": `Bearer ${smeplugApiKey}`,
+              "Authorization": `Token ${subpadiToken}`,
               "Content-Type": "application/json",
             },
+            signal: controller.signal,
           });
+          clearTimeout(timeoutId);
 
           const apiResponse = await response.json();
-          if ((apiResponse?.status === true || apiResponse?.status === "success") && apiResponse?.data) {
+          console.log("Subpadi data plans status:", response.status);
+
+          if (response.ok && apiResponse) {
             let plans: any[] = [];
-            if (typeof apiResponse.data === 'object' && !Array.isArray(apiResponse.data)) {
+            if (apiResponse?.data && typeof apiResponse.data === 'object' && !Array.isArray(apiResponse.data)) {
               for (const key of Object.keys(apiResponse.data)) {
                 const group = apiResponse.data[key];
                 if (Array.isArray(group)) plans = plans.concat(group);
               }
-            } else if (Array.isArray(apiResponse.data)) {
+            } else if (Array.isArray(apiResponse?.data)) {
               plans = apiResponse.data;
+            } else if (apiResponse?.results && Array.isArray(apiResponse.results)) {
+              plans = apiResponse.results;
+            } else if (Array.isArray(apiResponse)) {
+              plans = apiResponse;
             }
-            if (plans.length === 0 && apiResponse.data?.plans) {
-              plans = Array.isArray(apiResponse.data.plans) ? apiResponse.data.plans : [];
+            if (apiResponse?.data?.plans && Array.isArray(apiResponse.data.plans)) {
+              plans = apiResponse.data.plans;
             }
 
-            basePlans = plans
-              .filter((plan: any) => parseFloat(plan.price || plan.amount || 0) > 0)
-              .map((plan: any) => {
-                const planName = plan.plan_name || plan.name || "";
-                return {
-                  id: (plan.plan_id || plan.id)?.toString(),
-                  name: planName,
-                  amount: parseFloat(plan.price || plan.amount || 0),
-                  baseAmount: parseFloat(plan.price || plan.amount || 0),
-                  validity: plan.validity || plan.duration || "30 Days",
-                  dataSize: extractDataSize(planName),
-                  category: categorizePlan(planName),
-                };
-              });
-            basePlans.sort((a: any, b: any) => a.dataSize - b.dataSize);
-            source = "smeplug";
+            if (plans.length > 0) {
+              basePlans = plans
+                .filter((plan: any) => parseFloat(plan.price || plan.amount || plan.selling_price || 0) > 0)
+                .map((plan: any) => {
+                  const planName = plan.plan_name || plan.name || plan.data_plan || "";
+                  const price = parseFloat(plan.price || plan.amount || plan.selling_price || 0);
+                  return {
+                    id: (plan.plan_id || plan.id)?.toString(),
+                    name: planName,
+                    amount: price,
+                    baseAmount: price,
+                    validity: plan.validity || plan.duration || "30 Days",
+                    dataSize: extractDataSize(planName),
+                    category: categorizePlan(planName),
+                  };
+                });
+              basePlans.sort((a: any, b: any) => a.dataSize - b.dataSize);
+              source = "subpadi";
+            }
           }
         } catch (apiError) {
-          console.error("SMEPlug data plans error:", apiError);
+          console.error("Subpadi data plans error:", apiError);
         }
+      }
+
+      // Fallback to SMEPlug
+      if (basePlans.length === 0) {
+        const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
+        if (smeplugApiKey) {
+          try {
+            const networkId = NETWORK_MAP[network.toUpperCase()];
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+            const response = await fetch(`https://smeplug.ng/api/v1/data/plans?network_id=${networkId}`, {
+              method: "GET",
+              headers: {
+                "Authorization": `Bearer ${smeplugApiKey}`,
+                "Content-Type": "application/json",
+              },
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            const apiResponse = await response.json();
+            if ((apiResponse?.status === true || apiResponse?.status === "success") && apiResponse?.data) {
+              let plans: any[] = [];
+              if (typeof apiResponse.data === 'object' && !Array.isArray(apiResponse.data)) {
+                for (const key of Object.keys(apiResponse.data)) {
+                  const group = apiResponse.data[key];
+                  if (Array.isArray(group)) plans = plans.concat(group);
+                }
+              } else if (Array.isArray(apiResponse.data)) {
+                plans = apiResponse.data;
+              }
+              if (plans.length === 0 && apiResponse.data?.plans) {
+                plans = Array.isArray(apiResponse.data.plans) ? apiResponse.data.plans : [];
+              }
+
+              basePlans = plans
+                .filter((plan: any) => parseFloat(plan.price || plan.amount || 0) > 0)
+                .map((plan: any) => {
+                  const planName = plan.plan_name || plan.name || "";
+                  return {
+                    id: (plan.plan_id || plan.id)?.toString(),
+                    name: planName,
+                    amount: parseFloat(plan.price || plan.amount || 0),
+                    baseAmount: parseFloat(plan.price || plan.amount || 0),
+                    validity: plan.validity || plan.duration || "30 Days",
+                    dataSize: extractDataSize(planName),
+                    category: categorizePlan(planName),
+                  };
+                });
+              basePlans.sort((a: any, b: any) => a.dataSize - b.dataSize);
+              source = "smeplug";
+            }
+          } catch (apiError) {
+            console.error("SMEPlug data plans error:", apiError);
+          }
+        }
+      }
+
+      // Final fallback
+      if (basePlans.length === 0) {
+        basePlans = getFallbackPlans(network);
+        source = "fallback";
+      }
+
+      // Cache the base plans for 5 minutes
+      if (basePlans.length > 0 && source !== "fallback") {
+        setCache(cacheKey, basePlans, PLAN_CACHE_TTL);
       }
     }
 
-    // Final fallback to hardcoded plans
-    if (basePlans.length === 0) {
-      basePlans = getFallbackPlans(network);
-      source = "fallback";
-    }
-
-    // Get pricing config
+    // Get pricing config (not cached - always fresh)
     const adminSupabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -220,7 +245,7 @@ serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ plans: pricedPlans, source }),
+      JSON.stringify({ plans: pricedPlans, source, cached: source === "cache" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {

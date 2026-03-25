@@ -942,6 +942,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      try_advisory_lock: { Args: { lock_key: number }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
