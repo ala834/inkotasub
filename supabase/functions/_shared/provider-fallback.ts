@@ -1,8 +1,9 @@
-// Dual-provider fallback logic
+// Dual-provider fallback logic with metrics tracking
 // Primary: Subpadi, Fallback: SMEPlug
 
 import { isSubpadiConfigured, type SubpadiResponse } from "./subpadi-provider.ts";
 import { normalizeResponse, type NormalizedTransactionResponse } from "./inkota-service-layer.ts";
+import { withMetrics } from "./provider-metrics.ts";
 
 export interface FallbackResult {
   success: boolean;
@@ -19,10 +20,16 @@ export interface FallbackResult {
 export async function executeWithFallback(
   subpadiFn: () => Promise<SubpadiResponse>,
   smeplugFn: () => Promise<NormalizedTransactionResponse>,
+  serviceType: string = 'unknown',
 ): Promise<FallbackResult> {
   // Try Subpadi first if configured
   if (isSubpadiConfigured()) {
-    const subpadiResult = await subpadiFn();
+    const subpadiResult = await withMetrics(
+      'subpadi', serviceType, subpadiFn,
+      (r) => r.success,
+      (r) => r.success ? undefined : r.message
+    );
+
     if (subpadiResult.success) {
       return {
         success: true,
@@ -38,7 +45,12 @@ export async function executeWithFallback(
     console.log("Subpadi failed, attempting SMEPlug fallback:", subpadiResult.message);
 
     // Fallback to SMEPlug
-    const smeplugResult = await smeplugFn();
+    const smeplugResult = await withMetrics(
+      'smeplug', serviceType, smeplugFn,
+      (r) => r.success,
+      (r) => r.success ? undefined : r.message
+    );
+
     return {
       success: smeplugResult.success,
       message: smeplugResult.message,
@@ -51,7 +63,12 @@ export async function executeWithFallback(
   }
 
   // Subpadi not configured, use SMEPlug directly
-  const smeplugResult = await smeplugFn();
+  const smeplugResult = await withMetrics(
+    'smeplug', serviceType, smeplugFn,
+    (r) => r.success,
+    (r) => r.success ? undefined : r.message
+  );
+
   return {
     success: smeplugResult.success,
     message: smeplugResult.message,
