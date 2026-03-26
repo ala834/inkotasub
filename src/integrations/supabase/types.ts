@@ -113,6 +113,42 @@ export type Database = {
         }
         Relationships: []
       }
+      fraud_flags: {
+        Row: {
+          created_at: string
+          details: Json | null
+          flag_type: string
+          id: string
+          resolved: boolean | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json | null
+          flag_type: string
+          id?: string
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json | null
+          flag_type?: string
+          id?: string
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       kyc_verifications: {
         Row: {
           address: string | null
@@ -187,6 +223,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      ledger_entries: {
+        Row: {
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at: string
+          entry_type: string
+          id: string
+          metadata: Json | null
+          reference: string | null
+          transaction_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at?: string
+          entry_type: string
+          id?: string
+          metadata?: Json | null
+          reference?: string | null
+          transaction_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          balance_before?: number
+          created_at?: string
+          entry_type?: string
+          id?: string
+          metadata?: Json | null
+          reference?: string | null
+          transaction_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_entries_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -467,6 +550,36 @@ export type Database = {
           primary_provider?: string
           service_type?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      provider_metrics: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          provider: string
+          response_time_ms: number | null
+          service_type: string
+          success: boolean
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          provider: string
+          response_time_ms?: number | null
+          service_type: string
+          success: boolean
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          provider?: string
+          response_time_ms?: number | null
+          service_type?: string
+          success?: boolean
         }
         Relationships: []
       }
