@@ -72,3 +72,6 @@ verify_jwt = false
 [functions.verify-email-otp]
 verify_jwt = false
 
+[functions.reconcile-transactions]
+verify_jwt = false
+
