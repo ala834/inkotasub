@@ -15,19 +15,19 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Find pending transactions older than 5 minutes
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    
-    const { data: pendingTxs, error } = await adminSupabase
+
+    // Find stuck pending AND processing transactions older than 5 minutes
+    const { data: stuckTxs, error } = await adminSupabase
       .from("transactions")
-      .select("id, user_id, amount, balance_before, balance_after, reference, created_at")
-      .eq("status", "pending")
+      .select("id, user_id, amount, balance_before, balance_after, reference, created_at, status")
+      .in("status", ["pending", "processing"])
       .lt("created_at", fiveMinutesAgo)
       .limit(50);
 
     if (error) throw error;
-    if (!pendingTxs || pendingTxs.length === 0) {
-      return new Response(JSON.stringify({ success: true, message: "No pending transactions to reconcile", reconciled: 0 }), {
+    if (!stuckTxs || stuckTxs.length === 0) {
+      return new Response(JSON.stringify({ success: true, message: "No stuck transactions to reconcile", reconciled: 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -35,8 +35,7 @@ serve(async (req) => {
     let reconciled = 0;
     let refunded = 0;
 
-    for (const tx of pendingTxs) {
-      // Check if there's a matching VTU order
+    for (const tx of stuckTxs) {
       const { data: vtuOrder } = await adminSupabase
         .from("vtu_orders")
         .select("id, status, api_response")
@@ -45,36 +44,41 @@ serve(async (req) => {
 
       if (vtuOrder) {
         if (vtuOrder.status === "success") {
-          // Provider succeeded but transaction stuck as pending - fix it
-          const newBalance = tx.balance_after;
+          // Provider succeeded but transaction stuck — finalize
           await adminSupabase.from("transactions").update({ status: "success" }).eq("id", tx.id);
-          await adminSupabase.from("wallets").update({ balance: newBalance }).eq("user_id", tx.user_id);
+          // Wallet was already deducted during "processing" state, so no wallet change needed
           reconciled++;
         } else if (vtuOrder.status === "failed") {
-          // Provider failed, transaction pending - mark as failed (no wallet deduction)
+          // Provider failed — if we already deducted (processing state), refund
+          if (tx.status === "processing") {
+            await adminSupabase.from("wallets").update({ balance: tx.balance_before }).eq("user_id", tx.user_id);
+            refunded++;
+          }
           await adminSupabase.from("transactions").update({ status: "failed" }).eq("id", tx.id);
           reconciled++;
         }
       } else {
-        // No VTU order exists - transaction was created but provider call never completed
-        // This means wallet was never deducted, just mark as failed
+        // No VTU order — provider call never completed
+        if (tx.status === "processing") {
+          // Wallet was deducted but provider never responded — refund
+          await adminSupabase.from("wallets").update({ balance: tx.balance_before }).eq("user_id", tx.user_id);
+          refunded++;
+        }
         await adminSupabase.from("transactions").update({ status: "failed" }).eq("id", tx.id);
         reconciled++;
       }
     }
 
-    // Clean up old provider metrics (keep 30 days)
+    // Cleanup old metrics (30 days) and resolved fraud flags (90 days)
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    await adminSupabase.from("provider_metrics").delete().lt("created_at", thirtyDaysAgo);
-
-    // Clean up resolved fraud flags older than 90 days
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    await adminSupabase.from("provider_metrics").delete().lt("created_at", thirtyDaysAgo);
     await adminSupabase.from("fraud_flags").delete().eq("resolved", true).lt("created_at", ninetyDaysAgo);
 
-    console.log(`Reconciliation complete: ${reconciled} transactions reconciled, ${refunded} refunded`);
+    console.log(`Reconciliation: ${reconciled} reconciled, ${refunded} refunded`);
 
     return new Response(
-      JSON.stringify({ success: true, reconciled, refunded, total_pending: pendingTxs.length }),
+      JSON.stringify({ success: true, reconciled, refunded, total_stuck: stuckTxs.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
