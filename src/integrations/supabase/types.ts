@@ -1071,7 +1071,7 @@ export type Database = {
         | "cable"
         | "exam_pin"
         | "recharge_card"
-      transaction_status: "pending" | "success" | "failed"
+      transaction_status: "pending" | "processing" | "success" | "failed"
       transaction_type: "credit" | "debit"
     }
     CompositeTypes: {
@@ -1211,7 +1211,7 @@ export const Constants = {
         "exam_pin",
         "recharge_card",
       ],
-      transaction_status: ["pending", "success", "failed"],
+      transaction_status: ["pending", "processing", "success", "failed"],
       transaction_type: ["credit", "debit"],
     },
   },
