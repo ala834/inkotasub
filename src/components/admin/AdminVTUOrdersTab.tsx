@@ -112,15 +112,11 @@ const AdminVTUOrdersTab = () => {
   const providerStats = useMemo(() => {
     const stats = {
       subpadi: { total: 0, success: 0, failed: 0 },
-      smeplug: { total: 0, success: 0, failed: 0 },
-      fallbacks: 0,
     };
     orders.forEach((o) => {
-      const p = o.provider_used === "smeplug" ? "smeplug" : "subpadi";
-      stats[p].total++;
-      if (o.status === "success") stats[p].success++;
-      if (o.status === "failed") stats[p].failed++;
-      if (o.fallback_attempted) stats.fallbacks++;
+      stats.subpadi.total++;
+      if (o.status === "success") stats.subpadi.success++;
+      if (o.status === "failed") stats.subpadi.failed++;
     });
     return stats;
   }, [orders]);
@@ -216,61 +212,37 @@ const AdminVTUOrdersTab = () => {
     return matchesSearch && matchesProvider;
   });
 
-  const getProviderBadge = (providerUsed: string | null, fallbackAttempted: boolean | null) => {
-    const provider = providerUsed || "subpadi";
+  const getProviderBadge = (providerUsed: string | null, _fallbackAttempted: boolean | null) => {
     return (
-      <div className="flex flex-col gap-1">
-        <Badge
-          variant="outline"
-          className={
-            provider === "smeplug"
-              ? "border-purple-500/50 bg-purple-500/10 text-purple-600"
-              : "border-blue-500/50 bg-blue-500/10 text-blue-600"
-          }
-        >
-          {provider.toUpperCase()}
-        </Badge>
-        {fallbackAttempted && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-orange-500">
-            <ArrowRightLeft className="h-3 w-3" />
-            fallback
-          </span>
-        )}
-      </div>
+      <Badge variant="outline" className="border-blue-500/50 bg-blue-500/10 text-blue-600">
+        SUBPADI
+      </Badge>
     );
   };
 
   return (
     <div className="space-y-4">
       {/* Provider Stats Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="glass-card rounded-xl p-3 border border-blue-500/20">
-          <p className="text-xs text-muted-foreground">Subpadi</p>
+          <p className="text-xs text-muted-foreground">Total Orders</p>
           <p className="text-lg font-bold text-blue-600">{providerStats.subpadi.total}</p>
           <div className="flex gap-2 text-[10px] mt-1">
             <span className="text-green-500">{providerStats.subpadi.success} ✓</span>
             <span className="text-red-500">{providerStats.subpadi.failed} ✗</span>
           </div>
         </div>
-        <div className="glass-card rounded-xl p-3 border border-purple-500/20">
-          <p className="text-xs text-muted-foreground">SMEPlug</p>
-          <p className="text-lg font-bold text-purple-600">{providerStats.smeplug.total}</p>
-          <div className="flex gap-2 text-[10px] mt-1">
-            <span className="text-green-500">{providerStats.smeplug.success} ✓</span>
-            <span className="text-red-500">{providerStats.smeplug.failed} ✗</span>
-          </div>
-        </div>
-        <div className="glass-card rounded-xl p-3 border border-orange-500/20">
-          <p className="text-xs text-muted-foreground">Fallbacks Used</p>
-          <p className="text-lg font-bold text-orange-500">{providerStats.fallbacks}</p>
-        </div>
         <div className="glass-card rounded-xl p-3 border border-border">
           <p className="text-xs text-muted-foreground">Success Rate</p>
           <p className="text-lg font-bold text-green-500">
             {orders.length > 0
-              ? Math.round(((providerStats.subpadi.success + providerStats.smeplug.success) / orders.length) * 100)
+              ? Math.round((providerStats.subpadi.success / orders.length) * 100)
               : 0}%
           </p>
+        </div>
+        <div className="glass-card rounded-xl p-3 border border-border">
+          <p className="text-xs text-muted-foreground">Provider</p>
+          <p className="text-lg font-bold text-primary">Subpadi</p>
         </div>
       </div>
 
@@ -315,8 +287,6 @@ const AdminVTUOrdersTab = () => {
           <SelectContent>
             <SelectItem value="all">All Providers</SelectItem>
             <SelectItem value="subpadi">Subpadi</SelectItem>
-            <SelectItem value="smeplug">SMEPlug</SelectItem>
-            <SelectItem value="fallback">Fallback Only</SelectItem>
           </SelectContent>
         </Select>
         <Button
@@ -494,7 +464,7 @@ const AdminVTUOrdersTab = () => {
               {selectedOrder.fallback_attempted && selectedOrder.fallback_response && (
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">
-                    Fallback Response ({selectedOrder.fallback_provider?.toUpperCase() || "SMEPLUG"})
+                    Fallback Response
                   </p>
                   <pre className="bg-muted p-3 rounded-lg text-xs overflow-auto max-h-32">
                     {JSON.stringify(selectedOrder.fallback_response, null, 2)}

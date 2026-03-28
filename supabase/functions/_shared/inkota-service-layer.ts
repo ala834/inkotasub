@@ -1,7 +1,7 @@
 // INKOTA SUB - Unified Service Layer
-// All services route through SMEPlug as the sole provider
+// All services route through Subpadi as the sole provider
 
-export type ServiceType = 'airtime' | 'data' | 'electricity' | 'cable' | 'exam_pin' | 'transfer';
+export type ServiceType = 'airtime' | 'data' | 'electricity' | 'cable' | 'exam_pin' | 'transfer' | 'recharge_card';
 
 // Normalized transaction response
 export interface NormalizedTransactionResponse {
@@ -10,7 +10,7 @@ export interface NormalizedTransactionResponse {
   transactionId?: string;
   reference?: string;
   _internal: {
-    providerUsed: 'smeplug';
+    providerUsed: 'subpadi';
     rawResponse: unknown;
   };
 }
@@ -28,21 +28,8 @@ export interface DataPurchaseRequest {
   amount: number;
 }
 
-// Network ID mapping for SMEPlug
-export const SMEPLUG_NETWORK_MAP: Record<string, number> = {
-  'MTN': 1,
-  'GLO': 2,
-  'AIRTEL': 3,
-  '9MOBILE': 4,
-  'ETISALAT': 4,
-};
-
-export function getSmeplugNetworkId(network: string): number | null {
-  return SMEPLUG_NETWORK_MAP[network.toUpperCase()] || null;
-}
-
 // Generate unique transaction reference
-export function generateReference(serviceType: ServiceType): string {
+export function generateReference(serviceType: ServiceType | string): string {
   const prefix = serviceType.toUpperCase().replace('_', '');
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 11);
@@ -63,7 +50,7 @@ export function normalizeResponse(
     message: userMessage,
     reference: options?.reference,
     _internal: {
-      providerUsed: 'smeplug',
+      providerUsed: 'subpadi',
       rawResponse,
     },
   };
@@ -82,7 +69,6 @@ function getSuccessMessage(rawMessage: string): string {
 
 function getErrorMessage(rawMessage: string): string {
   const normalized = rawMessage.toLowerCase();
-  let message = rawMessage.replace(/smeplug/gi, '').replace(/sme\s*plug/gi, '').trim();
 
   if (normalized.includes('insufficient') && normalized.includes('balance')) {
     return 'Insufficient balance. Please fund your wallet.';
@@ -100,7 +86,7 @@ function getErrorMessage(rawMessage: string): string {
     return 'Service temporarily unavailable. Please try again later.';
   }
 
-  return message || 'Transaction failed. Please try again.';
+  return rawMessage || 'Transaction failed. Please try again.';
 }
 
 // Log transaction for admin tracking
@@ -117,117 +103,4 @@ export function logProviderTransaction(
     console.log('Additional Data:', JSON.stringify(additionalData));
   }
   console.log('==================================');
-}
-
-const SMEPLUG_TIMEOUT_MS = 10000;
-const SMEPLUG_MAX_RETRIES = 2;
-
-// Fetch with timeout and retry for SMEPlug
-async function smeplugFetchWithRetry(
-  url: string,
-  options: RequestInit,
-  retries = SMEPLUG_MAX_RETRIES,
-): Promise<Response> {
-  let lastError: Error | null = null;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), SMEPLUG_TIMEOUT_MS);
-      const response = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(timeoutId);
-      return response;
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      console.error(`SMEPlug attempt ${attempt + 1}/${retries + 1} failed:`, lastError.message);
-      if (attempt < retries) {
-        await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 1000));
-      }
-    }
-  }
-  throw lastError || new Error("SMEPlug API request failed after retries");
-}
-
-// SMEPlug airtime purchase
-export async function purchaseAirtime(request: AirtimePurchaseRequest): Promise<NormalizedTransactionResponse> {
-  const apiKey = Deno.env.get("SMEPLUG_API_KEY");
-  if (!apiKey) {
-    return normalizeResponse(false, "Service not configured", null);
-  }
-
-  const networkId = getSmeplugNetworkId(request.network);
-  if (!networkId) {
-    return normalizeResponse(false, "Invalid network", null);
-  }
-
-  try {
-    const response = await smeplugFetchWithRetry("https://smeplug.ng/api/v1/airtime/purchase", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        network_id: networkId,
-        phone: request.phoneNumber,
-        amount: request.amount,
-      }),
-    });
-
-    const data = await response.json();
-    const success = data?.status === "success" || data?.success === true;
-    console.log("SMEPlug Airtime Response:", data);
-
-    return normalizeResponse(
-      success,
-      data?.message || (success ? "Airtime purchased successfully" : "Purchase failed"),
-      data,
-      { reference: data?.reference || data?.data?.reference }
-    );
-  } catch (error) {
-    console.error("SMEPlug Airtime Error:", error);
-    return normalizeResponse(false, error instanceof Error ? error.message : "API error", null);
-  }
-}
-
-// SMEPlug data purchase
-export async function purchaseData(request: DataPurchaseRequest): Promise<NormalizedTransactionResponse> {
-  const apiKey = Deno.env.get("SMEPLUG_API_KEY");
-  if (!apiKey) {
-    return normalizeResponse(false, "Service not configured", null);
-  }
-
-  const networkId = getSmeplugNetworkId(request.network);
-  if (!networkId) {
-    return normalizeResponse(false, "Invalid network", null);
-  }
-
-  try {
-    const response = await smeplugFetchWithRetry("https://smeplug.ng/api/v1/data/purchase", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        network_id: networkId,
-        phone: request.phoneNumber,
-        plan_id: request.planId,
-        amount: request.amount,
-      }),
-    });
-
-    const data = await response.json();
-    const success = data?.status === "success" || data?.success === true;
-    console.log("SMEPlug Data Response:", data);
-
-    return normalizeResponse(
-      success,
-      data?.message || (success ? "Data purchased successfully" : "Purchase failed"),
-      data,
-      { reference: data?.reference || data?.data?.reference }
-    );
-  } catch (error) {
-    console.error("SMEPlug Data Error:", error);
-    return normalizeResponse(false, error instanceof Error ? error.message : "API error", null);
-  }
 }

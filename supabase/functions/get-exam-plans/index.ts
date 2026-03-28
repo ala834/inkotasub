@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 const DEFAULT_EXAM_PLANS = [
@@ -17,17 +17,22 @@ serve(async (req) => {
   }
 
   try {
-    // Try Subpadi first
+    // Fetch from Subpadi
     const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
     if (subpadiToken) {
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
         const response = await fetch("https://subpadi.com/api/v1/exam/", {
           method: "GET",
           headers: {
             "Authorization": `Token ${subpadiToken}`,
             "Content-Type": "application/json",
           },
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
 
         if (response.ok) {
           const data = await response.json();
@@ -53,42 +58,6 @@ serve(async (req) => {
         }
       } catch (apiError) {
         console.error("Subpadi exam API error:", apiError);
-      }
-    }
-
-    // Fallback to SMEPlug
-    const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
-    if (smeplugApiKey) {
-      try {
-        const response = await fetch("https://smeplug.ng/api/v1/education/exam", {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${smeplugApiKey}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log("SMEPlug exam plans response:", data);
-
-          if (data?.data && Array.isArray(data.data)) {
-            const plans = data.data.map((exam: any) => ({
-              id: exam.slug || exam.id?.toString() || exam.name?.toLowerCase(),
-              name: exam.name,
-              slug: exam.slug || exam.name?.toLowerCase(),
-              amount: parseFloat(exam.amount || exam.price || 0),
-              description: exam.description || "",
-            }));
-
-            return new Response(
-              JSON.stringify({ success: true, plans, source: "smeplug" }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-        }
-      } catch (apiError) {
-        console.error("SMEPlug exam API error:", apiError);
       }
     }
 

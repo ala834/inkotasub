@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { subpadiPurchaseCable, isSubpadiConfigured } from "../_shared/subpadi-provider.ts";
+import { subpadiPurchaseCable } from "../_shared/subpadi-provider.ts";
 import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { checkFraud, fraudBlockResponse } from "../_shared/fraud-detection.ts";
@@ -17,23 +17,6 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-async function smeplugPurchaseCable(serviceId: string, smartcardNumber: string, planId: string, amount: number) {
-  const apiKey = Deno.env.get("SMEPLUG_API_KEY");
-  if (!apiKey) return { success: false, message: "Service not configured", rawResponse: null };
-  try {
-    const response = await fetch("https://smeplug.ng/api/v1/cable/purchase", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ service_id: serviceId, smartcard_number: smartcardNumber, plan_id: planId, amount }),
-    });
-    const data = await response.json();
-    const success = data?.status === "success" || data?.success === true;
-    return { success, message: data?.message || (success ? "Subscription successful" : "Subscription failed"), rawResponse: data };
-  } catch (error) {
-    return { success: false, message: error instanceof Error ? error.message : "API error", rawResponse: null };
-  }
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -56,9 +39,10 @@ serve(async (req) => {
 
     const adminSupabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
+    // PIN validation
     const { data: profile } = await adminSupabase.from("profiles").select("is_agent, transaction_pin, failed_pin_attempts, pin_locked_until").eq("user_id", userId).single();
     if (profile?.pin_locked_until && new Date(profile.pin_locked_until) > new Date()) {
-      return jsonResponse({ error: "Account locked due to too many failed PIN attempts.", success: false }, 403);
+      return jsonResponse({ error: "Account locked due to too many failed PIN attempts. Try again in 30 minutes.", success: false }, 403);
     }
     if (profile?.transaction_pin) {
       if (!transactionPin) return jsonResponse({ error: "Transaction PIN required", requiresPin: true, success: false }, 400);
@@ -67,7 +51,7 @@ serve(async (req) => {
         const newAttempts = (profile.failed_pin_attempts || 0) + 1;
         const lockUntil = newAttempts >= 3 ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null;
         await adminSupabase.from("profiles").update({ failed_pin_attempts: newAttempts, pin_locked_until: lockUntil }).eq("user_id", userId);
-        return jsonResponse({ error: newAttempts >= 3 ? "Account locked for 30 minutes" : "Invalid transaction PIN", attemptsRemaining: Math.max(0, 3 - newAttempts), success: false }, 403);
+        return jsonResponse({ error: newAttempts >= 3 ? "Account locked for 30 minutes due to too many failed attempts." : "Incorrect PIN", attemptsRemaining: Math.max(0, 3 - newAttempts), success: false }, 403);
       }
       const updates: Record<string, any> = { failed_pin_attempts: 0, pin_locked_until: null };
       if (needsPinMigration(profile.transaction_pin)) updates.transaction_pin = await hashPin(transactionPin);
@@ -98,25 +82,16 @@ serve(async (req) => {
     const lockResult = await acquireLockAndDeductWallet(ctx);
     if (!lockResult.ok) return lockResult.response;
 
-    // Provider with metrics
-    let providerResult: ProviderResult = { success: false, message: "No provider available", providerUsed: 'subpadi', fallbackAttempted: false, rawResponse: null };
+    // Provider call (Subpadi only)
+    const result = await withMetrics('subpadi', 'cable',
+      () => subpadiPurchaseCable(providerCode, smartCardNumber, planId, costPrice),
+      r => r.success
+    );
 
-    if (isSubpadiConfigured()) {
-      const subpadiResult = await withMetrics('subpadi', 'cable', () => subpadiPurchaseCable(providerCode, smartCardNumber, planId, costPrice), r => r.success);
-      if (subpadiResult.success) {
-        providerResult = { success: true, message: "Subscription successful", providerUsed: 'subpadi', fallbackAttempted: false, rawResponse: subpadiResult.rawResponse };
-      } else {
-        const smeplugResult = await withMetrics('smeplug', 'cable', () => smeplugPurchaseCable(providerCode, smartCardNumber, planId, costPrice), r => r.success);
-        providerResult = {
-          success: smeplugResult.success, message: smeplugResult.success ? "Subscription successful" : "Subscription failed",
-          providerUsed: smeplugResult.success ? 'smeplug' : 'subpadi', fallbackAttempted: true,
-          rawResponse: subpadiResult.rawResponse, fallbackResponse: smeplugResult.rawResponse,
-        };
-      }
-    } else {
-      const smeplugResult = await withMetrics('smeplug', 'cable', () => smeplugPurchaseCable(providerCode, smartCardNumber, planId, costPrice), r => r.success);
-      providerResult = { success: smeplugResult.success, message: smeplugResult.success ? "Subscription successful" : "Subscription failed", providerUsed: 'smeplug', fallbackAttempted: false, rawResponse: smeplugResult.rawResponse };
-    }
+    const providerResult: ProviderResult = {
+      success: result.success, message: result.success ? "Subscription successful" : "Subscription failed",
+      providerUsed: 'subpadi', fallbackAttempted: false, rawResponse: result.rawResponse,
+    };
 
     return await finalizeTransaction(ctx, lockResult, providerResult);
   } catch (error: unknown) {
