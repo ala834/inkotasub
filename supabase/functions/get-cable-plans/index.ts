@@ -32,18 +32,23 @@ serve(async (req) => {
     let basePlans: any[] = [];
     let source = "fallback";
 
-    // Try Subpadi first
+    // Fetch from Subpadi
     const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
     if (subpadiToken) {
       try {
         console.log("Fetching cable plans from Subpadi for provider:", provider);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
         const response = await fetch(`https://subpadi.com/api/v1/cable/plans?service_id=${provider.toLowerCase()}`, {
           method: "GET",
           headers: {
             "Authorization": `Token ${subpadiToken}`,
             "Content-Type": "application/json",
           },
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
 
         const apiResponse = await response.json();
         console.log("Subpadi cable plans response:", JSON.stringify(apiResponse).substring(0, 500));
@@ -66,36 +71,6 @@ serve(async (req) => {
         }
       } catch (apiError) {
         console.error("Subpadi cable plans error:", apiError);
-      }
-    }
-
-    // Fallback to SMEPlug
-    if (basePlans.length === 0) {
-      const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
-      if (smeplugApiKey) {
-        try {
-          console.log("Falling back to SMEPlug for cable plans, provider:", provider);
-          const response = await fetch(`https://smeplug.ng/api/v1/cable/plans?service_id=${provider.toLowerCase()}`, {
-            method: "GET",
-            headers: {
-              "Authorization": `Bearer ${smeplugApiKey}`,
-              "Content-Type": "application/json",
-            },
-          });
-
-          const apiResponse = await response.json();
-          if (apiResponse?.status === "success" && apiResponse?.data) {
-            const plans = Array.isArray(apiResponse.data) ? apiResponse.data : apiResponse.data?.plans || [];
-            basePlans = plans.map((plan: any) => ({
-              id: plan.plan_id || plan.id?.toString(),
-              name: plan.plan_name || plan.name,
-              amount: parseFloat(plan.price || plan.amount || 0),
-            }));
-            source = "smeplug";
-          }
-        } catch (apiError) {
-          console.error("SMEPlug cable plans error:", apiError);
-        }
       }
     }
 

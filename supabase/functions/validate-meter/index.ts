@@ -1,23 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { subpadiValidateMeter } from "../_shared/subpadi-provider.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Map disco codes to SMEPlug format
-const discoMapping: Record<string, string> = {
-  "ikeja": "ikeja-electric",
-  "eko": "eko-electric",
-  "abuja": "abuja-electric",
-  "kano": "kano-electric",
-  "port-harcourt": "portharcourt-electric",
-  "ibadan": "ibadan-electric",
-  "kaduna": "kaduna-electric",
-  "jos": "jos-electric",
-  "enugu": "enugu-electric",
-  "benin": "benin-electric",
-  "yola": "yola-electric",
+// Map disco codes to Subpadi numeric IDs
+const discoIdMapping: Record<string, number> = {
+  "ikeja": 1, "eko": 2, "abuja": 3, "kano": 4,
+  "port-harcourt": 5, "ibadan": 6, "kaduna": 7,
+  "jos": 8, "enugu": 9, "benin": 10, "yola": 11,
 };
 
 serve(async (req) => {
@@ -28,51 +21,36 @@ serve(async (req) => {
   try {
     const { disco, meterNumber, meterType } = await req.json();
 
-    const smeplugApiKey = Deno.env.get("SMEPLUG_API_KEY");
-    if (!smeplugApiKey) {
-      console.error("SMEPLUG_API_KEY not configured");
+    const discoId = discoIdMapping[disco.toLowerCase()];
+    if (!discoId) {
       return new Response(
-        JSON.stringify({ error: "Service temporarily unavailable" }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Invalid distribution company", validated: false }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const discoCode = discoMapping[disco.toLowerCase()] || disco.toLowerCase();
-    console.log("Validating meter via SMEPlug:", { disco: discoCode, meterNumber, meterType });
+    const mType = meterType.toLowerCase() === "prepaid" ? 1 : 2;
+    console.log("Validating meter via Subpadi:", { disco, meterNumber, meterType });
 
-    const response = await fetch("https://smeplug.ng/api/v1/electricity/verify", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${smeplugApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        service_id: discoCode,
-        meter_number: meterNumber,
-        meter_type: meterType.toLowerCase(),
-      }),
-    });
+    const result = await subpadiValidateMeter(meterNumber, discoId, mType);
 
-    const apiResponse = await response.json();
-    console.log("SMEPlug meter validation response:", apiResponse);
-
-    if (apiResponse?.status === "success" || apiResponse?.success === true) {
+    if (result.success) {
+      const data = result.rawResponse as any;
       return new Response(
         JSON.stringify({
-          customerName: apiResponse.data?.customer_name || apiResponse.data?.name || `Customer ${meterNumber.slice(-4)}`,
+          customerName: data?.data?.Customer_Name || data?.data?.customer_name || data?.data?.name || data?.Customer_Name || `Customer ${meterNumber.slice(-4)}`,
           meterNumber,
-          disco: discoCode,
+          disco,
           meterType,
           validated: true,
-          address: apiResponse.data?.address || null,
+          address: data?.data?.Address || data?.data?.address || null,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } else {
-      console.error("Meter validation failed:", apiResponse);
       return new Response(
         JSON.stringify({
-          error: apiResponse?.message || "Invalid meter number or details",
+          error: result.message || "Invalid meter number or details",
           validated: false,
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
