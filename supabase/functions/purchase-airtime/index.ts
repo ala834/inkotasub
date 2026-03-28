@@ -1,16 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { purchaseAirtime, generateReference } from "../_shared/inkota-service-layer.ts";
+import { generateReference } from "../_shared/inkota-service-layer.ts";
 import { subpadiPurchaseAirtime } from "../_shared/subpadi-provider.ts";
-import { executeWithFallback } from "../_shared/provider-fallback.ts";
 import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { checkFraud, fraudBlockResponse } from "../_shared/fraud-detection.ts";
+import { withMetrics } from "../_shared/provider-metrics.ts";
 import {
   acquireLockAndDeductWallet,
   finalizeTransaction,
   jsonResponse,
   type TransactionContext,
+  type ProviderResult,
 } from "../_shared/transaction-handler.ts";
 
 const corsHeaders = {
@@ -39,10 +40,10 @@ serve(async (req) => {
 
     const adminSupabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // PIN validation
+    // PIN validation - returns clear error before any provider call
     const { data: profile } = await adminSupabase.from("profiles").select("is_agent, transaction_pin, failed_pin_attempts, pin_locked_until").eq("user_id", userId).single();
     if (profile?.pin_locked_until && new Date(profile.pin_locked_until) > new Date()) {
-      return jsonResponse({ error: "Account locked due to too many failed PIN attempts.", success: false }, 403);
+      return jsonResponse({ error: "Account locked due to too many failed PIN attempts. Try again in 30 minutes.", success: false }, 403);
     }
     if (profile?.transaction_pin) {
       if (!transactionPin) return jsonResponse({ error: "Transaction PIN required", requiresPin: true, success: false }, 400);
@@ -51,8 +52,14 @@ serve(async (req) => {
         const newAttempts = (profile.failed_pin_attempts || 0) + 1;
         const lockUntil = newAttempts >= 3 ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null;
         await adminSupabase.from("profiles").update({ failed_pin_attempts: newAttempts, pin_locked_until: lockUntil }).eq("user_id", userId);
-        return jsonResponse({ error: newAttempts >= 3 ? "Account locked for 30 minutes" : "Invalid transaction PIN", attemptsRemaining: Math.max(0, 3 - newAttempts), success: false }, 403);
+        const remaining = Math.max(0, 3 - newAttempts);
+        return jsonResponse({
+          error: newAttempts >= 3 ? "Account locked for 30 minutes due to too many failed attempts." : "Incorrect PIN",
+          attemptsRemaining: remaining,
+          success: false,
+        }, 403);
       }
+      // Reset failed attempts on success
       const updates: Record<string, any> = { failed_pin_attempts: 0, pin_locked_until: null };
       if (needsPinMigration(profile.transaction_pin)) updates.transaction_pin = await hashPin(transactionPin);
       if (profile.failed_pin_attempts > 0 || needsPinMigration(profile.transaction_pin)) await adminSupabase.from("profiles").update(updates).eq("user_id", userId);
@@ -79,18 +86,26 @@ serve(async (req) => {
       provider: network.toUpperCase(), recipient: phoneNumber,
     };
 
-    // Lock wallet + deduct immediately (safe wallet)
+    // Lock wallet + deduct immediately
     const lockResult = await acquireLockAndDeductWallet(ctx);
     if (!lockResult.ok) return lockResult.response;
 
-    // Provider call with fallback
-    const result = await executeWithFallback(
+    // Provider call (Subpadi only)
+    const result = await withMetrics('subpadi', 'airtime',
       () => subpadiPurchaseAirtime(network, phoneNumber, costPrice),
-      () => purchaseAirtime({ network, phoneNumber, amount: costPrice }),
-      'airtime',
+      r => r.success
     );
 
-    return await finalizeTransaction(ctx, lockResult, result);
+    const providerResult: ProviderResult = {
+      success: result.success,
+      message: result.message,
+      providerUsed: 'subpadi',
+      fallbackAttempted: false,
+      rawResponse: result.rawResponse,
+      reference: result.reference,
+    };
+
+    return await finalizeTransaction(ctx, lockResult, providerResult);
   } catch (error: unknown) {
     console.error("Error:", error);
     return jsonResponse({ error: error instanceof Error ? error.message : "Unknown error", success: false }, 500);

@@ -137,7 +137,6 @@ export async function acquireLockAndDeductWallet(ctx: TransactionContext): Promi
   }
 
   // Immediately deduct wallet and move to PROCESSING
-  // This prevents double-spend: balance is locked even if provider takes time
   await adminSupabase.from("wallets").update({ balance: newBalance }).eq("user_id", userId);
   await adminSupabase.from("transactions").update({ status: "processing" }).eq("id", transaction.id);
 
@@ -174,9 +173,9 @@ export async function finalizeTransaction(
       status: "success",
       api_response: providerResult.rawResponse,
       provider_used: providerResult.providerUsed,
-      fallback_attempted: providerResult.fallbackAttempted,
-      fallback_response: providerResult.fallbackResponse || null,
-      fallback_provider: providerResult.fallbackAttempted ? 'smeplug' : null,
+      fallback_attempted: false,
+      fallback_response: null,
+      fallback_provider: null,
     });
 
     // Ledger (fire-and-forget)
@@ -221,9 +220,9 @@ export async function finalizeTransaction(
       status: "failed",
       api_response: providerResult.rawResponse,
       provider_used: providerResult.providerUsed,
-      fallback_attempted: providerResult.fallbackAttempted,
-      fallback_response: providerResult.fallbackResponse || null,
-      fallback_provider: providerResult.fallbackAttempted ? 'smeplug' : null,
+      fallback_attempted: false,
+      fallback_response: null,
+      fallback_provider: null,
     });
 
     return jsonResponse({ success: false, message: providerResult.message || "Transaction failed. Please try again." }, 400);
@@ -244,7 +243,6 @@ function getSuccessMessage(serviceType: string): string {
 
 /**
  * Retry wrapper for provider calls.
- * Retries up to `maxRetries` times on timeout or temporary errors.
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
@@ -257,12 +255,10 @@ export async function withRetry<T>(
     try {
       lastResult = await fn();
       if (isSuccess(lastResult)) return lastResult;
-      // Non-retryable failure (provider explicitly rejected)
       if (attempt === maxRetries) return lastResult;
     } catch (error) {
       console.error(`Provider attempt ${attempt + 1}/${maxRetries + 1} failed:`, error);
       if (attempt === maxRetries) {
-        // Return a typed failure if we can't get a result
         if (lastResult) return lastResult;
         throw error;
       }
