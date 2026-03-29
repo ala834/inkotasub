@@ -51,8 +51,6 @@ verify_jwt = false
 [functions.phone-auth]
 verify_jwt = false
 
-[functions.get-smeplug-services]
-verify_jwt = false
 
 [functions.process-referral]
 verify_jwt = false

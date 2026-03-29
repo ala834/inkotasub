@@ -26,7 +26,7 @@ interface ProviderStatus {
   checking: boolean;
 }
 
-const PROVIDERS = ["subpadi", "smeplug"];
+const PROVIDERS = ["subpadi"];
 
 const AdminProvidersTab = () => {
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
@@ -34,7 +34,6 @@ const AdminProvidersTab = () => {
   const [saving, setSaving] = useState<string | null>(null);
   const [providerStatuses, setProviderStatuses] = useState<Record<string, ProviderStatus>>({
     subpadi: { name: "Subpadi", connected: false, message: "Not checked", checking: false },
-    smeplug: { name: "SMEPlug", connected: false, message: "Not checked", checking: false },
   });
 
   const fetchConfigs = async () => {
@@ -94,19 +93,6 @@ const AdminProvidersTab = () => {
             checking: false,
           },
         }));
-      } else {
-        // SMEPlug — simple balance check via get-smeplug-services
-        const { data, error } = await supabase.functions.invoke("get-smeplug-services");
-        const ok = !error && data;
-        setProviderStatuses(prev => ({
-          ...prev,
-          smeplug: {
-            ...prev.smeplug,
-            connected: ok,
-            message: ok ? "Connected — API reachable" : "Disconnected",
-            checking: false,
-          },
-        }));
       }
     } catch {
       setProviderStatuses(prev => ({
@@ -151,7 +137,7 @@ const AdminProvidersTab = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { testProvider("subpadi"); testProvider("smeplug"); }}
+              onClick={() => { testProvider("subpadi"); }}
             >
               <RefreshCw className="h-4 w-4 mr-2" />
               Test All
@@ -259,7 +245,7 @@ const AdminProvidersTab = () => {
                         </SelectTrigger>
                         <SelectContent>
                           {PROVIDERS.map((p) => (
-                            <SelectItem key={p} value={p} className="capitalize">{p === "subpadi" ? "Subpadi" : "SMEPlug"}</SelectItem>
+                            <SelectItem key={p} value={p} className="capitalize">{p === "subpadi" ? "Subpadi" : p}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -278,7 +264,7 @@ const AdminProvidersTab = () => {
                         <SelectContent>
                           <SelectItem value="none">None</SelectItem>
                           {PROVIDERS.filter((p) => p !== config.primary_provider).map((p) => (
-                            <SelectItem key={p} value={p} className="capitalize">{p === "subpadi" ? "Subpadi" : "SMEPlug"}</SelectItem>
+                            <SelectItem key={p} value={p} className="capitalize">{p === "subpadi" ? "Subpadi" : p}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -330,14 +316,6 @@ const AdminProvidersTab = () => {
               <li>Base URL: https://subpadi.com/api/</li>
               <li>Supports airtime, data, cable TV, electricity, exam cards</li>
               <li>10-second timeout with automatic retry</li>
-            </ul>
-          </div>
-          <div className="p-4 rounded-lg bg-muted/50 space-y-1">
-            <h4 className="font-medium">SMEPlug — Fallback Provider</h4>
-            <ul className="list-disc list-inside space-y-0.5 text-sm text-muted-foreground">
-              <li>Used when Subpadi fails and fallback is enabled</li>
-              <li>Automatic failover with no user intervention</li>
-              <li>Failed transactions result in <strong>no wallet deduction</strong></li>
             </ul>
           </div>
         </CardContent>
