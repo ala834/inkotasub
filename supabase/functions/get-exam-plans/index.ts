@@ -17,14 +17,15 @@ serve(async (req) => {
   }
 
   try {
-    // Fetch from Subpadi
+    // Exam plans are embedded in the Subpadi GET /api/user/ response
+    // under the "Exam" key. Fetch from there for live pricing.
     const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
     if (subpadiToken) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-        const response = await fetch("https://subpadi.com/api/v1/exam/", {
+        const response = await fetch("https://subpadi.com/api/user/", {
           method: "GET",
           headers: {
             "Authorization": `Token ${subpadiToken}`,
@@ -36,16 +37,16 @@ serve(async (req) => {
 
         if (response.ok) {
           const data = await response.json();
-          console.log("Subpadi exam plans response:", data);
+          const examPlans = data?.Exam;
 
-          const plansArray = data?.data || data?.results || (Array.isArray(data) ? data : null);
-          if (plansArray && Array.isArray(plansArray) && plansArray.length > 0) {
-            const plans = plansArray.map((exam: any) => ({
-              id: exam.slug || exam.exam_type || exam.id?.toString() || exam.name?.toLowerCase(),
-              name: exam.name || exam.exam_type?.toUpperCase(),
-              slug: exam.slug || exam.exam_type || exam.name?.toLowerCase(),
-              amount: parseFloat(exam.amount || exam.price || exam.selling_price || 0),
-              description: exam.description || "",
+          if (examPlans && Array.isArray(examPlans) && examPlans.length > 0) {
+            console.log("Subpadi exam plans from /api/user/:", JSON.stringify(examPlans));
+            const plans = examPlans.map((exam: any) => ({
+              id: exam.exam_name?.toLowerCase() || exam.id?.toString(),
+              name: exam.exam_name || exam.name,
+              slug: exam.exam_name?.toLowerCase() || exam.slug,
+              amount: parseFloat(exam.amount || exam.price || 0),
+              description: getExamDescription(exam.exam_name),
             }));
 
             return new Response(
@@ -54,10 +55,10 @@ serve(async (req) => {
             );
           }
         } else {
-          console.warn("Subpadi exam API returned:", response.status);
+          console.warn("Subpadi user API returned:", response.status);
         }
       } catch (apiError) {
-        console.error("Subpadi exam API error:", apiError);
+        console.error("Subpadi exam fetch error:", apiError);
       }
     }
 
@@ -74,3 +75,12 @@ serve(async (req) => {
     );
   }
 });
+
+function getExamDescription(examName: string): string {
+  const descriptions: Record<string, string> = {
+    "WAEC": "West African Examination Council",
+    "NECO": "National Examination Council",
+    "NABTEB": "National Business & Technical Examinations Board",
+  };
+  return descriptions[examName?.toUpperCase()] || "";
+}
