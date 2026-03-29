@@ -20,11 +20,6 @@ function categorizePlan(planName: string): string {
 
 const PLAN_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-// Network mapping for Subpadi
-const NETWORK_MAP: Record<string, number> = {
-  'MTN': 1, 'GLO': 2, 'AIRTEL': 3, '9MOBILE': 4, 'ETISALAT': 4,
-};
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -72,102 +67,43 @@ serve(async (req) => {
       basePlans = [];
       source = "fallback";
 
-      // Fetch from Subpadi
-      const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
-      if (subpadiToken) {
-        try {
-          const networkId = NETWORK_MAP[network.toUpperCase()];
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000);
+      // NOTE: Subpadi API does NOT have a dedicated plan-listing endpoint.
+      // GET /api/data/ returns transaction history, not available plans.
+      // Data plans must be configured in the service_plans database table
+      // with plan IDs from the Subpadi dashboard documentation page.
 
-          const response = await fetch(`https://subpadi.com/api/data/`, {
-            method: "GET",
-            headers: {
-              "Authorization": `Token ${subpadiToken}`,
-              "Content-Type": "application/json",
-            },
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
+      // Check service_plans table (primary source for plans)
+      try {
+        const adminSupabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+        const { data: dbPlans } = await adminSupabase
+          .from("service_plans")
+          .select("*")
+          .eq("service_type", "data")
+          .eq("network", network.toUpperCase())
+          .eq("is_enabled", true);
 
-          const apiResponse = await response.json();
-          console.log("Subpadi data plans status:", response.status);
-
-          if (response.ok && apiResponse) {
-            // Subpadi returns plans grouped or as an array
-            let plans: any[] = [];
-            if (Array.isArray(apiResponse)) {
-              plans = apiResponse.filter((p: any) => {
-                const pNetwork = p.network_id || p.network;
-                return pNetwork == networkId || (typeof pNetwork === 'string' && pNetwork.toUpperCase() === network.toUpperCase());
-              });
-            } else if (apiResponse?.data) {
-              if (typeof apiResponse.data === 'object' && !Array.isArray(apiResponse.data)) {
-                for (const key of Object.keys(apiResponse.data)) {
-                  const group = apiResponse.data[key];
-                  if (Array.isArray(group)) plans = plans.concat(group);
-                }
-              } else if (Array.isArray(apiResponse.data)) {
-                plans = apiResponse.data;
-              }
-            }
-
-            if (plans.length > 0) {
-              basePlans = plans
-                .filter((plan: any) => parseFloat(plan.price || plan.amount || plan.selling_price || 0) > 0)
-                .map((plan: any) => {
-                  const planName = plan.plan_name || plan.name || plan.plan || "";
-                  return {
-                    id: (plan.plan_id || plan.id)?.toString(),
-                    name: planName,
-                    amount: parseFloat(plan.price || plan.amount || plan.selling_price || 0),
-                    baseAmount: parseFloat(plan.price || plan.amount || plan.selling_price || 0),
-                    validity: plan.validity || plan.duration || "30 Days",
-                    dataSize: extractDataSize(planName),
-                    category: categorizePlan(planName),
-                  };
-                });
-              basePlans.sort((a: any, b: any) => a.dataSize - b.dataSize);
-              source = "subpadi";
-            }
-          }
-        } catch (apiError) {
-          console.error("Subpadi data plans error:", apiError);
+        if (dbPlans && dbPlans.length > 0) {
+          basePlans = dbPlans.map((plan: any) => ({
+            id: plan.plan_id,
+            name: plan.plan_name,
+            amount: parseFloat(plan.base_price),
+            baseAmount: parseFloat(plan.base_price),
+            validity: plan.validity || "30 Days",
+            dataSize: extractDataSize(plan.plan_name),
+            category: categorizePlan(plan.plan_name),
+          }));
+          source = "database";
+          console.log(`Loaded ${basePlans.length} data plans for ${network} from database`);
         }
-      }
-
-      // Also check service_plans table as additional source
-      if (basePlans.length === 0) {
-        try {
-          const adminSupabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-          const { data: dbPlans } = await adminSupabase
-            .from("service_plans")
-            .select("*")
-            .eq("service_type", "data")
-            .eq("network", network.toUpperCase())
-            .eq("is_enabled", true);
-
-          if (dbPlans && dbPlans.length > 0) {
-            basePlans = dbPlans.map((plan: any) => ({
-              id: plan.plan_id,
-              name: plan.plan_name,
-              amount: parseFloat(plan.base_price),
-              baseAmount: parseFloat(plan.base_price),
-              validity: plan.validity || "30 Days",
-              dataSize: extractDataSize(plan.plan_name),
-              category: categorizePlan(plan.plan_name),
-            }));
-            source = "database";
-          }
-        } catch (dbError) {
-          console.error("DB plans error:", dbError);
-        }
+      } catch (dbError) {
+        console.error("DB plans error:", dbError);
       }
 
       // Final fallback
       if (basePlans.length === 0) {
         basePlans = getFallbackPlans(network);
         source = "fallback";
+        console.log(`Using ${basePlans.length} fallback data plans for ${network}`);
       }
 
       if (basePlans.length > 0 && source !== "fallback") {

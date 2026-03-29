@@ -32,59 +32,45 @@ serve(async (req) => {
     let basePlans: any[] = [];
     let source = "fallback";
 
-    // Fetch from Subpadi
-    const subpadiToken = Deno.env.get("SUBPADI_API_TOKEN");
-    if (subpadiToken) {
-      try {
-        console.log("Fetching cable plans from Subpadi for provider:", provider);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+    // NOTE: Subpadi API does NOT have a dedicated cable plan-listing endpoint.
+    // GET /api/cablesub/ returns transaction history, not available plans.
+    // Cable plans must be configured in the service_plans database table
+    // with plan IDs from the Subpadi dashboard documentation page.
 
-        const response = await fetch(`https://subpadi.com/api/v1/cable/plans?service_id=${provider.toLowerCase()}`, {
-          method: "GET",
-          headers: {
-            "Authorization": `Token ${subpadiToken}`,
-            "Content-Type": "application/json",
-          },
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
+    // Check service_plans table first
+    const adminSupabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
 
-        const apiResponse = await response.json();
-        console.log("Subpadi cable plans response:", JSON.stringify(apiResponse).substring(0, 500));
+    try {
+      const { data: dbPlans } = await adminSupabase
+        .from("service_plans")
+        .select("*")
+        .eq("service_type", "cable")
+        .eq("network", provider.toUpperCase())
+        .eq("is_enabled", true);
 
-        if (response.ok && apiResponse) {
-          const plans = Array.isArray(apiResponse?.data) ? apiResponse.data
-            : apiResponse?.data?.plans ? apiResponse.data.plans
-            : apiResponse?.results ? apiResponse.results
-            : Array.isArray(apiResponse) ? apiResponse : [];
-
-          if (plans.length > 0) {
-            basePlans = plans.map((plan: any) => ({
-              id: (plan.plan_id || plan.id)?.toString(),
-              name: plan.plan_name || plan.name,
-              amount: parseFloat(plan.price || plan.amount || plan.selling_price || 0),
-            }));
-            source = "subpadi";
-            console.log("Subpadi cable plans loaded:", basePlans.length);
-          }
-        }
-      } catch (apiError) {
-        console.error("Subpadi cable plans error:", apiError);
+      if (dbPlans && dbPlans.length > 0) {
+        basePlans = dbPlans.map((plan: any) => ({
+          id: plan.plan_id,
+          name: plan.plan_name,
+          amount: parseFloat(plan.base_price),
+        }));
+        source = "database";
+        console.log(`Loaded ${basePlans.length} cable plans for ${provider} from database`);
       }
+    } catch (dbError) {
+      console.error("DB cable plans error:", dbError);
     }
 
-    // Final fallback
+    // Fallback to hardcoded plans
     if (basePlans.length === 0) {
       basePlans = getFallbackPlans(provider);
       source = "fallback";
     }
 
     // Get pricing config
-    const adminSupabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
     const userType = isAgent ? 'agent' : 'user';
     const { data: pricingConfigs } = await adminSupabase
       .from("pricing_config")
