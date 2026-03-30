@@ -43,6 +43,8 @@ import InternetServices from "./pages/InternetServices";
 import ProfitCalculator from "./pages/ProfitCalculator";
 import TransactionReceipt from "./pages/TransactionReceipt";
 import RechargeCard from "./pages/RechargeCard";
+import EmailSettings from "./pages/EmailSettings";
+import EmailTesting from "./pages/EmailTesting";
 
 const queryClient = new QueryClient();
 
