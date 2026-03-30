@@ -95,6 +95,8 @@ export async function acquireLockAndDeductWallet(ctx: TransactionContext): Promi
     };
   }
 
+  const releaseLock = () => adminSupabase.rpc("release_advisory_lock", { lock_key: lockKey }).catch(() => {});
+
   // Read wallet under lock
   const { data: wallet } = await adminSupabase
     .from("wallets")
@@ -103,11 +105,13 @@ export async function acquireLockAndDeductWallet(ctx: TransactionContext): Promi
     .single();
 
   if (!wallet) {
+    await releaseLock();
     return { ok: false, response: jsonResponse({ error: "Wallet not found", success: false }, 500) };
   }
 
   const currentBalance = parseFloat(wallet.balance as unknown as string);
   if (currentBalance < sellingPrice) {
+    await releaseLock();
     return {
       ok: false,
       response: jsonResponse({ error: "Insufficient balance. Please fund your wallet.", success: false }, 400),
@@ -134,6 +138,7 @@ export async function acquireLockAndDeductWallet(ctx: TransactionContext): Promi
     .single();
 
   if (txError) {
+    await releaseLock();
     return { ok: false, response: jsonResponse({ error: "Failed to create transaction", success: false }, 500) };
   }
 
@@ -141,6 +146,7 @@ export async function acquireLockAndDeductWallet(ctx: TransactionContext): Promi
   await adminSupabase.from("wallets").update({ balance: newBalance }).eq("user_id", userId);
   await adminSupabase.from("transactions").update({ status: "processing" }).eq("id", transaction.id);
 
+  // Lock is kept held — caller MUST call finalizeTransaction which releases it
   return { ok: true, currentBalance, newBalance, transactionId: transaction.id, lockKey };
 }
 
