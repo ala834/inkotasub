@@ -170,6 +170,31 @@ const AdminUserManagementTab = () => {
     }
   };
 
+  const handleUnlockPin = async (userProfile: UserProfile) => {
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase.rpc('admin_reset_pin_lock', { target_user_id: userProfile.user_id });
+      if (error) throw error;
+
+      await logAdminActivity("unlock_pin", userProfile.user_id);
+
+      await supabase.from("notifications").insert({
+        user_id: userProfile.user_id,
+        title: "PIN Unlocked",
+        message: "Your account PIN lock has been removed by an administrator. You can now make transactions again.",
+        type: "success",
+      });
+
+      toast.success("PIN lock removed successfully");
+      fetchUsers();
+    } catch (error) {
+      console.error("Failed to unlock PIN:", error);
+      toast.error("Failed to unlock PIN");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleSuspendUser = async (userId: string, suspend: boolean) => {
     setIsUpdating(true);
     try {
