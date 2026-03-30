@@ -156,77 +156,80 @@ export async function finalizeTransaction(
 ): Promise<Response> {
   const { userId, adminSupabase, serviceType, sellingPrice, costPrice, profit, reference, provider, recipient } = ctx;
   const { currentBalance, newBalance, transactionId, lockKey } = walletState;
+  // Helper to release lock
+  const releaseLock = () => adminSupabase.rpc("release_advisory_lock", { lock_key: lockKey }).catch(() => {});
 
-  if (providerResult.success) {
-    // Mark transaction SUCCESS (wallet already deducted)
-    await adminSupabase.from("transactions").update({ status: "success" }).eq("id", transactionId);
+  try {
+    if (providerResult.success) {
+      await adminSupabase.from("transactions").update({ status: "success" }).eq("id", transactionId);
 
-    // Record VTU order
-    await adminSupabase.from("vtu_orders").insert({
-      user_id: userId,
-      transaction_id: transactionId,
-      service_type: serviceType,
-      provider,
-      recipient,
-      amount: sellingPrice,
-      cost_price: costPrice,
-      profit,
-      status: "success",
-      api_response: providerResult.rawResponse,
-      provider_used: providerResult.providerUsed,
-      fallback_attempted: false,
-      fallback_response: null,
-      fallback_provider: null,
-    });
+      await adminSupabase.from("vtu_orders").insert({
+        user_id: userId,
+        transaction_id: transactionId,
+        service_type: serviceType,
+        provider,
+        recipient,
+        amount: sellingPrice,
+        cost_price: costPrice,
+        profit,
+        status: "success",
+        api_response: providerResult.rawResponse,
+        provider_used: providerResult.providerUsed,
+        fallback_attempted: false,
+        fallback_response: null,
+        fallback_provider: null,
+      });
 
-    // Ledger (fire-and-forget)
-    recordTransactionLedger({
-      transactionId,
-      userId,
-      sellingPrice,
-      costPrice,
-      profit,
-      balanceBefore: currentBalance,
-      balanceAfter: newBalance,
-      reference,
-      serviceType,
-      provider: providerResult.providerUsed,
-    });
+      // Ledger (fire-and-forget)
+      recordTransactionLedger({
+        transactionId,
+        userId,
+        sellingPrice,
+        costPrice,
+        profit,
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        reference,
+        serviceType,
+        provider: providerResult.providerUsed,
+      });
 
-    // Referral reward (fire-and-forget)
-    checkAndRewardFirstTransaction(userId);
+      // Referral reward (fire-and-forget)
+      checkAndRewardFirstTransaction(userId);
 
-    const responseBody: Record<string, unknown> = { success: true, message: getSuccessMessage(serviceType) };
-    if (providerResult.token) responseBody.token = providerResult.token;
-    if (providerResult.pins && providerResult.pins.length > 0) responseBody.pins = providerResult.pins;
-    if (providerResult.reference) responseBody.reference = providerResult.reference;
-    if (providerResult.extraData) Object.assign(responseBody, providerResult.extraData);
+      const responseBody: Record<string, unknown> = { success: true, message: getSuccessMessage(serviceType) };
+      if (providerResult.token) responseBody.token = providerResult.token;
+      if (providerResult.pins && providerResult.pins.length > 0) responseBody.pins = providerResult.pins;
+      if (providerResult.reference) responseBody.reference = providerResult.reference;
+      if (providerResult.extraData) Object.assign(responseBody, providerResult.extraData);
 
-    return jsonResponse(responseBody);
-  } else {
-    // REFUND wallet - provider failed
-    await adminSupabase.from("wallets").update({ balance: currentBalance }).eq("user_id", userId);
-    await adminSupabase.from("transactions").update({ status: "failed" }).eq("id", transactionId);
+      return jsonResponse(responseBody);
+    } else {
+      // REFUND wallet - provider failed
+      await adminSupabase.from("wallets").update({ balance: currentBalance }).eq("user_id", userId);
+      await adminSupabase.from("transactions").update({ status: "failed" }).eq("id", transactionId);
 
-    // Record failed VTU order for tracking
-    await adminSupabase.from("vtu_orders").insert({
-      user_id: userId,
-      transaction_id: transactionId,
-      service_type: serviceType,
-      provider,
-      recipient,
-      amount: sellingPrice,
-      cost_price: costPrice,
-      profit: 0,
-      status: "failed",
-      api_response: providerResult.rawResponse,
-      provider_used: providerResult.providerUsed,
-      fallback_attempted: false,
-      fallback_response: null,
-      fallback_provider: null,
-    });
+      await adminSupabase.from("vtu_orders").insert({
+        user_id: userId,
+        transaction_id: transactionId,
+        service_type: serviceType,
+        provider,
+        recipient,
+        amount: sellingPrice,
+        cost_price: costPrice,
+        profit: 0,
+        status: "failed",
+        api_response: providerResult.rawResponse,
+        provider_used: providerResult.providerUsed,
+        fallback_attempted: false,
+        fallback_response: null,
+        fallback_provider: null,
+      });
 
-    return jsonResponse({ success: false, message: providerResult.message || "Transaction failed. Please try again." }, 400);
+      return jsonResponse({ success: false, message: providerResult.message || "Transaction failed. Please try again." }, 400);
+    }
+  } finally {
+    await releaseLock();
   }
 }
 
