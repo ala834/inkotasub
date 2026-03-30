@@ -80,9 +80,10 @@ export async function acquireLockAndDeductWallet(ctx: TransactionContext): Promi
     };
   }
 
-  // Advisory lock
+  // Advisory lock (session-scoped, must be explicitly released)
+  const lockKey = hashString(userId);
   const { data: lockAcquired } = await adminSupabase.rpc("try_advisory_lock", {
-    lock_key: hashString(userId),
+    lock_key: lockKey,
   });
   if (!lockAcquired) {
     return {
