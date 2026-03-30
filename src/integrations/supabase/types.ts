@@ -1194,6 +1194,7 @@ export type Database = {
           read_ct: number
         }[]
       }
+      release_advisory_lock: { Args: { lock_key: number }; Returns: boolean }
       try_advisory_lock: { Args: { lock_key: number }; Returns: boolean }
     }
     Enums: {
