@@ -1,0 +1,1 @@
+UPDATE profiles SET failed_pin_attempts = 0, pin_locked_until = NULL WHERE failed_pin_attempts > 0 OR pin_locked_until IS NOT NULL
