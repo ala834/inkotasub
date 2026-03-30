@@ -96,6 +96,8 @@ const App = () => {
               <Route path="/terms" element={<Terms />} />
               <Route path="/refund-policy" element={<RefundPolicy />} />
               <Route path="/faq" element={<FAQ />} />
+              <Route path="/email-settings" element={<ProtectedRoute requireAdmin={true}><EmailSettings /></ProtectedRoute>} />
+              <Route path="/email-testing" element={<ProtectedRoute requireAdmin={true}><EmailTesting /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requireAdmin={true}><AdminDashboard /></ProtectedRoute>} />
               <Route path="/payment-callback" element={<ProtectedRoute><PaymentCallback /></ProtectedRoute>} />
               <Route path="/receipt/:id" element={<ProtectedRoute><TransactionReceipt /></ProtectedRoute>} />
