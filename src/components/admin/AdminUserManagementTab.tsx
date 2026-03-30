@@ -609,6 +609,13 @@ const AdminUserManagementTab = () => {
                             <KeyRound className="h-4 w-4 mr-2" />
                             Reset PIN
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleUnlockPin(user)}
+                            disabled={isUpdating}
+                          >
+                            <Lock className="h-4 w-4 mr-2" />
+                            Unlock PIN Lock
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {user.suspended_at ? (
                             <DropdownMenuItem onClick={() => handleSuspendUser(user.user_id, false)} disabled={isUpdating}>
