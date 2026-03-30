@@ -151,11 +151,11 @@ export async function acquireLockAndDeductWallet(ctx: TransactionContext): Promi
  */
 export async function finalizeTransaction(
   ctx: TransactionContext,
-  walletState: { currentBalance: number; newBalance: number; transactionId: string },
+  walletState: { currentBalance: number; newBalance: number; transactionId: string; lockKey: number },
   providerResult: ProviderResult
 ): Promise<Response> {
   const { userId, adminSupabase, serviceType, sellingPrice, costPrice, profit, reference, provider, recipient } = ctx;
-  const { currentBalance, newBalance, transactionId } = walletState;
+  const { currentBalance, newBalance, transactionId, lockKey } = walletState;
 
   if (providerResult.success) {
     // Mark transaction SUCCESS (wallet already deducted)
