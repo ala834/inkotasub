@@ -112,12 +112,19 @@ export async function subpadiPurchaseAirtime(
         airtime_type: "VTU",
       }),
     });
-    const data = await response.json();
+    const text = await response.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
     console.log("Subpadi Airtime Response:", JSON.stringify(data));
-    const success = data?.status === "success" || data?.success === true || response.ok;
+
+    // Subpadi returns 200 even on errors — check for error fields
+    const hasError = data?.error || data?.Status === "failed" || data?.status === "failed";
+    const success = !hasError && (data?.status === "success" || data?.Status === "success" || data?.success === true);
+    const errorMsg = Array.isArray(data?.error) ? data.error.join("; ") : (data?.error || data?.message || data?.detail);
+
     return {
       success,
-      message: data?.message || (success ? "Airtime purchased" : "Purchase failed"),
+      message: success ? "Airtime purchased" : (errorMsg || "Purchase failed"),
       rawResponse: data,
       reference: data?.reference || data?.data?.reference || data?.id?.toString(),
     };
@@ -145,12 +152,16 @@ export async function subpadiPurchaseData(
         Ported_number: true,
       }),
     });
-    const data = await response.json();
+    const text = await response.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
     console.log("Subpadi Data Response:", JSON.stringify(data));
-    const success = data?.status === "success" || data?.success === true || response.ok;
+    const hasError = data?.error || data?.Status === "failed" || data?.status === "failed";
+    const success = !hasError && (data?.status === "success" || data?.Status === "success" || data?.success === true);
+    const errorMsg = Array.isArray(data?.error) ? data.error.join("; ") : (data?.error || data?.message || data?.detail);
     return {
       success,
-      message: data?.message || (success ? "Data purchased" : "Purchase failed"),
+      message: success ? "Data purchased" : (errorMsg || "Purchase failed"),
       rawResponse: data,
       reference: data?.reference || data?.data?.reference || data?.id?.toString(),
     };
@@ -174,12 +185,16 @@ export async function subpadiPurchaseCable(
         smart_card_number: smartcardNumber,
       }),
     });
-    const data = await response.json();
+    const text = await response.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
     console.log("Subpadi Cable Response:", JSON.stringify(data));
-    const success = data?.status === "success" || data?.success === true || response.ok;
+    const hasError = data?.error || data?.Status === "failed" || data?.status === "failed";
+    const success = !hasError && (data?.status === "success" || data?.Status === "success" || data?.success === true);
+    const errorMsg = Array.isArray(data?.error) ? data.error.join("; ") : (data?.error || data?.message || data?.detail);
     return {
       success,
-      message: data?.message || (success ? "Cable subscription successful" : "Subscription failed"),
+      message: success ? "Cable subscription successful" : (errorMsg || "Subscription failed"),
       rawResponse: data,
       reference: data?.reference || data?.data?.reference || data?.id?.toString(),
     };
@@ -207,13 +222,17 @@ export async function subpadiPurchaseElectricity(
         MeterType: mType,
       }),
     });
-    const data = await response.json();
+    const text = await response.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
     console.log("Subpadi Electricity Response:", JSON.stringify(data));
-    const success = data?.status === "success" || data?.success === true || response.ok;
+    const hasError = data?.error || data?.Status === "failed" || data?.status === "failed";
+    const success = !hasError && (data?.status === "success" || data?.Status === "success" || data?.success === true);
+    const errorMsg = Array.isArray(data?.error) ? data.error.join("; ") : (data?.error || data?.message || data?.detail);
     const token = data?.data?.token || data?.token || data?.purchased_token;
     return {
       success,
-      message: data?.message || (success ? "Electricity purchased" : "Purchase failed"),
+      message: success ? "Electricity purchased" : (errorMsg || "Purchase failed"),
       rawResponse: data,
       reference: data?.reference || data?.data?.reference || data?.id?.toString(),
       token,
@@ -234,12 +253,16 @@ export async function subpadiPurchaseExamPin(
       headers: getHeaders(),
       body: JSON.stringify({ exam_type: examType, quantity }),
     });
-    const data = await response.json();
+    const text = await response.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
     console.log("Subpadi Exam Response:", JSON.stringify(data));
-    const success = data?.status === "success" || data?.success === true || response.ok;
+    const hasError = data?.error || data?.Status === "failed" || data?.status === "failed";
+    const success = !hasError && (data?.status === "success" || data?.Status === "success" || data?.success === true);
+    const errorMsg = Array.isArray(data?.error) ? data.error.join("; ") : (data?.error || data?.message || data?.detail);
     return {
       success,
-      message: data?.message || (success ? "Exam card purchased" : "Purchase failed"),
+      message: success ? "Exam card purchased" : (errorMsg || "Purchase failed"),
       rawResponse: data,
       reference: data?.reference || data?.data?.reference || data?.id?.toString(),
     };
