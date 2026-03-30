@@ -6,6 +6,36 @@ const SUBPADI_BASE_URL = "https://subpadi.com/api";
 const SUBPADI_TIMEOUT_MS = 10000; // 10 seconds
 const SUBPADI_MAX_RETRIES = 2;
 
+function parseSubpadiJson(text: string) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+}
+
+function normalizePurchaseResult(
+  data: any,
+  successMessage: string,
+  fallbackFailureMessage: string,
+): Pick<SubpadiResponse, "success" | "message"> {
+  const status = String(data?.status ?? data?.Status ?? "").toLowerCase();
+  const hasError = Boolean(data?.error) || data?.success === false || status === "failed";
+  const success = !hasError && (
+    data?.success === true ||
+    status === "success" ||
+    status === "successful"
+  );
+  const message = Array.isArray(data?.error)
+    ? data.error.join("; ")
+    : data?.error || data?.message || data?.msg || data?.detail || fallbackFailureMessage;
+
+  return {
+    success,
+    message: success ? successMessage : message,
+  };
+}
+
 function getHeaders(): Record<string, string> {
   const token = Deno.env.get("SUBPADI_API_TOKEN");
   return {
@@ -113,18 +143,13 @@ export async function subpadiPurchaseAirtime(
       }),
     });
     const text = await response.text();
-    let data: any;
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    const data = parseSubpadiJson(text);
     console.log("Subpadi Airtime Response:", JSON.stringify(data));
-
-    // Subpadi returns 200 even on errors — check for error fields
-    const hasError = data?.error || data?.Status === "failed" || data?.status === "failed";
-    const success = !hasError && (data?.status === "success" || data?.Status === "success" || data?.success === true);
-    const errorMsg = Array.isArray(data?.error) ? data.error.join("; ") : (data?.error || data?.message || data?.detail);
+    const result = normalizePurchaseResult(data, "Airtime purchased", "Purchase failed");
 
     return {
-      success,
-      message: success ? "Airtime purchased" : (errorMsg || "Purchase failed"),
+      success: result.success,
+      message: result.message,
       rawResponse: data,
       reference: data?.reference || data?.data?.reference || data?.id?.toString(),
     };
@@ -153,15 +178,12 @@ export async function subpadiPurchaseData(
       }),
     });
     const text = await response.text();
-    let data: any;
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    const data = parseSubpadiJson(text);
     console.log("Subpadi Data Response:", JSON.stringify(data));
-    const hasError = data?.error || data?.Status === "failed" || data?.status === "failed";
-    const success = !hasError && (data?.status === "success" || data?.Status === "success" || data?.success === true);
-    const errorMsg = Array.isArray(data?.error) ? data.error.join("; ") : (data?.error || data?.message || data?.detail);
+    const result = normalizePurchaseResult(data, "Data purchased", "Purchase failed");
     return {
-      success,
-      message: success ? "Data purchased" : (errorMsg || "Purchase failed"),
+      success: result.success,
+      message: result.message,
       rawResponse: data,
       reference: data?.reference || data?.data?.reference || data?.id?.toString(),
     };
@@ -186,15 +208,12 @@ export async function subpadiPurchaseCable(
       }),
     });
     const text = await response.text();
-    let data: any;
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    const data = parseSubpadiJson(text);
     console.log("Subpadi Cable Response:", JSON.stringify(data));
-    const hasError = data?.error || data?.Status === "failed" || data?.status === "failed";
-    const success = !hasError && (data?.status === "success" || data?.Status === "success" || data?.success === true);
-    const errorMsg = Array.isArray(data?.error) ? data.error.join("; ") : (data?.error || data?.message || data?.detail);
+    const result = normalizePurchaseResult(data, "Cable subscription successful", "Subscription failed");
     return {
-      success,
-      message: success ? "Cable subscription successful" : (errorMsg || "Subscription failed"),
+      success: result.success,
+      message: result.message,
       rawResponse: data,
       reference: data?.reference || data?.data?.reference || data?.id?.toString(),
     };
@@ -223,16 +242,13 @@ export async function subpadiPurchaseElectricity(
       }),
     });
     const text = await response.text();
-    let data: any;
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    const data = parseSubpadiJson(text);
     console.log("Subpadi Electricity Response:", JSON.stringify(data));
-    const hasError = data?.error || data?.Status === "failed" || data?.status === "failed";
-    const success = !hasError && (data?.status === "success" || data?.Status === "success" || data?.success === true);
-    const errorMsg = Array.isArray(data?.error) ? data.error.join("; ") : (data?.error || data?.message || data?.detail);
+    const result = normalizePurchaseResult(data, "Electricity purchased", "Purchase failed");
     const token = data?.data?.token || data?.token || data?.purchased_token;
     return {
-      success,
-      message: success ? "Electricity purchased" : (errorMsg || "Purchase failed"),
+      success: result.success,
+      message: result.message,
       rawResponse: data,
       reference: data?.reference || data?.data?.reference || data?.id?.toString(),
       token,
@@ -254,15 +270,12 @@ export async function subpadiPurchaseExamPin(
       body: JSON.stringify({ exam_type: examType, quantity }),
     });
     const text = await response.text();
-    let data: any;
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    const data = parseSubpadiJson(text);
     console.log("Subpadi Exam Response:", JSON.stringify(data));
-    const hasError = data?.error || data?.Status === "failed" || data?.status === "failed";
-    const success = !hasError && (data?.status === "success" || data?.Status === "success" || data?.success === true);
-    const errorMsg = Array.isArray(data?.error) ? data.error.join("; ") : (data?.error || data?.message || data?.detail);
+    const result = normalizePurchaseResult(data, "Exam card purchased", "Purchase failed");
     return {
-      success,
-      message: success ? "Exam card purchased" : (errorMsg || "Purchase failed"),
+      success: result.success,
+      message: result.message,
       rawResponse: data,
       reference: data?.reference || data?.data?.reference || data?.id?.toString(),
     };
