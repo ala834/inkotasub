@@ -185,12 +185,16 @@ export async function subpadiPurchaseCable(
         smart_card_number: smartcardNumber,
       }),
     });
-    const data = await response.json();
+    const text = await response.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
     console.log("Subpadi Cable Response:", JSON.stringify(data));
-    const success = data?.status === "success" || data?.success === true || response.ok;
+    const hasError = data?.error || data?.Status === "failed" || data?.status === "failed";
+    const success = !hasError && (data?.status === "success" || data?.Status === "success" || data?.success === true);
+    const errorMsg = Array.isArray(data?.error) ? data.error.join("; ") : (data?.error || data?.message || data?.detail);
     return {
       success,
-      message: data?.message || (success ? "Cable subscription successful" : "Subscription failed"),
+      message: success ? "Cable subscription successful" : (errorMsg || "Subscription failed"),
       rawResponse: data,
       reference: data?.reference || data?.data?.reference || data?.id?.toString(),
     };
