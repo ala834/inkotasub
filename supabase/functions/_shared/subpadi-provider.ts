@@ -222,13 +222,17 @@ export async function subpadiPurchaseElectricity(
         MeterType: mType,
       }),
     });
-    const data = await response.json();
+    const text = await response.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
     console.log("Subpadi Electricity Response:", JSON.stringify(data));
-    const success = data?.status === "success" || data?.success === true || response.ok;
+    const hasError = data?.error || data?.Status === "failed" || data?.status === "failed";
+    const success = !hasError && (data?.status === "success" || data?.Status === "success" || data?.success === true);
+    const errorMsg = Array.isArray(data?.error) ? data.error.join("; ") : (data?.error || data?.message || data?.detail);
     const token = data?.data?.token || data?.token || data?.purchased_token;
     return {
       success,
-      message: data?.message || (success ? "Electricity purchased" : "Purchase failed"),
+      message: success ? "Electricity purchased" : (errorMsg || "Purchase failed"),
       rawResponse: data,
       reference: data?.reference || data?.data?.reference || data?.id?.toString(),
       token,
