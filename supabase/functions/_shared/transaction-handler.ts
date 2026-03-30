@@ -141,7 +141,7 @@ export async function acquireLockAndDeductWallet(ctx: TransactionContext): Promi
   await adminSupabase.from("wallets").update({ balance: newBalance }).eq("user_id", userId);
   await adminSupabase.from("transactions").update({ status: "processing" }).eq("id", transaction.id);
 
-  return { ok: true, currentBalance, newBalance, transactionId: transaction.id };
+  return { ok: true, currentBalance, newBalance, transactionId: transaction.id, lockKey };
 }
 
 /**
