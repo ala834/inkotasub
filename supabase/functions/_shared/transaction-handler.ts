@@ -95,7 +95,7 @@ export async function acquireLockAndDeductWallet(ctx: TransactionContext): Promi
     };
   }
 
-  const releaseLock = () => adminSupabase.rpc("release_advisory_lock", { lock_key: lockKey }).catch(() => {});
+  const releaseLock = async () => { try { await adminSupabase.rpc("release_advisory_lock", { lock_key: lockKey }); } catch (_) { /* ignore */ } };
 
   // Read wallet under lock
   const { data: wallet } = await adminSupabase
