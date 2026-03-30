@@ -1162,6 +1162,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_reset_pin_lock: {
+        Args: { target_user_id: string }
+        Returns: undefined
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
