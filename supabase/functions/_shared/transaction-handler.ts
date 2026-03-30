@@ -58,7 +58,7 @@ export interface TransactionContext {
  * Returns wallet state or an error response.
  */
 export async function acquireLockAndDeductWallet(ctx: TransactionContext): Promise<
-  | { ok: true; currentBalance: number; newBalance: number; transactionId: string }
+  | { ok: true; currentBalance: number; newBalance: number; transactionId: string; lockKey: number }
   | { ok: false; response: Response }
 > {
   const { userId, adminSupabase, sellingPrice, reference, description, metadata } = ctx;
