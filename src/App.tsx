@@ -13,7 +13,7 @@ import OfflineFallback from "@/components/common/OfflineFallback";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
-import PhoneAuth from "./pages/PhoneAuth";
+
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import History from "./pages/History";
@@ -68,8 +68,7 @@ const App = () => {
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<PhoneAuth />} />
-              <Route path="/auth/email" element={<Auth />} />
+              <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
