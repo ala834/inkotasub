@@ -181,6 +181,8 @@ const AdminDashboard = () => {
           <TabsContent value="referrals"><AdminReferralsTab /></TabsContent>
           {isSuperAdmin && <TabsContent value="pricing"><AdminPricingTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="admin-team"><AdminManagementTab /></TabsContent>}
+          {isSuperAdmin && <TabsContent value="email-settings"><AdminEmailSettingsTab /></TabsContent>}
+          {isSuperAdmin && <TabsContent value="email-testing"><AdminEmailTestingTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="settings"><AdminSettingsTab /></TabsContent>}
         </Tabs>
       </main>
