@@ -48,6 +48,8 @@ import AdminDevicesTab from "@/components/admin/AdminDevicesTab";
 import AdminKYCTab from "@/components/admin/AdminKYCTab";
 import AdminManagementTab from "@/components/admin/AdminManagementTab";
 import AdminSupportChatTab from "@/components/admin/AdminSupportChatTab";
+import AdminEmailSettingsTab from "@/components/admin/AdminEmailSettingsTab";
+import AdminEmailTestingTab from "@/components/admin/AdminEmailTestingTab";
 
 type TabDef = {
   value: string;
