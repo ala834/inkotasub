@@ -13,7 +13,7 @@ import OfflineFallback from "@/components/common/OfflineFallback";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
-import PhoneAuth from "./pages/PhoneAuth";
+
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import History from "./pages/History";
