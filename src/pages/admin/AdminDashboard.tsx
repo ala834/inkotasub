@@ -20,6 +20,8 @@ import {
   Package,
   UserCog,
   MessageCircle,
+  Mail,
+  TestTube,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +48,8 @@ import AdminDevicesTab from "@/components/admin/AdminDevicesTab";
 import AdminKYCTab from "@/components/admin/AdminKYCTab";
 import AdminManagementTab from "@/components/admin/AdminManagementTab";
 import AdminSupportChatTab from "@/components/admin/AdminSupportChatTab";
+import AdminEmailSettingsTab from "@/components/admin/AdminEmailSettingsTab";
+import AdminEmailTestingTab from "@/components/admin/AdminEmailTestingTab";
 
 type TabDef = {
   value: string;
@@ -73,6 +77,8 @@ const allTabs: TabDef[] = [
   { value: "referrals", label: "Referrals", icon: Gift },
   { value: "pricing", label: "Pricing", icon: DollarSign, superOnly: true },
   { value: "admin-team", label: "Admin Team", icon: UserCog, superOnly: true },
+  { value: "email-settings", label: "Email Templates", icon: Mail, superOnly: true },
+  { value: "email-testing", label: "Email Testing", icon: TestTube, superOnly: true },
   { value: "settings", label: "Settings", icon: Settings, superOnly: true },
 ];
 
@@ -177,6 +183,8 @@ const AdminDashboard = () => {
           <TabsContent value="referrals"><AdminReferralsTab /></TabsContent>
           {isSuperAdmin && <TabsContent value="pricing"><AdminPricingTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="admin-team"><AdminManagementTab /></TabsContent>}
+          {isSuperAdmin && <TabsContent value="email-settings"><AdminEmailSettingsTab /></TabsContent>}
+          {isSuperAdmin && <TabsContent value="email-testing"><AdminEmailTestingTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="settings"><AdminSettingsTab /></TabsContent>}
         </Tabs>
       </main>
