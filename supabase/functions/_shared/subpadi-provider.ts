@@ -21,19 +21,43 @@ function normalizePurchaseResult(
 ): Pick<SubpadiResponse, "success" | "message"> {
   const status = String(data?.status ?? data?.Status ?? "").toLowerCase();
   const hasError = Boolean(data?.error) || data?.success === false || status === "failed";
-  const success = !hasError && (
+
+  // Detect field-level validation errors like {"plan": ["Invalid pk ..."], "network": ["..."]}
+  const fieldErrors = extractFieldErrors(data);
+
+  const success = !hasError && !fieldErrors && (
     data?.success === true ||
     status === "success" ||
     status === "successful"
   );
-  const message = Array.isArray(data?.error)
-    ? data.error.join("; ")
-    : data?.error || data?.message || data?.msg || data?.detail || fallbackFailureMessage;
+
+  let message: string;
+  if (fieldErrors) {
+    message = fieldErrors;
+  } else if (Array.isArray(data?.error)) {
+    message = data.error.join("; ");
+  } else {
+    message = data?.error || data?.message || data?.msg || data?.detail || fallbackFailureMessage;
+  }
 
   return {
     success,
     message: success ? successMessage : message,
   };
+}
+
+// Extract field-level validation errors from Subpadi responses like {"plan": ["Invalid pk..."]}
+function extractFieldErrors(data: any): string | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const knownNonErrorKeys = new Set(["success", "status", "Status", "message", "msg", "detail", "error", "reference", "data", "id", "raw"]);
+  const errors: string[] = [];
+  for (const [key, value] of Object.entries(data)) {
+    if (knownNonErrorKeys.has(key)) continue;
+    if (Array.isArray(value) && value.length > 0 && typeof value[0] === "string") {
+      errors.push(`${key}: ${value.join("; ")}`);
+    }
+  }
+  return errors.length > 0 ? errors.join(". ") : null;
 }
 
 function getHeaders(): Record<string, string> {
