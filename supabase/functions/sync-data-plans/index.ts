@@ -14,7 +14,6 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    // Verify admin
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -55,82 +54,94 @@ serve(async (req) => {
       });
     }
 
-    const headers = { "Authorization": `Token ${token}`, "Content-Type": "application/json" };
-    const body = await req.json().catch(() => ({}));
-    const networkFilter = body.network?.toUpperCase();
+    const apiHeaders = { "Authorization": `Token ${token}`, "Content-Type": "application/json" };
 
-    const allPlans: any[] = [];
-    const errors: string[] = [];
+    // Fetch all data plans from Subpadi GET /api/data/
+    console.log("Fetching plans from Subpadi GET /api/data/");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
+    const res = await fetch(`${SUBPADI_BASE_URL}/data/`, {
+      method: "GET",
+      headers: apiHeaders,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
 
-    // Try multiple possible Subpadi plan-listing endpoints
-    for (const networkId of NETWORK_IDS) {
-      const networkName = NETWORK_MAP[networkId];
-      if (networkFilter && networkName !== networkFilter) continue;
+    const text = await res.text();
+    console.log(`Subpadi /api/data/ response status: ${res.status}, body length: ${text.length}`);
+    console.log(`Subpadi /api/data/ first 500 chars: ${text.substring(0, 500)}`);
 
-      // Attempt 1: GET /api/data/?network=N (some Subpadi versions expose this)
-      // Attempt 2: GET /api/data/plans/ or /api/databundle/
-      const endpoints = [
-        `${SUBPADI_BASE_URL}/data/?network=${networkId}`,
-        `${SUBPADI_BASE_URL}/databundle/?network=${networkId}`,
-      ];
-
-      let found = false;
-      for (const url of endpoints) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000);
-          const res = await fetch(url, { method: "GET", headers, signal: controller.signal });
-          clearTimeout(timeoutId);
-
-          const text = await res.text();
-          let data: any;
-          try { data = JSON.parse(text); } catch { continue; }
-
-          // Check if we got an array of plans
-          const plans = Array.isArray(data) ? data : data?.plans || data?.data || data?.results;
-          if (Array.isArray(plans) && plans.length > 0) {
-            console.log(`Found ${plans.length} plans for ${networkName} from ${url}`);
-            for (const p of plans) {
-              allPlans.push({
-                network: networkName,
-                plan_id: String(p.id || p.plan_id || p.dataplan_id),
-                plan_name: p.plan || p.name || p.plan_name || p.dataplan || `${networkName} Plan`,
-                base_price: parseFloat(p.plan_amount || p.amount || p.price || "0"),
-                validity: p.month_validate || p.validity || p.duration || "30 Days",
-                service_type: "data",
-                is_enabled: true,
-                is_manual: false,
-                last_synced_at: new Date().toISOString(),
-              });
-            }
-            found = true;
-            break;
-          }
-        } catch (e) {
-          console.log(`Endpoint ${url} failed: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-
-      if (!found) {
-        errors.push(`No plan data found for ${networkName} from API`);
-      }
-    }
-
-    if (allPlans.length === 0) {
+    let rawData: any;
+    try { rawData = JSON.parse(text); } catch {
       return new Response(JSON.stringify({
         success: false,
-        message: "Could not fetch plans from Subpadi API. The API may not support plan listing. Plans must be managed manually in the admin dashboard.",
-        errors,
-        tip: "You can add/edit plans manually in the Data Plans tab, using plan IDs from your Subpadi dashboard.",
+        message: "Failed to parse Subpadi API response",
+        rawPreview: text.substring(0, 200),
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Upsert plans into service_plans table
+    // The response could be: an array, { results: [...] }, { data: [...] }, or paginated
+    let plans: any[] = [];
+    if (Array.isArray(rawData)) {
+      plans = rawData;
+    } else if (rawData?.results && Array.isArray(rawData.results)) {
+      plans = rawData.results;
+      // Handle pagination
+      let nextUrl = rawData.next;
+      while (nextUrl) {
+        try {
+          const pageRes = await fetch(nextUrl, { method: "GET", headers: apiHeaders });
+          const pageData = await pageRes.json();
+          if (Array.isArray(pageData?.results)) plans.push(...pageData.results);
+          nextUrl = pageData?.next;
+        } catch { break; }
+      }
+    } else if (rawData?.data && Array.isArray(rawData.data)) {
+      plans = rawData.data;
+    }
+
+    console.log(`Total plans fetched: ${plans.length}`);
+    if (plans.length > 0) {
+      console.log("Sample plan:", JSON.stringify(plans[0]));
+    }
+
+    if (plans.length === 0) {
+      return new Response(JSON.stringify({
+        success: false,
+        message: "Subpadi API returned no plans. Response structure may have changed.",
+        responseKeys: typeof rawData === "object" ? Object.keys(rawData) : typeof rawData,
+        sampleData: JSON.stringify(rawData).substring(0, 500),
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Map plans to service_plans format
     const now = new Date().toISOString();
-    let inserted = 0, updated = 0, skipped = 0;
+    const allPlans = plans.map((p: any) => {
+      const networkId = p.network || p.plan_network;
+      const networkName = typeof networkId === "number" 
+        ? (NETWORK_MAP[networkId] || `NETWORK_${networkId}`)
+        : String(networkId || "UNKNOWN").toUpperCase();
+
+      return {
+        network: networkName,
+        plan_id: String(p.id || p.plan_id || p.dataplan_id),
+        plan_name: p.plan || p.name || p.plan_name || p.dataplan || "Unknown Plan",
+        base_price: parseFloat(String(p.plan_amount || p.amount || p.price || "0")),
+        validity: p.month_validate || p.validity || p.duration || "30 Days",
+        service_type: "data",
+        is_enabled: true,
+        is_manual: false,
+        last_synced_at: now,
+      };
+    }).filter((p: any) => p.plan_id && p.base_price > 0);
+
+    console.log(`Mapped ${allPlans.length} valid plans`);
+
+    // Upsert into service_plans
+    let inserted = 0, updated = 0, unchanged = 0;
 
     for (const plan of allPlans) {
-      // Check if plan already exists
       const { data: existing } = await adminSupabase
         .from("service_plans")
         .select("id, base_price, plan_name")
@@ -140,7 +151,6 @@ serve(async (req) => {
         .single();
 
       if (existing) {
-        // Update if price or name changed
         if (existing.base_price !== plan.base_price || existing.plan_name !== plan.plan_name) {
           await adminSupabase.from("service_plans").update({
             plan_name: plan.plan_name,
@@ -148,11 +158,12 @@ serve(async (req) => {
             validity: plan.validity,
             last_synced_at: now,
             updated_at: now,
+            is_enabled: true,
           }).eq("id", existing.id);
           updated++;
         } else {
           await adminSupabase.from("service_plans").update({ last_synced_at: now }).eq("id", existing.id);
-          skipped++;
+          unchanged++;
         }
       } else {
         await adminSupabase.from("service_plans").insert(plan);
@@ -160,42 +171,36 @@ serve(async (req) => {
       }
     }
 
-    // Disable plans that exist in DB but not in API response (stale plans)
-    if (allPlans.length > 0) {
-      const syncedPlanIds = allPlans.map(p => p.plan_id);
-      const networksToSync = [...new Set(allPlans.map(p => p.network))];
+    // Disable stale non-manual plans
+    const syncedNetworks = [...new Set(allPlans.map(p => p.network))];
+    let disabled = 0;
+    for (const net of syncedNetworks) {
+      const netPlanIds = allPlans.filter(p => p.network === net).map(p => p.plan_id);
+      const { data: dbPlans } = await adminSupabase
+        .from("service_plans")
+        .select("id, plan_id")
+        .eq("service_type", "data")
+        .eq("network", net)
+        .eq("is_enabled", true)
+        .eq("is_manual", false);
 
-      for (const net of networksToSync) {
-        const netPlanIds = allPlans.filter(p => p.network === net).map(p => p.plan_id);
-        const { data: dbPlans } = await adminSupabase
-          .from("service_plans")
-          .select("id, plan_id")
-          .eq("service_type", "data")
-          .eq("network", net)
-          .eq("is_enabled", true)
-          .eq("is_manual", false);
-
-        if (dbPlans) {
-          const stalePlans = dbPlans.filter(dp => !netPlanIds.includes(dp.plan_id));
-          if (stalePlans.length > 0) {
-            const staleIds = stalePlans.map(sp => sp.id);
-            await adminSupabase.from("service_plans")
-              .update({ is_enabled: false, updated_at: now })
-              .in("id", staleIds);
-            console.log(`Disabled ${stalePlans.length} stale plans for ${net}`);
-          }
+      if (dbPlans) {
+        const stalePlans = dbPlans.filter(dp => !netPlanIds.includes(dp.plan_id));
+        if (stalePlans.length > 0) {
+          await adminSupabase.from("service_plans")
+            .update({ is_enabled: false, updated_at: now })
+            .in("id", stalePlans.map(sp => sp.id));
+          disabled += stalePlans.length;
         }
       }
     }
 
     return new Response(JSON.stringify({
       success: true,
-      message: `Synced ${allPlans.length} plans: ${inserted} new, ${updated} updated, ${skipped} unchanged`,
+      message: `Synced ${allPlans.length} plans: ${inserted} new, ${updated} updated, ${unchanged} unchanged, ${disabled} stale disabled`,
       total: allPlans.length,
-      inserted,
-      updated,
-      skipped,
-      errors: errors.length > 0 ? errors : undefined,
+      inserted, updated, unchanged, disabled,
+      networks: syncedNetworks,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (error) {
