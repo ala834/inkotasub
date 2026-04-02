@@ -169,6 +169,44 @@ const AdminCableTVTab = () => {
     setIsSyncing(false);
   };
 
+  const validatePlans = async () => {
+    setIsValidating(true);
+    setValidationResult(null);
+    let totalValid = 0;
+    let totalInvalid = 0;
+
+    try {
+      const providers = [selectedProvider];
+      for (const provider of providers) {
+        const { data, error } = await supabase.functions.invoke("sync-cable-plans", {
+          body: { action: "cleanup", provider, limit: 200 },
+        });
+
+        if (error) {
+          console.error(`Validation error for ${provider}:`, error);
+          toast.error(`Failed to validate ${provider} plans`);
+          continue;
+        }
+
+        totalValid += data?.validCount || 0;
+        totalInvalid += data?.invalidCount || 0;
+      }
+
+      setValidationResult({ valid: totalValid, invalid: totalInvalid, message: `${totalValid} valid, ${totalInvalid} invalid plans disabled` });
+
+      if (totalInvalid > 0) {
+        toast.success(`Validation complete: ${totalInvalid} stale plans disabled`);
+        fetchPlans();
+      } else {
+        toast.success("All plans are valid!");
+      }
+    } catch (error) {
+      console.error("Validation error:", error);
+      toast.error("Failed to validate plans");
+    }
+    setIsValidating(false);
+  };
+
   const handleToggleEnabled = async (plan: ServicePlan) => {
     const { error } = await supabase
       .from("service_plans")
