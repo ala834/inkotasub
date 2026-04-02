@@ -28,7 +28,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { RefreshCw, Plus, Edit2, Search } from "lucide-react";
+import { RefreshCw, Plus, Edit2, Search, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface ServicePlan {
