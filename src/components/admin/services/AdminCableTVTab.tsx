@@ -65,6 +65,8 @@ const AdminCableTVTab = () => {
   const [pricingConfigs, setPricingConfigs] = useState<PricingConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<{ valid: number; invalid: number; message: string } | null>(null);
   const [selectedProvider, setSelectedProvider] = useState("DSTV");
   const [searchQuery, setSearchQuery] = useState("");
   
