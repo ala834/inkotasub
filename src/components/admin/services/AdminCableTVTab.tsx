@@ -356,6 +356,16 @@ const AdminCableTVTab = () => {
           <Button
             variant="outline"
             size="sm"
+            onClick={validatePlans}
+            disabled={isValidating}
+            className="gap-2"
+          >
+            <ShieldCheck className={`h-4 w-4 ${isValidating ? "animate-pulse" : ""}`} />
+            {isValidating ? "Validating..." : "Validate Plans"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={syncFromSubpadi}
             disabled={isSyncing}
             className="gap-2"
