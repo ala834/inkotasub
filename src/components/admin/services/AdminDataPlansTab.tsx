@@ -28,7 +28,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { RefreshCw, Plus, Edit2, Search } from "lucide-react";
+import { RefreshCw, Plus, Edit2, Search, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface ServicePlan {
@@ -61,6 +61,8 @@ const AdminDataPlansTab = () => {
   const [pricingConfigs, setPricingConfigs] = useState<PricingConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<{ valid: number; invalid: number; message: string } | null>(null);
   const [selectedNetwork, setSelectedNetwork] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -166,6 +168,44 @@ const AdminDataPlansTab = () => {
       toast.error("Failed to sync plans");
     }
     setIsSyncing(false);
+  };
+
+  const validatePlans = async () => {
+    setIsValidating(true);
+    setValidationResult(null);
+    let totalValid = 0;
+    let totalInvalid = 0;
+
+    try {
+      const networks = selectedNetwork === "all" ? NETWORKS : [selectedNetwork];
+      for (const network of networks) {
+        const { data, error } = await supabase.functions.invoke("sync-data-plans", {
+          body: { action: "cleanup", network, limit: 200 },
+        });
+
+        if (error) {
+          console.error(`Validation error for ${network}:`, error);
+          toast.error(`Failed to validate ${network} plans`);
+          continue;
+        }
+
+        totalValid += data?.validCount || 0;
+        totalInvalid += data?.invalidCount || 0;
+      }
+
+      setValidationResult({ valid: totalValid, invalid: totalInvalid, message: `${totalValid} valid, ${totalInvalid} invalid plans disabled` });
+      
+      if (totalInvalid > 0) {
+        toast.success(`Validation complete: ${totalInvalid} stale plans disabled`);
+        fetchPlans();
+      } else {
+        toast.success("All plans are valid!");
+      }
+    } catch (error) {
+      console.error("Validation error:", error);
+      toast.error("Failed to validate plans");
+    }
+    setIsValidating(false);
   };
 
   const handleToggleEnabled = async (plan: ServicePlan) => {
@@ -370,6 +410,16 @@ const AdminDataPlansTab = () => {
           <Button
             variant="outline"
             size="sm"
+            onClick={validatePlans}
+            disabled={isValidating}
+            className="gap-2"
+          >
+            <ShieldCheck className={`h-4 w-4 ${isValidating ? "animate-pulse" : ""}`} />
+            {isValidating ? "Validating..." : "Validate Plans"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={syncFromSubpadi}
             disabled={isSyncing}
             className="gap-2"
@@ -449,6 +499,13 @@ const AdminDataPlansTab = () => {
           </Dialog>
         </div>
       </div>
+
+      {validationResult && (
+        <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${validationResult.invalid > 0 ? "bg-orange-50 text-orange-800 border border-orange-200" : "bg-green-50 text-green-800 border border-green-200"}`}>
+          <ShieldCheck className="h-4 w-4" />
+          <span>{validationResult.message}</span>
+        </div>
+      )}
 
       {/* Profit Setting Dialog */}
       <Dialog open={isProfitDialogOpen} onOpenChange={setIsProfitDialogOpen}>
