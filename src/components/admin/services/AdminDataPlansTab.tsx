@@ -500,6 +500,13 @@ const AdminDataPlansTab = () => {
         </div>
       </div>
 
+      {validationResult && (
+        <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${validationResult.invalid > 0 ? "bg-orange-50 text-orange-800 border border-orange-200" : "bg-green-50 text-green-800 border border-green-200"}`}>
+          <ShieldCheck className="h-4 w-4" />
+          <span>{validationResult.message}</span>
+        </div>
+      )}
+
       {/* Profit Setting Dialog */}
       <Dialog open={isProfitDialogOpen} onOpenChange={setIsProfitDialogOpen}>
         <DialogContent>
