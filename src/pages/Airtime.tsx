@@ -48,6 +48,10 @@ const Airtime = () => {
       return false;
     }
     const amountNum = parseFloat(amount);
+    if (amountNum < 50) {
+      toast.error("Minimum airtime top-up is ₦50");
+      return false;
+    }
     if (wallet && amountNum > wallet.balance) {
       toast.error("Insufficient wallet balance");
       return false;
