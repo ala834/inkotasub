@@ -324,11 +324,12 @@ export async function subpadiValidateSmartcard(
       method: "GET",
       headers: getHeaders(),
     });
-    const data = await response.json();
+    const text = await response.text();
+    const data = parseSubpadiJson(text);
     console.log("Subpadi Validate IUC Response:", JSON.stringify(data));
     return {
-      success: response.ok,
-      message: data?.message || (response.ok ? "Validation successful" : "Validation failed"),
+      success: response.ok && !data?.error,
+      message: data?.message || data?.error || (response.ok ? "Validation successful" : "Validation failed"),
       rawResponse: data,
     };
   } catch (error) {
