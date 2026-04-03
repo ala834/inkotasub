@@ -37,7 +37,8 @@ async function subpadiPurchaseRechargeCard(network: string, amount: number, quan
     });
     clearTimeout(timeoutId);
     const data = await response.json();
-    const success = data?.status === "success" || data?.success === true;
+    console.log("Subpadi Recharge Card Response:", JSON.stringify(data));
+    const success = data?.status === "success" || data?.success === true || response.ok;
     return { success, message: data?.message || (success ? "Recharge cards generated" : "Purchase failed"), rawResponse: data, pins: extractPins(data, network, amount) };
   } catch (error) {
     return { success: false, message: error instanceof Error ? error.message : "API error", rawResponse: null, pins: [] as RechargeCardPin[] };
