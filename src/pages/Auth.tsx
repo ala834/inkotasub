@@ -94,7 +94,7 @@ const Auth = () => {
           }
           return;
         }
-        toast.success("Welcome back!");
+        toast.success(`Welcome back, ${profile?.full_name?.split(" ")[0] || ""}! 👋`);
         await storeCredentials(formData.email, formData.password);
       } else {
         // Signup
