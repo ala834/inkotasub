@@ -35,6 +35,17 @@ serve(async (req) => {
     if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterMs!, corsHeaders);
 
     const { network, phoneNumber, amount, transaction_pin: transactionPin } = await req.json();
+    console.log("Purchase airtime request - network:", network, "phoneNumber:", phoneNumber, "amount:", amount);
+    
+    if (!network || typeof network !== 'string') {
+      return jsonResponse({ error: "Network is required", success: false }, 400);
+    }
+    
+    const validNetworks = ['mtn', 'glo', 'airtel', '9mobile', 'etisalat'];
+    if (!validNetworks.includes(network.toLowerCase())) {
+      return jsonResponse({ error: `Invalid network: ${network}. Valid: ${validNetworks.join(', ')}`, success: false }, 400);
+    }
+    
     const fraudCheck = await checkFraud(userId, 'airtime', amount);
     if (!fraudCheck.allowed) return fraudBlockResponse(fraudCheck.reason!, corsHeaders);
 
