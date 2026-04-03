@@ -117,6 +117,10 @@ const Data = () => {
       toast.error("Please enter a valid phone number");
       return false;
     }
+    if (selectedPlan.amount < 50) {
+      toast.error("Minimum data purchase is ₦50");
+      return false;
+    }
     if (wallet && selectedPlan.amount > wallet.balance) {
       toast.error("Insufficient wallet balance");
       return false;

@@ -83,6 +83,10 @@ const Electricity = () => {
       return false;
     }
     const amountNum = parseFloat(amount);
+    if (amountNum < 500) {
+      toast.error("Minimum electricity purchase is ₦500");
+      return false;
+    }
     if (wallet && amountNum > wallet.balance) {
       toast.error("Insufficient wallet balance");
       return false;

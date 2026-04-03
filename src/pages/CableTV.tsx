@@ -123,6 +123,10 @@ const CableTV = () => {
       toast.error("Please validate smart card and select a plan");
       return false;
     }
+    if (selectedPlan.amount < 100) {
+      toast.error("Minimum cable subscription is ₦100");
+      return false;
+    }
     if (wallet && selectedPlan.amount > wallet.balance) {
       toast.error("Insufficient wallet balance");
       return false;
