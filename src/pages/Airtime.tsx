@@ -13,6 +13,7 @@ import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
 import PhoneInputWithNetwork from "@/components/common/PhoneInputWithNetwork";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
+import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 import RecentNumbers from "@/components/common/RecentNumbers";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 
