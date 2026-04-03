@@ -251,8 +251,8 @@ export async function subpadiPurchaseCable(
 export async function subpadiPurchaseElectricity(
   discoId: string, meterNumber: string, amount: number, meterType: string
 ): Promise<SubpadiResponse> {
-  // meterType: "prepaid" -> 1, "postpaid" -> 2
-  const mType = meterType.toLowerCase() === "prepaid" ? 1 : 2;
+  // Subpadi expects MeterType as a string: "prepaid" or "postpaid"
+  const mType = meterType.toLowerCase() === "prepaid" ? "prepaid" : "postpaid";
 
   try {
     const response = await fetchWithRetry(`${SUBPADI_BASE_URL}/billpayment/`, {
