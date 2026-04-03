@@ -13,6 +13,7 @@ import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
 import PhoneInputWithNetwork from "@/components/common/PhoneInputWithNetwork";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
+import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 import RecentNumbers from "@/components/common/RecentNumbers";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 
@@ -28,6 +29,10 @@ const Airtime = () => {
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [contactName, setContactName] = useState<string | undefined>();
+  const [showResult, setShowResult] = useState(false);
+  const [resultSuccess, setResultSuccess] = useState(false);
+  const [resultError, setResultError] = useState("");
+  const [resultTransactionId, setResultTransactionId] = useState<string | undefined>();
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("airtime");
 
   const handleNetworkDetected = useCallback((network: string | null) => {
@@ -86,14 +91,19 @@ const Airtime = () => {
       if (error || !data?.success) {
         const message = parseEdgeFunctionError(error, data, "Failed to purchase airtime");
         if (!message.includes("PIN") && !message.includes("locked")) {
-          toast.error(message);
+          setResultSuccess(false);
+          setResultError(message);
+          setResultTransactionId(data?.reference);
+          setShowResult(true);
         }
         throw new Error(message);
       }
 
       addRecentNumber(phoneNumber, contactName);
-      toast.success("Airtime purchased successfully!");
-      navigate("/dashboard");
+      setResultSuccess(true);
+      setResultError("");
+      setResultTransactionId(data?.reference || data?.transactionId);
+      setShowResult(true);
     } catch (error: any) {
       throw new Error(error.message || "Failed to purchase airtime");
     } finally {
@@ -208,6 +218,20 @@ const Airtime = () => {
         description="Enter your PIN to complete payment"
         amount={parseFloat(amount) || 0}
         serviceName={`${detectedNetwork?.toUpperCase()} Airtime`}
+      />
+
+      <TransactionResultScreen
+        open={showResult}
+        onClose={() => setShowResult(false)}
+        success={resultSuccess}
+        amount={parseFloat(amount) || 0}
+        details={[
+          { label: "Service", value: "Airtime" },
+          { label: "Network", value: detectedNetwork?.toUpperCase() || "" },
+          { label: "Phone Number", value: phoneNumber },
+        ]}
+        transactionId={resultTransactionId}
+        errorMessage={resultError}
       />
     </div>
   );

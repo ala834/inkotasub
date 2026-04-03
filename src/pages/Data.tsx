@@ -15,6 +15,7 @@ import TransactionConfirmationDialog from "@/components/common/TransactionConfir
 import NetworkBadge from "@/components/common/NetworkBadge";
 import RecentNumbers from "@/components/common/RecentNumbers";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
+import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface DataPlan {
@@ -41,6 +42,10 @@ const Data = () => {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [contactName, setContactName] = useState<string | undefined>();
+  const [showResult, setShowResult] = useState(false);
+  const [resultSuccess, setResultSuccess] = useState(false);
+  const [resultError, setResultError] = useState("");
+  const [resultTransactionId, setResultTransactionId] = useState<string | undefined>();
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("data");
 
   const handleNetworkDetected = useCallback((network: string | null) => {
@@ -152,12 +157,19 @@ const Data = () => {
       });
       if (error || !data?.success) {
         const message = parseEdgeFunctionError(error, data, "Failed to purchase data");
-        if (!message.includes("PIN") && !message.includes("locked")) toast.error(message);
+        if (!message.includes("PIN") && !message.includes("locked")) {
+          setResultSuccess(false);
+          setResultError(message);
+          setResultTransactionId(data?.reference);
+          setShowResult(true);
+        }
         throw new Error(message);
       }
       addRecentNumber(phoneNumber, contactName);
-      toast.success("Data bundle purchased successfully!");
-      navigate("/dashboard");
+      setResultSuccess(true);
+      setResultError("");
+      setResultTransactionId(data?.reference || data?.transactionId);
+      setShowResult(true);
     } catch (error: any) {
       throw new Error(error.message || "Failed to purchase data");
     } finally {
@@ -338,6 +350,21 @@ const Data = () => {
         description="Enter your PIN to complete payment"
         amount={selectedPlan?.amount || 0}
         serviceName={`${detectedNetwork?.toUpperCase()} ${selectedPlan?.name} Data`}
+      />
+
+      <TransactionResultScreen
+        open={showResult}
+        onClose={() => setShowResult(false)}
+        success={resultSuccess}
+        amount={selectedPlan?.amount || 0}
+        details={[
+          { label: "Service", value: "Data Bundle" },
+          { label: "Network", value: detectedNetwork?.toUpperCase() || "" },
+          { label: "Phone Number", value: phoneNumber },
+          { label: "Plan", value: selectedPlan?.name || "" },
+        ]}
+        transactionId={resultTransactionId}
+        errorMessage={resultError}
       />
     </div>
   );

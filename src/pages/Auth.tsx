@@ -19,7 +19,7 @@ const passwordSchema = z.string().min(6, "Password must be at least 6 characters
 
 const Auth = () => {
   const navigate = useNavigate();
-  const { user, signIn, signUp, isLoading, isAdmin } = useAuth();
+  const { user, signIn, signUp, isLoading, isAdmin, profile } = useAuth();
   const { loginReady, biometricLogin, locked } = useBiometric();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
@@ -94,22 +94,35 @@ const Auth = () => {
           }
           return;
         }
-        toast.success("Welcome back!");
+        toast.success(`Welcome back, ${profile?.full_name?.split(" ")[0] || ""}! 👋`);
         await storeCredentials(formData.email, formData.password);
       } else {
-        // Signup
+        // Check for duplicate phone number before signup
+        if (formData.phoneNumber) {
+          const { data: existingPhone } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("phone_number", formData.phoneNumber.replace(/\D/g, "").replace(/^(\d{10})$/, "0$1"))
+            .maybeSingle();
+          if (existingPhone) {
+            toast.error("This phone number is already in use. Please use a different number.");
+            setLoading(false);
+            return;
+          }
+        }
+
         const { error } = await signUp(formData.email, formData.password, formData.fullName);
         if (error) {
-          if (error.message.includes("already registered")) {
+          if (error.message.includes("already registered") || error.message.includes("already been registered")) {
             toast.error("This email is already registered. Please login instead.");
+          } else if (error.message === "Failed to fetch" || error.message.includes("NetworkError")) {
+            toast.error("Network error. Please check your connection.");
           } else {
             toast.error(error.message || "Signup failed");
           }
           return;
         }
 
-        // Update phone number in profile after signup
-        // The profile is auto-created by trigger, we'll update phone on next login
         if (formData.phoneNumber) {
           localStorage.setItem("pendingPhoneNumber", formData.phoneNumber);
         }
@@ -155,7 +168,11 @@ const Auth = () => {
             />
           </div>
           <h1 className="text-2xl font-display font-bold text-foreground">
-            INKOTA<span className="text-primary">SUB</span>
+            {isLogin && loginReady && !locked ? (
+              <>Welcome back{profile?.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""} 👋</>
+            ) : (
+              <>INKOTA<span className="text-primary">SUB</span></>
+            )}
           </h1>
           <p className="text-muted-foreground mt-2">
             {isLogin ? "Welcome back! Sign in to continue" : "Create your account to get started"}
