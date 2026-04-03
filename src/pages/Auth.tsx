@@ -19,7 +19,7 @@ const passwordSchema = z.string().min(6, "Password must be at least 6 characters
 
 const Auth = () => {
   const navigate = useNavigate();
-  const { user, signIn, signUp, isLoading, isAdmin } = useAuth();
+  const { user, signIn, signUp, isLoading, isAdmin, profile } = useAuth();
   const { loginReady, biometricLogin, locked } = useBiometric();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
