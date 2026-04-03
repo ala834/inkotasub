@@ -157,12 +157,19 @@ const Data = () => {
       });
       if (error || !data?.success) {
         const message = parseEdgeFunctionError(error, data, "Failed to purchase data");
-        if (!message.includes("PIN") && !message.includes("locked")) toast.error(message);
+        if (!message.includes("PIN") && !message.includes("locked")) {
+          setResultSuccess(false);
+          setResultError(message);
+          setResultTransactionId(data?.reference);
+          setShowResult(true);
+        }
         throw new Error(message);
       }
       addRecentNumber(phoneNumber, contactName);
-      toast.success("Data bundle purchased successfully!");
-      navigate("/dashboard");
+      setResultSuccess(true);
+      setResultError("");
+      setResultTransactionId(data?.reference || data?.transactionId);
+      setShowResult(true);
     } catch (error: any) {
       throw new Error(error.message || "Failed to purchase data");
     } finally {
