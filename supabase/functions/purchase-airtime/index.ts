@@ -108,7 +108,7 @@ serve(async (req) => {
     const ctx: TransactionContext = {
       userId, adminSupabase, serviceType: 'airtime', sellingPrice, costPrice, profit,
       reference, description: `${resolvedNetwork.toUpperCase()} Airtime - ${phoneNumber}`,
-      provider: network.toUpperCase(), recipient: phoneNumber,
+      provider: resolvedNetwork.toUpperCase(), recipient: phoneNumber,
     };
 
     // Lock wallet + deduct immediately
