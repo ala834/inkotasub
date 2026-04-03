@@ -107,7 +107,7 @@ serve(async (req) => {
     const reference = generateReference('airtime');
     const ctx: TransactionContext = {
       userId, adminSupabase, serviceType: 'airtime', sellingPrice, costPrice, profit,
-      reference, description: `${network.toUpperCase()} Airtime - ${phoneNumber}`,
+      reference, description: `${resolvedNetwork.toUpperCase()} Airtime - ${phoneNumber}`,
       provider: network.toUpperCase(), recipient: phoneNumber,
     };
 
