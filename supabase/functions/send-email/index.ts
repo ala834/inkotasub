@@ -25,7 +25,7 @@ serve(async (req) => {
       );
     }
 
-    const senderEmail = from || 'INKOTA SUB <onboarding@resend.dev>';
+    const senderEmail = from || 'INKOTA SUB <noreply@inkotasub.com>';
 
     console.log(`Sending email to: ${to}, subject: ${subject}`);
 
