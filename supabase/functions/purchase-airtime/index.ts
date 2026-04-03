@@ -94,7 +94,7 @@ serve(async (req) => {
     const isAgent = profile?.is_agent || false;
     const userType = isAgent ? 'agent' : 'user';
     const { data: pricingConfigs } = await adminSupabase.from("pricing_config").select("*").eq("service_type", "airtime").eq("is_active", true).eq("user_type", userType);
-    const config = pricingConfigs?.find(c => c.network === network.toUpperCase() && !c.plan_id) || pricingConfigs?.find(c => !c.network && !c.plan_id);
+    const config = pricingConfigs?.find(c => c.network === resolvedNetwork.toUpperCase() && !c.plan_id) || pricingConfigs?.find(c => !c.network && !c.plan_id);
 
     let costPrice = amount;
     const sellingPrice = amount;
