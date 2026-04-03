@@ -37,13 +37,27 @@ serve(async (req) => {
     const { network, phoneNumber, amount, transaction_pin: transactionPin } = await req.json();
     console.log("Purchase airtime request - network:", network, "phoneNumber:", phoneNumber, "amount:", amount);
     
-    if (!network || typeof network !== 'string') {
-      return jsonResponse({ error: "Network is required", success: false }, 400);
-    }
-    
     const validNetworks = ['mtn', 'glo', 'airtel', '9mobile', 'etisalat'];
-    if (!validNetworks.includes(network.toLowerCase())) {
-      return jsonResponse({ error: `Invalid network: ${network}. Valid: ${validNetworks.join(', ')}`, success: false }, 400);
+    let resolvedNetwork = network?.toLowerCase?.() || '';
+    
+    // Auto-detect network from phone number if not provided or invalid
+    if (!validNetworks.includes(resolvedNetwork)) {
+      const prefixes: Record<string, string[]> = {
+        mtn: ["0803","0806","0703","0706","0813","0816","0810","0814","0903","0906","0913","0916","0704"],
+        airtel: ["0802","0808","0708","0812","0701","0902","0901","0907","0912"],
+        glo: ["0805","0807","0705","0815","0811","0905","0915"],
+        "9mobile": ["0809","0818","0817","0909","0908"],
+      };
+      let normalized = phoneNumber?.replace(/\D/g, '') || '';
+      if (normalized.startsWith('234') && normalized.length === 13) normalized = '0' + normalized.slice(3);
+      const p4 = normalized.slice(0, 4);
+      for (const [net, pList] of Object.entries(prefixes)) {
+        if (pList.includes(p4)) { resolvedNetwork = net; break; }
+      }
+      if (!validNetworks.includes(resolvedNetwork)) {
+        return jsonResponse({ error: `Could not detect network for ${phoneNumber}`, success: false }, 400);
+      }
+      console.log(`Auto-detected network: ${resolvedNetwork} from phone: ${phoneNumber} (client sent: ${network})`);
     }
     
     const fraudCheck = await checkFraud(userId, 'airtime', amount);
@@ -80,7 +94,7 @@ serve(async (req) => {
     const isAgent = profile?.is_agent || false;
     const userType = isAgent ? 'agent' : 'user';
     const { data: pricingConfigs } = await adminSupabase.from("pricing_config").select("*").eq("service_type", "airtime").eq("is_active", true).eq("user_type", userType);
-    const config = pricingConfigs?.find(c => c.network === network.toUpperCase() && !c.plan_id) || pricingConfigs?.find(c => !c.network && !c.plan_id);
+    const config = pricingConfigs?.find(c => c.network === resolvedNetwork.toUpperCase() && !c.plan_id) || pricingConfigs?.find(c => !c.network && !c.plan_id);
 
     let costPrice = amount;
     const sellingPrice = amount;
@@ -93,8 +107,8 @@ serve(async (req) => {
     const reference = generateReference('airtime');
     const ctx: TransactionContext = {
       userId, adminSupabase, serviceType: 'airtime', sellingPrice, costPrice, profit,
-      reference, description: `${network.toUpperCase()} Airtime - ${phoneNumber}`,
-      provider: network.toUpperCase(), recipient: phoneNumber,
+      reference, description: `${resolvedNetwork.toUpperCase()} Airtime - ${phoneNumber}`,
+      provider: resolvedNetwork.toUpperCase(), recipient: phoneNumber,
     };
 
     // Lock wallet + deduct immediately
@@ -103,7 +117,7 @@ serve(async (req) => {
 
     // Provider call (Subpadi only)
     const result = await withMetrics('subpadi', 'airtime',
-      () => subpadiPurchaseAirtime(network, phoneNumber, costPrice),
+      () => subpadiPurchaseAirtime(resolvedNetwork, phoneNumber, costPrice),
       r => r.success
     );
 
