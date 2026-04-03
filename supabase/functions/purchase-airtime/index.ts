@@ -117,7 +117,7 @@ serve(async (req) => {
 
     // Provider call (Subpadi only)
     const result = await withMetrics('subpadi', 'airtime',
-      () => subpadiPurchaseAirtime(network, phoneNumber, costPrice),
+      () => subpadiPurchaseAirtime(resolvedNetwork, phoneNumber, costPrice),
       r => r.success
     );
 
