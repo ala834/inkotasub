@@ -287,19 +287,11 @@ export async function subpadiPurchaseElectricity(
 export async function subpadiPurchaseExamPin(
   examType: string, quantity: number
 ): Promise<SubpadiResponse> {
-  // Map exam type names to Subpadi exam IDs
-  const examIdMap: Record<string, number> = {
-    'waec': 1,
-    'neco': 2,
-    'nabteb': 3,
-  };
-  const examId = examIdMap[examType.toLowerCase()];
-  if (!examId) {
-    return { success: false, message: `Unknown exam type: ${examType}`, rawResponse: null };
-  }
+  // Subpadi expects exam_name as the exam type string (e.g., "WAEC", "NECO", "NABTEB")
+  const examName = examType.toUpperCase();
 
   try {
-    const body = { exam_name: examId, quantity };
+    const body = { exam_name: examName, quantity };
     console.log("Subpadi Exam Request:", JSON.stringify(body));
     const response = await fetchWithRetry(`${SUBPADI_BASE_URL}/epin/`, {
       method: "POST",
