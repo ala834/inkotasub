@@ -219,6 +219,20 @@ const Airtime = () => {
         amount={parseFloat(amount) || 0}
         serviceName={`${detectedNetwork?.toUpperCase()} Airtime`}
       />
+
+      <TransactionResultScreen
+        open={showResult}
+        onClose={() => setShowResult(false)}
+        success={resultSuccess}
+        amount={parseFloat(amount) || 0}
+        details={[
+          { label: "Service", value: "Airtime" },
+          { label: "Network", value: detectedNetwork?.toUpperCase() || "" },
+          { label: "Phone Number", value: phoneNumber },
+        ]}
+        transactionId={resultTransactionId}
+        errorMessage={resultError}
+      />
     </div>
   );
 };
