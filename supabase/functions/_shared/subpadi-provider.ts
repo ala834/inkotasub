@@ -283,15 +283,28 @@ export async function subpadiPurchaseElectricity(
   }
 }
 
-// POST /api/exam/ - Buy Exam Pin (kept as /api/ since no v1 docs found, may need adjustment)
+// POST /api/epin/ - Buy Result Checker / Exam Pin
 export async function subpadiPurchaseExamPin(
   examType: string, quantity: number
 ): Promise<SubpadiResponse> {
+  // Map exam type names to Subpadi exam IDs
+  const examIdMap: Record<string, number> = {
+    'waec': 1,
+    'neco': 2,
+    'nabteb': 3,
+  };
+  const examId = examIdMap[examType.toLowerCase()];
+  if (!examId) {
+    return { success: false, message: `Unknown exam type: ${examType}`, rawResponse: null };
+  }
+
   try {
-    const response = await fetchWithRetry(`${SUBPADI_BASE_URL}/exam/`, {
+    const body = { exam_name: examId, quantity };
+    console.log("Subpadi Exam Request:", JSON.stringify(body));
+    const response = await fetchWithRetry(`${SUBPADI_BASE_URL}/epin/`, {
       method: "POST",
       headers: getHeaders(),
-      body: JSON.stringify({ exam_type: examType, quantity }),
+      body: JSON.stringify(body),
     });
     const text = await response.text();
     const data = parseSubpadiJson(text);
