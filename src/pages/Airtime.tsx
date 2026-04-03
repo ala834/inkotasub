@@ -91,14 +91,19 @@ const Airtime = () => {
       if (error || !data?.success) {
         const message = parseEdgeFunctionError(error, data, "Failed to purchase airtime");
         if (!message.includes("PIN") && !message.includes("locked")) {
-          toast.error(message);
+          setResultSuccess(false);
+          setResultError(message);
+          setResultTransactionId(data?.reference);
+          setShowResult(true);
         }
         throw new Error(message);
       }
 
       addRecentNumber(phoneNumber, contactName);
-      toast.success("Airtime purchased successfully!");
-      navigate("/dashboard");
+      setResultSuccess(true);
+      setResultError("");
+      setResultTransactionId(data?.reference || data?.transactionId);
+      setShowResult(true);
     } catch (error: any) {
       throw new Error(error.message || "Failed to purchase airtime");
     } finally {
