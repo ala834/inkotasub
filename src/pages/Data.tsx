@@ -351,6 +351,21 @@ const Data = () => {
         amount={selectedPlan?.amount || 0}
         serviceName={`${detectedNetwork?.toUpperCase()} ${selectedPlan?.name} Data`}
       />
+
+      <TransactionResultScreen
+        open={showResult}
+        onClose={() => setShowResult(false)}
+        success={resultSuccess}
+        amount={selectedPlan?.amount || 0}
+        details={[
+          { label: "Service", value: "Data Bundle" },
+          { label: "Network", value: detectedNetwork?.toUpperCase() || "" },
+          { label: "Phone Number", value: phoneNumber },
+          { label: "Plan", value: selectedPlan?.name || "" },
+        ]}
+        transactionId={resultTransactionId}
+        errorMessage={resultError}
+      />
     </div>
   );
 };
