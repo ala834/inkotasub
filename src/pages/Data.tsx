@@ -42,6 +42,10 @@ const Data = () => {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [contactName, setContactName] = useState<string | undefined>();
+  const [showResult, setShowResult] = useState(false);
+  const [resultSuccess, setResultSuccess] = useState(false);
+  const [resultError, setResultError] = useState("");
+  const [resultTransactionId, setResultTransactionId] = useState<string | undefined>();
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("data");
 
   const handleNetworkDetected = useCallback((network: string | null) => {
