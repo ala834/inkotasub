@@ -168,7 +168,11 @@ const Auth = () => {
             />
           </div>
           <h1 className="text-2xl font-display font-bold text-foreground">
-            INKOTA<span className="text-primary">SUB</span>
+            {isLogin && loginReady && !locked ? (
+              <>Welcome back{profile?.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""} 👋</>
+            ) : (
+              <>INKOTA<span className="text-primary">SUB</span></>
+            )}
           </h1>
           <p className="text-muted-foreground mt-2">
             {isLogin ? "Welcome back! Sign in to continue" : "Create your account to get started"}
