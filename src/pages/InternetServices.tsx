@@ -71,15 +71,12 @@ const InternetServices = () => {
 
   const handlePurchaseClick = () => { if (validateForm()) setShowPinDialog(true); };
 
-  const handlePurchaseWithPin = async (pin: string) => {
+  const handlePurchaseWithPin = async (_pin: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("purchase-data", {
-        body: { network: provider.toUpperCase(), phoneNumber: accountId, planId: selectedPlan, amount, planName: plan?.name, transaction_pin: pin },
-      });
-      if (error) throw error;
-      if (data?.success) { toast.success("Internet subscription activated!"); navigate("/dashboard"); }
-      else throw new Error(data?.message || "Purchase failed");
+      // ISP providers (Smile, Spectranet, ipNX, Swift) are not currently supported by the backend provider
+      toast.error("Internet subscription services are coming soon. Please check back later.");
+      throw new Error("Internet subscription services are not yet available");
     } catch (error: any) {
       throw new Error(error.message || "Failed to subscribe");
     } finally { setIsLoading(false); }
