@@ -26,7 +26,16 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json();
+    let body: any = {};
+    try {
+      const text = await req.text();
+      if (text) body = JSON.parse(text);
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid or missing JSON body. Send { network: 'mtn' }" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     const network = body.network || body.provider;
     const includeBasePrice = body.includeBasePrice;
     const forceRefresh = body.forceRefresh === true;
