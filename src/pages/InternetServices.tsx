@@ -144,7 +144,7 @@ const InternetServices = () => {
                             <p className="font-medium text-sm">{p.name}</p>
                             <p className="text-xs text-muted-foreground">{p.validity}</p>
                           </div>
-                          <span className="font-bold text-foreground">₦{p.price.toLocaleString()}</span>
+                          <span className="font-bold text-foreground">₦{(p.price ?? 0).toLocaleString()}</span>
                         </div>
                       </button>
                     ))}
