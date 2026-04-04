@@ -164,12 +164,18 @@ const CableTV = () => {
       });
       if (error || !data?.success) {
         const message = parseEdgeFunctionError(error, data, "Failed to subscribe");
+        setResultSuccess(false);
+        setResultError(message);
+        setResultTransactionId("");
+        setShowResult(true);
         if (!message.includes("PIN") && !message.includes("locked")) toast.error(message);
         throw new Error(message);
       }
       addRecentNumber(smartCardNumber, customerName || undefined);
-      toast.success("Cable subscription successful!");
-      navigate("/dashboard");
+      setResultSuccess(true);
+      setResultTransactionId(data.reference || data.transactionId || "");
+      setResultError("");
+      setShowResult(true);
     } catch (error: any) {
       throw new Error(error.message || "Failed to subscribe");
     } finally {
