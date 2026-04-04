@@ -384,6 +384,20 @@ const ExamCards = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <TransactionResultScreen
+        open={showResult}
+        onClose={() => setShowResult(false)}
+        success={resultSuccess}
+        amount={totalAmount}
+        details={[
+          { label: "Service", value: "Exam Result Checker" },
+          { label: "Exam Body", value: selectedExam?.name || "" },
+          { label: "Quantity", value: `${quantity}` },
+        ]}
+        transactionId={resultTransactionId}
+        errorMessage={resultError}
+      />
     </div>
   );
 };

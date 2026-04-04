@@ -346,6 +346,22 @@ const CableTV = () => {
         amount={selectedPlan?.amount || 0}
         serviceName={`${selectedProvider?.name || provider} - ${selectedPlan?.name || ""}`}
       />
+
+      <TransactionResultScreen
+        open={showResult}
+        onClose={() => setShowResult(false)}
+        success={resultSuccess}
+        amount={selectedPlan?.amount || 0}
+        details={[
+          { label: "Service", value: "Cable TV" },
+          { label: "Provider", value: selectedProvider?.name || provider },
+          { label: "Smart Card", value: smartCardNumber },
+          { label: "Customer", value: customerName },
+          { label: "Plan", value: selectedPlan?.name || "" },
+        ]}
+        transactionId={resultTransactionId}
+        errorMessage={resultError}
+      />
     </div>
   );
 };

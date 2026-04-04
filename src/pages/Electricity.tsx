@@ -310,6 +310,23 @@ const Electricity = () => {
         amount={parseFloat(amount) || 0}
         serviceName={`${selectedDisco?.name || disco} - ${meterType}`}
       />
+
+      <TransactionResultScreen
+        open={showResult}
+        onClose={() => setShowResult(false)}
+        success={resultSuccess}
+        amount={parseFloat(amount) || 0}
+        details={[
+          { label: "Service", value: "Electricity" },
+          { label: "Provider", value: selectedDisco?.name || disco },
+          { label: "Meter Type", value: meterType.charAt(0).toUpperCase() + meterType.slice(1) },
+          { label: "Meter Number", value: meterNumber },
+          { label: "Customer", value: customerName },
+          ...(resultToken ? [{ label: "Token", value: resultToken }] : []),
+        ]}
+        transactionId={resultTransactionId}
+        errorMessage={resultError}
+      />
     </div>
   );
 };
