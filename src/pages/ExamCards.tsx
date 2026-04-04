@@ -141,18 +141,23 @@ const ExamCards = () => {
       });
       if (error || !data?.success) {
         const message = parseEdgeFunctionError(error, data, "Failed to purchase exam PIN");
+        setResultSuccess(false);
+        setResultError(message);
+        setResultTransactionId("");
+        setShowResult(true);
         if (!message.includes("PIN") && !message.includes("locked")) toast.error(message);
         throw new Error(message);
       }
-      toast.success(`${selectedExam.name} PIN${quantity > 1 ? "s" : ""} purchased successfully!`);
+      setResultSuccess(true);
+      setResultTransactionId(data.reference || data.transactionId || "");
+      setResultError("");
       if (data.pins && data.pins.length > 0) {
         setPurchasedPins(data.pins);
         setPurchaseRef(data.reference || "");
         setRevealedPins(new Set());
         setShowPinResult(true);
       } else {
-        toast.info("Your PIN will appear in your transaction history shortly.");
-        navigate("/history");
+        setShowResult(true);
       }
     } catch (error: any) {
       throw new Error(error.message || "Failed to purchase exam PIN");
