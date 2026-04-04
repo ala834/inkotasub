@@ -49,6 +49,11 @@ const Electricity = () => {
   const [isValidated, setIsValidated] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [resultSuccess, setResultSuccess] = useState(false);
+  const [resultTransactionId, setResultTransactionId] = useState("");
+  const [resultError, setResultError] = useState("");
+  const [resultToken, setResultToken] = useState("");
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("electricity");
 
   const handleValidate = async () => {
