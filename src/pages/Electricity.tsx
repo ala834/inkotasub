@@ -125,12 +125,20 @@ const Electricity = () => {
       });
       if (error || !data?.success) {
         const message = parseEdgeFunctionError(error, data, "Failed to purchase electricity");
+        setResultSuccess(false);
+        setResultError(message);
+        setResultTransactionId("");
+        setResultToken("");
+        setShowResult(true);
         if (!message.includes("PIN") && !message.includes("locked")) toast.error(message);
         throw new Error(message);
       }
       addRecentNumber(meterNumber, customerName || undefined);
-      toast.success(`Electricity token: ${data.token}`);
-      navigate("/dashboard");
+      setResultSuccess(true);
+      setResultTransactionId(data.reference || data.transactionId || "");
+      setResultToken(data.token || "");
+      setResultError("");
+      setShowResult(true);
     } catch (error: any) {
       throw new Error(error.message || "Failed to purchase electricity");
     } finally {
