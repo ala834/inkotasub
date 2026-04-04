@@ -42,7 +42,7 @@ const InternetServices = () => {
           setPlans(data.plans.map((p: any) => ({
             id: p.plan_id || p.id,
             name: p.plan_name || p.name,
-            price: p.price || p.base_price,
+            price: parseFloat(p.price || p.base_price || p.amount || 0),
             provider: provider,
             plan_id: p.plan_id || p.id,
             validity: p.validity || "30 days",
