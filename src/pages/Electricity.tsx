@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
+import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 import RecentNumbers from "@/components/common/RecentNumbers";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 
@@ -48,6 +49,11 @@ const Electricity = () => {
   const [isValidated, setIsValidated] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [resultSuccess, setResultSuccess] = useState(false);
+  const [resultTransactionId, setResultTransactionId] = useState("");
+  const [resultError, setResultError] = useState("");
+  const [resultToken, setResultToken] = useState("");
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("electricity");
 
   const handleValidate = async () => {
@@ -119,12 +125,20 @@ const Electricity = () => {
       });
       if (error || !data?.success) {
         const message = parseEdgeFunctionError(error, data, "Failed to purchase electricity");
+        setResultSuccess(false);
+        setResultError(message);
+        setResultTransactionId("");
+        setResultToken("");
+        setShowResult(true);
         if (!message.includes("PIN") && !message.includes("locked")) toast.error(message);
         throw new Error(message);
       }
       addRecentNumber(meterNumber, customerName || undefined);
-      toast.success(`Electricity token: ${data.token}`);
-      navigate("/dashboard");
+      setResultSuccess(true);
+      setResultTransactionId(data.reference || data.transactionId || "");
+      setResultToken(data.token || "");
+      setResultError("");
+      setShowResult(true);
     } catch (error: any) {
       throw new Error(error.message || "Failed to purchase electricity");
     } finally {
@@ -295,6 +309,23 @@ const Electricity = () => {
         description="Enter your PIN to complete payment"
         amount={parseFloat(amount) || 0}
         serviceName={`${selectedDisco?.name || disco} - ${meterType}`}
+      />
+
+      <TransactionResultScreen
+        open={showResult}
+        onClose={() => setShowResult(false)}
+        success={resultSuccess}
+        amount={parseFloat(amount) || 0}
+        details={[
+          { label: "Service", value: "Electricity" },
+          { label: "Provider", value: selectedDisco?.name || disco },
+          { label: "Meter Type", value: meterType.charAt(0).toUpperCase() + meterType.slice(1) },
+          { label: "Meter Number", value: meterNumber },
+          { label: "Customer", value: customerName },
+          ...(resultToken ? [{ label: "Token", value: resultToken }] : []),
+        ]}
+        transactionId={resultTransactionId}
+        errorMessage={resultError}
       />
     </div>
   );

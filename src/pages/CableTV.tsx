@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
+import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 import RecentNumbers from "@/components/common/RecentNumbers";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 
@@ -41,6 +42,10 @@ const CableTV = () => {
   const [isValidated, setIsValidated] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [resultSuccess, setResultSuccess] = useState(false);
+  const [resultTransactionId, setResultTransactionId] = useState("");
+  const [resultError, setResultError] = useState("");
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("cable");
 
   useEffect(() => {
@@ -159,12 +164,18 @@ const CableTV = () => {
       });
       if (error || !data?.success) {
         const message = parseEdgeFunctionError(error, data, "Failed to subscribe");
+        setResultSuccess(false);
+        setResultError(message);
+        setResultTransactionId("");
+        setShowResult(true);
         if (!message.includes("PIN") && !message.includes("locked")) toast.error(message);
         throw new Error(message);
       }
       addRecentNumber(smartCardNumber, customerName || undefined);
-      toast.success("Cable subscription successful!");
-      navigate("/dashboard");
+      setResultSuccess(true);
+      setResultTransactionId(data.reference || data.transactionId || "");
+      setResultError("");
+      setShowResult(true);
     } catch (error: any) {
       throw new Error(error.message || "Failed to subscribe");
     } finally {
@@ -334,6 +345,22 @@ const CableTV = () => {
         description="Enter your PIN to complete payment"
         amount={selectedPlan?.amount || 0}
         serviceName={`${selectedProvider?.name || provider} - ${selectedPlan?.name || ""}`}
+      />
+
+      <TransactionResultScreen
+        open={showResult}
+        onClose={() => setShowResult(false)}
+        success={resultSuccess}
+        amount={selectedPlan?.amount || 0}
+        details={[
+          { label: "Service", value: "Cable TV" },
+          { label: "Provider", value: selectedProvider?.name || provider },
+          { label: "Smart Card", value: smartCardNumber },
+          { label: "Customer", value: customerName },
+          { label: "Plan", value: selectedPlan?.name || "" },
+        ]}
+        transactionId={resultTransactionId}
+        errorMessage={resultError}
       />
     </div>
   );

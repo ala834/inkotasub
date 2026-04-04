@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
+import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 
 interface ExamType {
   id: string;
@@ -57,6 +58,10 @@ const ExamCards = () => {
   const [quantity, setQuantity] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [resultSuccess, setResultSuccess] = useState(false);
+  const [resultTransactionId, setResultTransactionId] = useState("");
+  const [resultError, setResultError] = useState("");
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [examPrices, setExamPrices] = useState<ExamType[]>(EXAM_TYPES);
 
@@ -136,18 +141,23 @@ const ExamCards = () => {
       });
       if (error || !data?.success) {
         const message = parseEdgeFunctionError(error, data, "Failed to purchase exam PIN");
+        setResultSuccess(false);
+        setResultError(message);
+        setResultTransactionId("");
+        setShowResult(true);
         if (!message.includes("PIN") && !message.includes("locked")) toast.error(message);
         throw new Error(message);
       }
-      toast.success(`${selectedExam.name} PIN${quantity > 1 ? "s" : ""} purchased successfully!`);
+      setResultSuccess(true);
+      setResultTransactionId(data.reference || data.transactionId || "");
+      setResultError("");
       if (data.pins && data.pins.length > 0) {
         setPurchasedPins(data.pins);
         setPurchaseRef(data.reference || "");
         setRevealedPins(new Set());
         setShowPinResult(true);
       } else {
-        toast.info("Your PIN will appear in your transaction history shortly.");
-        navigate("/history");
+        setShowResult(true);
       }
     } catch (error: any) {
       throw new Error(error.message || "Failed to purchase exam PIN");
@@ -374,6 +384,20 @@ const ExamCards = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <TransactionResultScreen
+        open={showResult}
+        onClose={() => setShowResult(false)}
+        success={resultSuccess}
+        amount={totalAmount}
+        details={[
+          { label: "Service", value: "Exam Result Checker" },
+          { label: "Exam Body", value: selectedExam?.name || "" },
+          { label: "Quantity", value: `${quantity}` },
+        ]}
+        transactionId={resultTransactionId}
+        errorMessage={resultError}
+      />
     </div>
   );
 };
