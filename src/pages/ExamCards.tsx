@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
+import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 
 interface ExamType {
   id: string;
