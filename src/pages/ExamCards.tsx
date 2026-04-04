@@ -58,6 +58,10 @@ const ExamCards = () => {
   const [quantity, setQuantity] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [showPinDialog, setShowPinDialog] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [resultSuccess, setResultSuccess] = useState(false);
+  const [resultTransactionId, setResultTransactionId] = useState("");
+  const [resultError, setResultError] = useState("");
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [examPrices, setExamPrices] = useState<ExamType[]>(EXAM_TYPES);
 
