@@ -2,10 +2,11 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { generateReference } from "../_shared/inkota-service-layer.ts";
 import { subpadiPurchaseAirtime } from "../_shared/subpadi-provider.ts";
+import { smeplugPurchaseAirtime } from "../_shared/smeplug-provider.ts";
 import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { checkFraud, fraudBlockResponse } from "../_shared/fraud-detection.ts";
-import { withMetrics } from "../_shared/provider-metrics.ts";
+import { executeWithFallback } from "../_shared/provider-fallback.ts";
 import {
   acquireLockAndDeductWallet,
   finalizeTransaction,
@@ -40,7 +41,6 @@ serve(async (req) => {
     const validNetworks = ['mtn', 'glo', 'airtel', '9mobile', 'etisalat'];
     let resolvedNetwork = network?.toLowerCase?.() || '';
     
-    // Auto-detect network from phone number if not provided or invalid
     if (!validNetworks.includes(resolvedNetwork)) {
       const prefixes: Record<string, string[]> = {
         mtn: ["0803","0806","0703","0706","0813","0816","0810","0814","0903","0906","0913","0916","0704"],
@@ -57,7 +57,7 @@ serve(async (req) => {
       if (!validNetworks.includes(resolvedNetwork)) {
         return jsonResponse({ error: `Could not detect network for ${phoneNumber}`, success: false }, 400);
       }
-      console.log(`Auto-detected network: ${resolvedNetwork} from phone: ${phoneNumber} (client sent: ${network})`);
+      console.log(`Auto-detected network: ${resolvedNetwork} from phone: ${phoneNumber}`);
     }
     
     const fraudCheck = await checkFraud(userId, 'airtime', amount);
@@ -65,7 +65,7 @@ serve(async (req) => {
 
     const adminSupabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // PIN validation - returns clear error before any provider call
+    // PIN validation
     const { data: profile } = await adminSupabase.from("profiles").select("is_agent, transaction_pin, failed_pin_attempts, pin_locked_until").eq("user_id", userId).single();
     if (profile?.pin_locked_until && new Date(profile.pin_locked_until) > new Date()) {
       return jsonResponse({ error: "Account locked due to too many failed PIN attempts. Try again in 30 minutes.", success: false }, 403);
@@ -77,14 +77,8 @@ serve(async (req) => {
         const newAttempts = (profile.failed_pin_attempts || 0) + 1;
         const lockUntil = newAttempts >= 3 ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null;
         await adminSupabase.from("profiles").update({ failed_pin_attempts: newAttempts, pin_locked_until: lockUntil }).eq("user_id", userId);
-        const remaining = Math.max(0, 3 - newAttempts);
-        return jsonResponse({
-          error: newAttempts >= 3 ? "Account locked for 30 minutes due to too many failed attempts." : "Incorrect PIN",
-          attemptsRemaining: remaining,
-          success: false,
-        }, 403);
+        return jsonResponse({ error: newAttempts >= 3 ? "Account locked for 30 minutes due to too many failed attempts." : "Incorrect PIN", attemptsRemaining: Math.max(0, 3 - newAttempts), success: false }, 403);
       }
-      // Reset failed attempts on success
       const updates: Record<string, any> = { failed_pin_attempts: 0, pin_locked_until: null };
       if (needsPinMigration(profile.transaction_pin)) updates.transaction_pin = await hashPin(transactionPin);
       if (profile.failed_pin_attempts > 0 || needsPinMigration(profile.transaction_pin)) await adminSupabase.from("profiles").update(updates).eq("user_id", userId);
@@ -111,23 +105,21 @@ serve(async (req) => {
       provider: resolvedNetwork.toUpperCase(), recipient: phoneNumber,
     };
 
-    // Lock wallet + deduct immediately
     const lockResult = await acquireLockAndDeductWallet(ctx);
     if (!lockResult.ok) return lockResult.response;
 
-    // Provider call (Subpadi only)
-    const result = await withMetrics('subpadi', 'airtime',
+    // Provider call with fallback
+    const result = await executeWithFallback(
       () => subpadiPurchaseAirtime(resolvedNetwork, phoneNumber, costPrice),
-      r => r.success
+      () => smeplugPurchaseAirtime(resolvedNetwork, phoneNumber, costPrice),
+      'airtime',
+      resolvedNetwork,
     );
 
     const providerResult: ProviderResult = {
-      success: result.success,
-      message: result.message,
-      providerUsed: 'subpadi',
-      fallbackAttempted: false,
-      rawResponse: result.rawResponse,
-      reference: result.reference,
+      success: result.success, message: result.message,
+      providerUsed: result.providerUsed, fallbackAttempted: result.fallbackAttempted,
+      rawResponse: result.rawResponse, reference: result.reference,
     };
 
     return await finalizeTransaction(ctx, lockResult, providerResult);

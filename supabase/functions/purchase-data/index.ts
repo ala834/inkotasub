@@ -2,10 +2,11 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { generateReference } from "../_shared/inkota-service-layer.ts";
 import { subpadiPurchaseData } from "../_shared/subpadi-provider.ts";
+import { smeplugPurchaseData } from "../_shared/smeplug-provider.ts";
 import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { checkFraud, fraudBlockResponse } from "../_shared/fraud-detection.ts";
-import { withMetrics } from "../_shared/provider-metrics.ts";
+import { executeWithFallback } from "../_shared/provider-fallback.ts";
 import {
   acquireLockAndDeductWallet,
   finalizeTransaction,
@@ -84,14 +85,17 @@ serve(async (req) => {
     const lockResult = await acquireLockAndDeductWallet(ctx);
     if (!lockResult.ok) return lockResult.response;
 
-    const result = await withMetrics('subpadi', 'data',
+    // Provider call with fallback
+    const result = await executeWithFallback(
       () => subpadiPurchaseData(network, phoneNumber, planId, costPrice),
-      r => r.success
+      () => smeplugPurchaseData(network, phoneNumber, planId),
+      'data',
+      network,
     );
 
     const providerResult: ProviderResult = {
-      success: result.success, message: result.message, providerUsed: 'subpadi',
-      fallbackAttempted: false, rawResponse: result.rawResponse, reference: result.reference,
+      success: result.success, message: result.message, providerUsed: result.providerUsed,
+      fallbackAttempted: result.fallbackAttempted, rawResponse: result.rawResponse, reference: result.reference,
     };
 
     return await finalizeTransaction(ctx, lockResult, providerResult);

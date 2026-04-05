@@ -79,3 +79,6 @@ verify_jwt = true
 [functions.send-email]
 verify_jwt = false
 
+[functions.check-provider-balance]
+verify_jwt = false
+
