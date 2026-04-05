@@ -104,7 +104,7 @@ serve(async (req) => {
 
     const pins = extractPins(result.rawResponse);
     const providerResult: ProviderResult = {
-      success: result.success, message: result.success ? "Exam card purchased" : "Purchase failed",
+      success: result.success, message: result.success ? "Exam card purchased" : (result.message || "Purchase failed"),
       providerUsed: 'subpadi', fallbackAttempted: false, rawResponse: result.rawResponse,
       pins: result.success ? pins : undefined, extraData: { reference },
     };
