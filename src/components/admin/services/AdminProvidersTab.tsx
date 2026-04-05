@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, Settings2, Shield, Wifi, WifiOff, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, RefreshCw, Settings2, Shield, Wifi, CheckCircle2, XCircle, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -22,18 +22,20 @@ interface ProviderConfig {
 interface ProviderStatus {
   name: string;
   connected: boolean;
+  balance: string | null;
   message: string;
   checking: boolean;
 }
 
-const PROVIDERS = ["subpadi"];
+const PROVIDERS = ["subpadi", "smeplug"];
 
 const AdminProvidersTab = () => {
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [providerStatuses, setProviderStatuses] = useState<Record<string, ProviderStatus>>({
-    subpadi: { name: "Subpadi", connected: false, message: "Not checked", checking: false },
+    subpadi: { name: "Subpadi", connected: false, balance: null, message: "Not checked", checking: false },
+    smeplug: { name: "SMEPlug", connected: false, balance: null, message: "Not checked", checking: false },
   });
 
   const fetchConfigs = async () => {
@@ -46,7 +48,6 @@ const AdminProvidersTab = () => {
 
     if (error) {
       toast.error("Failed to load provider configurations");
-      console.error(error);
     } else {
       setConfigs(data || []);
     }
@@ -66,7 +67,6 @@ const AdminProvidersTab = () => {
 
     if (error) {
       toast.error("Failed to update configuration");
-      console.error(error);
     } else {
       toast.success("Configuration updated");
       setConfigs(configs.map(c => c.id === id ? { ...c, ...updates } : c));
@@ -74,41 +74,55 @@ const AdminProvidersTab = () => {
     setSaving(null);
   };
 
-  const testProvider = async (provider: string) => {
-    setProviderStatuses(prev => ({
-      ...prev,
-      [provider]: { ...prev[provider], checking: true },
-    }));
+  const testAllProviders = async () => {
+    setProviderStatuses(prev => {
+      const updated = { ...prev };
+      for (const key of PROVIDERS) {
+        updated[key] = { ...updated[key], checking: true };
+      }
+      return updated;
+    });
 
     try {
-      if (provider === "subpadi") {
-        const { data, error } = await supabase.functions.invoke("test-subpadi");
-        if (error) throw error;
-        setProviderStatuses(prev => ({
-          ...prev,
-          subpadi: {
-            ...prev.subpadi,
-            connected: data?.connected ?? false,
-            message: data?.message || "Unknown",
-            checking: false,
-          },
-        }));
-      }
+      const { data, error } = await supabase.functions.invoke("check-provider-balance");
+      if (error) throw error;
+
+      const providers = data?.providers || {};
+      setProviderStatuses(prev => {
+        const updated = { ...prev };
+        for (const key of PROVIDERS) {
+          const p = providers[key];
+          if (p) {
+            updated[key] = {
+              ...updated[key],
+              connected: p.connected,
+              balance: p.balance != null ? `₦${Number(p.balance).toLocaleString()}` : null,
+              message: p.configured
+                ? (p.connected ? "Connected" : "Connection failed")
+                : "Not configured",
+              checking: false,
+            };
+          } else {
+            updated[key] = { ...updated[key], message: "Not configured", checking: false };
+          }
+        }
+        return updated;
+      });
     } catch {
-      setProviderStatuses(prev => ({
-        ...prev,
-        [provider]: { ...prev[provider], connected: false, message: "Test failed", checking: false },
-      }));
+      setProviderStatuses(prev => {
+        const updated = { ...prev };
+        for (const key of PROVIDERS) {
+          updated[key] = { ...updated[key], message: "Test failed", checking: false };
+        }
+        return updated;
+      });
     }
   };
 
   const getServiceLabel = (type: string) => {
     const labels: Record<string, string> = {
-      airtime: "Airtime",
-      data: "Data",
-      electricity: "Electricity",
-      cable: "Cable TV",
-      exam_pin: "Exam Cards",
+      airtime: "Airtime", data: "Data", electricity: "Electricity",
+      cable: "Cable TV", exam_pin: "Exam Cards",
     };
     return labels[type] || type;
   };
@@ -131,14 +145,10 @@ const AdminProvidersTab = () => {
               <Shield className="h-5 w-5 text-primary" />
               <div>
                 <CardTitle>API Providers</CardTitle>
-                <CardDescription>Connection status for all configured VTU providers</CardDescription>
+                <CardDescription>Connection status and wallet balance for all VTU providers</CardDescription>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { testProvider("subpadi"); }}
-            >
+            <Button variant="outline" size="sm" onClick={testAllProviders}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Test All
             </Button>
@@ -170,14 +180,20 @@ const AdminProvidersTab = () => {
                       ) : (
                         <XCircle className="h-4 w-4 text-destructive" />
                       )}
-                      <span className="font-medium capitalize">{s.name}</span>
+                      <span className="font-medium">{s.name}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">{s.message}</p>
+                    {s.balance && (
+                      <div className="flex items-center gap-1 text-sm font-medium text-primary">
+                        <DollarSign className="h-3 w-3" />
+                        {s.balance}
+                      </div>
+                    )}
                   </div>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => testProvider(key)}
+                    onClick={testAllProviders}
                     disabled={s.checking}
                   >
                     {s.checking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
@@ -245,7 +261,9 @@ const AdminProvidersTab = () => {
                         </SelectTrigger>
                         <SelectContent>
                           {PROVIDERS.map((p) => (
-                            <SelectItem key={p} value={p} className="capitalize">{p === "subpadi" ? "Subpadi" : p}</SelectItem>
+                            <SelectItem key={p} value={p} className="capitalize">
+                              {p === "subpadi" ? "Subpadi" : p === "smeplug" ? "SMEPlug" : p}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -264,7 +282,9 @@ const AdminProvidersTab = () => {
                         <SelectContent>
                           <SelectItem value="none">None</SelectItem>
                           {PROVIDERS.filter((p) => p !== config.primary_provider).map((p) => (
-                            <SelectItem key={p} value={p} className="capitalize">{p === "subpadi" ? "Subpadi" : p}</SelectItem>
+                            <SelectItem key={p} value={p} className="capitalize">
+                              {p === "subpadi" ? "Subpadi" : p === "smeplug" ? "SMEPlug" : p}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -311,11 +331,19 @@ const AdminProvidersTab = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="p-4 rounded-lg bg-muted/50 space-y-1">
-            <h4 className="font-medium">Subpadi — Primary VTU Provider</h4>
+            <h4 className="font-medium">Subpadi</h4>
             <ul className="list-disc list-inside space-y-0.5 text-sm text-muted-foreground">
               <li>Base URL: https://subpadi.com/api/</li>
               <li>Supports airtime, data, cable TV, electricity, exam cards</li>
-              <li>10-second timeout with automatic retry</li>
+              <li>10-second timeout with automatic retry (2 retries)</li>
+            </ul>
+          </div>
+          <div className="p-4 rounded-lg bg-muted/50 space-y-1">
+            <h4 className="font-medium">SMEPlug</h4>
+            <ul className="list-disc list-inside space-y-0.5 text-sm text-muted-foreground">
+              <li>Base URL: https://smeplug.ng/api/v1/</li>
+              <li>Supports airtime, data</li>
+              <li>15-second timeout with automatic retry (2 retries)</li>
             </ul>
           </div>
         </CardContent>
