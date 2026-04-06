@@ -147,9 +147,9 @@ export async function smeplugPurchaseData(
   if (!networkId) return { success: false, message: "Invalid network for SMEPlug", rawResponse: null };
 
   try {
-    const body = { network: networkId, plan_id: planId, phone };
+    const body = { network_id: networkId, plan_id: planId, phone };
     console.log("SMEPlug Data Request:", JSON.stringify(body));
-    const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/data`, {
+    const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/data/purchase`, {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify(body),
@@ -161,7 +161,7 @@ export async function smeplugPurchaseData(
     return {
       ...result,
       rawResponse: data,
-      reference: data?.reference || data?.data?.reference || data?.transaction_id,
+      reference: data?.data?.reference || data?.reference || data?.transaction_id,
     };
   } catch (error) {
     console.error("SMEPlug Data Error:", error);
