@@ -92,7 +92,7 @@ export function getSmeplugNetworkId(network: string): number | null {
 // ─── GET /user/balance ───
 export async function smeplugGetBalance(): Promise<SmeplugResponse> {
   try {
-    const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/user/balance`, {
+    const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/account/balance`, {
       method: "GET",
       headers: getHeaders(),
     });
