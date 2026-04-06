@@ -2,7 +2,7 @@
 // Base URL: https://smeplug.ng/api/v1
 // Auth: Authorization: Bearer {SMEPLUG_API_KEY}
 
-const SMEPLUG_BASE_URL = "https://smeplug.ng/api";
+const SMEPLUG_BASE_URL = "https://smeplug.ng/api/v1";
 const SMEPLUG_TIMEOUT_MS = 15000;
 const SMEPLUG_MAX_RETRIES = 2;
 
