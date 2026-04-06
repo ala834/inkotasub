@@ -76,13 +76,13 @@ function normalizeResult(data: any, httpOk: boolean): Pick<SmeplugResponse, "suc
   return { success, message: String(message) };
 }
 
-// ─── Network mapping ───
+// ─── Network mapping (per SMEPlug docs: 1=MTN, 2=Airtel, 3=9Mobile, 4=Glo) ───
 const SMEPLUG_NETWORK_MAP: Record<string, number> = {
   'MTN': 1,
-  'GLO': 2,
-  'AIRTEL': 3,
-  '9MOBILE': 4,
-  'ETISALAT': 4,
+  'AIRTEL': 2,
+  '9MOBILE': 3,
+  'ETISALAT': 3,
+  'GLO': 4,
 };
 
 export function getSmeplugNetworkId(network: string): number | null {
