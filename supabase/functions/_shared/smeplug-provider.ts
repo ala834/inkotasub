@@ -117,9 +117,9 @@ export async function smeplugPurchaseAirtime(
   if (!networkId) return { success: false, message: "Invalid network for SMEPlug", rawResponse: null };
 
   try {
-    const body = { network: networkId, phone, amount };
+    const body = { network_id: networkId, phone, amount };
     console.log("SMEPlug Airtime Request:", JSON.stringify(body));
-    const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/airtime`, {
+    const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/airtime/purchase`, {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify(body),
@@ -131,7 +131,7 @@ export async function smeplugPurchaseAirtime(
     return {
       ...result,
       rawResponse: data,
-      reference: data?.reference || data?.data?.reference || data?.transaction_id,
+      reference: data?.data?.reference || data?.reference || data?.transaction_id,
     };
   } catch (error) {
     console.error("SMEPlug Airtime Error:", error);
