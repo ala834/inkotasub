@@ -2,10 +2,15 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCached, setCache } from "../_shared/plan-cache.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
+import { smeplugGetDataPlans, isSmeplugConfigured } from "../_shared/smeplug-provider.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+const SMEPLUG_NETWORK_MAP: Record<string, number> = {
+  MTN: 1, AIRTEL: 2, "9MOBILE": 3, ETISALAT: 3, GLO: 4,
 };
 
 function categorizePlan(planName: string): string {
@@ -18,7 +23,21 @@ function categorizePlan(planName: string): string {
   return 'General';
 }
 
-const PLAN_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+function extractDataSize(planName: string): number {
+  const name = planName.toUpperCase();
+  const gbMatch = name.match(/(\d+(?:\.\d+)?)\s*GB/i);
+  if (gbMatch) return parseFloat(gbMatch[1]) * 1024;
+  const mbMatch = name.match(/(\d+(?:\.\d+)?)\s*MB/i);
+  if (mbMatch) return parseFloat(mbMatch[1]);
+  return 99999;
+}
+
+function networkNameFromId(id: number): string {
+  const map: Record<number, string> = { 1: "MTN", 2: "AIRTEL", 3: "9MOBILE", 4: "GLO" };
+  return map[id] || "UNKNOWN";
+}
+
+const PLAN_CACHE_TTL = 5 * 60 * 1000;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -68,7 +87,8 @@ serve(async (req) => {
       }
     }
 
-    const cacheKey = `data-plans:${network.toUpperCase()}`;
+    const networkUpper = network.toUpperCase();
+    const cacheKey = `data-plans:${networkUpper}`;
     let basePlans: any[] | null = forceRefresh ? null : getCached<any[]>(cacheKey);
     let source = "cache";
 
@@ -76,19 +96,15 @@ serve(async (req) => {
       basePlans = [];
       source = "fallback";
 
-      // NOTE: Subpadi API does NOT have a dedicated plan-listing endpoint.
-      // GET /api/data/ returns transaction history, not available plans.
-      // Data plans must be configured in the service_plans database table
-      // with plan IDs from the Subpadi dashboard documentation page.
+      const adminSupabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-      // Check service_plans table (primary source for plans)
+      // 1. Try database first
       try {
-        const adminSupabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
         const { data: dbPlans } = await adminSupabase
           .from("service_plans")
           .select("*")
           .eq("service_type", "data")
-          .eq("network", network.toUpperCase())
+          .eq("network", networkUpper)
           .eq("is_enabled", true);
 
         if (dbPlans && dbPlans.length > 0) {
@@ -108,12 +124,87 @@ serve(async (req) => {
         console.error("DB plans error:", dbError);
       }
 
-      // Final fallback
+      // 2. Try SMEPlug API if DB has no plans
+      if (basePlans.length === 0 && isSmeplugConfigured()) {
+        try {
+          console.log(`Fetching data plans from SMEPlug API for ${networkUpper}...`);
+          const smeplugResult = await smeplugGetDataPlans();
+          
+          if (smeplugResult.success && smeplugResult.rawResponse) {
+            const raw = smeplugResult.rawResponse as any;
+            // SMEPlug returns { data: [...] } or just an array
+            const allPlans: any[] = Array.isArray(raw) ? raw 
+              : Array.isArray(raw?.data) ? raw.data 
+              : Array.isArray(raw?.plans) ? raw.plans 
+              : [];
+            
+            console.log(`SMEPlug returned ${allPlans.length} total plans`);
+
+            const targetNetworkId = SMEPLUG_NETWORK_MAP[networkUpper];
+            
+            // Filter for requested network
+            const networkPlans = allPlans.filter((p: any) => {
+              const planNetworkId = p.network_id || p.network;
+              const planNetworkName = String(p.network_name || p.network || "").toUpperCase();
+              
+              if (targetNetworkId && planNetworkId == targetNetworkId) return true;
+              if (planNetworkName.includes(networkUpper)) return true;
+              if (networkUpper === "9MOBILE" && (planNetworkName.includes("ETISALAT") || planNetworkName.includes("9MOBILE"))) return true;
+              return false;
+            });
+
+            console.log(`Filtered ${networkPlans.length} plans for ${networkUpper}`);
+
+            if (networkPlans.length > 0) {
+              basePlans = networkPlans.map((p: any) => {
+                const planName = p.plan_name || p.name || p.plan || `${p.size || ''} Data`;
+                const price = parseFloat(p.price || p.amount || p.cost || 0);
+                const planId = String(p.plan_id || p.id || p.dataplan_id || '');
+                const validity = p.validity || p.duration || p.plan_validity || "30 Days";
+
+                return {
+                  id: planId,
+                  name: planName,
+                  amount: price,
+                  baseAmount: price,
+                  validity: validity,
+                  dataSize: extractDataSize(planName),
+                  category: categorizePlan(planName),
+                };
+              }).filter((p: any) => p.id && p.amount > 0 && p.name);
+
+              source = "smeplug";
+              console.log(`Mapped ${basePlans.length} valid SMEPlug plans for ${networkUpper}`);
+            }
+          } else {
+            console.error("SMEPlug plans fetch failed:", smeplugResult.message);
+          }
+        } catch (smeplugError) {
+          console.error("SMEPlug API error:", smeplugError);
+        }
+      }
+
+      // 3. Final fallback to hardcoded plans
       if (basePlans.length === 0) {
         basePlans = getFallbackPlans(network);
         source = "fallback";
         console.log(`Using ${basePlans.length} fallback data plans for ${network}`);
       }
+
+      // Deduplicate by plan ID
+      const seen = new Set<string>();
+      basePlans = basePlans.filter((p: any) => {
+        const key = p.id;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      // Sort by data size (small → large), then by name
+      basePlans.sort((a: any, b: any) => {
+        if (a.dataSize !== b.dataSize) return a.dataSize - b.dataSize;
+        return a.name.localeCompare(b.name);
+      });
 
       if (basePlans.length > 0 && source !== "fallback") {
         setCache(cacheKey, basePlans, PLAN_CACHE_TTL);
@@ -121,12 +212,12 @@ serve(async (req) => {
     }
 
     // Get pricing config (not cached - always fresh)
-    const adminSupabase = createClient(
+    const pricingSupabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
     const userType = isAgent ? 'agent' : 'user';
-    const { data: pricingConfigs } = await adminSupabase
+    const { data: pricingConfigs } = await pricingSupabase
       .from("pricing_config")
       .select("*")
       .eq("service_type", "data")
@@ -135,8 +226,8 @@ serve(async (req) => {
 
     const pricedPlans = basePlans.map((plan: any) => {
       const costPrice = plan.amount;
-      const config = pricingConfigs?.find((c: any) => c.network === network.toUpperCase() && c.plan_id === plan.id)
-        || pricingConfigs?.find((c: any) => c.network === network.toUpperCase() && !c.plan_id)
+      const config = pricingConfigs?.find((c: any) => c.network === networkUpper && c.plan_id === plan.id)
+        || pricingConfigs?.find((c: any) => c.network === networkUpper && !c.plan_id)
         || pricingConfigs?.find((c: any) => !c.network && !c.plan_id);
 
       let finalPrice = costPrice;
@@ -154,13 +245,14 @@ serve(async (req) => {
         amount: finalPrice,
         validity: plan.validity,
         category: plan.category || 'General',
+        dataSize: plan.dataSize,
       };
       if (includeBasePrice) result.baseAmount = plan.amount;
       return result;
     });
 
     return new Response(
-      JSON.stringify({ plans: pricedPlans, source, cached: source === "cache" }),
+      JSON.stringify({ plans: pricedPlans, source, cached: source === "cache", totalPlans: pricedPlans.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
@@ -171,15 +263,6 @@ serve(async (req) => {
     );
   }
 });
-
-function extractDataSize(planName: string): number {
-  const name = planName.toUpperCase();
-  const gbMatch = name.match(/(\d+(?:\.\d+)?)\s*GB/i);
-  if (gbMatch) return parseFloat(gbMatch[1]) * 1024;
-  const mbMatch = name.match(/(\d+(?:\.\d+)?)\s*MB/i);
-  if (mbMatch) return parseFloat(mbMatch[1]);
-  return 99999;
-}
 
 function getFallbackPlans(network: string) {
   const networkPlans: Record<string, any[]> = {

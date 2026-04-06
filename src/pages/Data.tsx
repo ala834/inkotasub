@@ -110,6 +110,13 @@ const Data = () => {
         p.name.toLowerCase().includes(q) || p.amount.toString().includes(q) || p.validity.toLowerCase().includes(q)
       );
     }
+    // Sort by dataSize (small→large), then by amount
+    plans = [...plans].sort((a, b) => {
+      const sizeA = (a as any).dataSize || 99999;
+      const sizeB = (b as any).dataSize || 99999;
+      if (sizeA !== sizeB) return sizeA - sizeB;
+      return a.amount - b.amount;
+    });
     return plans;
   }, [dataPlans, activeCategory, searchQuery]);
 
@@ -275,8 +282,14 @@ const Data = () => {
                   ))}
                 </div>
               ) : filteredPlans.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground text-sm">
-                  {searchQuery ? "No plans match your search" : "No plans available"}
+                <div className="text-center py-8 space-y-2">
+                  <Wifi className="h-8 w-8 mx-auto text-muted-foreground/50" />
+                  <p className="text-muted-foreground text-sm font-medium">
+                    {searchQuery ? "No plans match your search" : "No data plans available"}
+                  </p>
+                  <p className="text-muted-foreground/70 text-xs">
+                    {searchQuery ? "Try a different search term" : "Try refreshing or selecting a different network"}
+                  </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-1">
