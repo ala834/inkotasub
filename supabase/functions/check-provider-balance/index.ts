@@ -50,10 +50,11 @@ serve(async (req) => {
     // Check SMEPlug
     if (isSmeplugConfigured()) {
       const smeplug = await smeplugGetBalance();
+      const smeplugRaw = smeplug.rawResponse as any;
       providers.smeplug = {
         configured: true,
         connected: smeplug.success,
-        balance: smeplug.success ? (smeplug.rawResponse as any)?.balance ?? (smeplug.rawResponse as any)?.data?.balance : null,
+        balance: smeplug.success ? (smeplugRaw?.balance ?? smeplugRaw?.data?.balance) : null,
         details: smeplug.rawResponse,
       };
     } else {
