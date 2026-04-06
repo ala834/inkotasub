@@ -2,7 +2,7 @@
 // Base URL: https://smeplug.ng/api/v1
 // Auth: Authorization: Bearer {SMEPLUG_API_KEY}
 
-const SMEPLUG_BASE_URL = "https://smeplug.ng/api";
+const SMEPLUG_BASE_URL = "https://smeplug.ng/api/v1";
 const SMEPLUG_TIMEOUT_MS = 15000;
 const SMEPLUG_MAX_RETRIES = 2;
 
@@ -64,25 +64,26 @@ async function fetchWithRetry(
 function normalizeResult(data: any, httpOk: boolean): Pick<SmeplugResponse, "success" | "message"> {
   const status = String(data?.status ?? "").toLowerCase();
   const success = httpOk && (
+    data?.status === true ||
     data?.success === true ||
     status === "success" ||
     status === "successful" ||
     status === "true"
   );
 
-  const message = data?.message || data?.msg || data?.error || data?.detail ||
+  const message = data?.data?.msg || data?.message || data?.msg || data?.error || data?.detail ||
     (success ? "Transaction successful" : "Transaction failed");
 
   return { success, message: String(message) };
 }
 
-// ─── Network mapping ───
+// ─── Network mapping (per SMEPlug docs: 1=MTN, 2=Airtel, 3=9Mobile, 4=Glo) ───
 const SMEPLUG_NETWORK_MAP: Record<string, number> = {
   'MTN': 1,
-  'GLO': 2,
-  'AIRTEL': 3,
-  '9MOBILE': 4,
-  'ETISALAT': 4,
+  'AIRTEL': 2,
+  '9MOBILE': 3,
+  'ETISALAT': 3,
+  'GLO': 4,
 };
 
 export function getSmeplugNetworkId(network: string): number | null {
@@ -117,9 +118,9 @@ export async function smeplugPurchaseAirtime(
   if (!networkId) return { success: false, message: "Invalid network for SMEPlug", rawResponse: null };
 
   try {
-    const body = { network: networkId, phone, amount };
+    const body = { network_id: networkId, phone, amount };
     console.log("SMEPlug Airtime Request:", JSON.stringify(body));
-    const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/airtime`, {
+    const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/airtime/purchase`, {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify(body),
@@ -131,7 +132,7 @@ export async function smeplugPurchaseAirtime(
     return {
       ...result,
       rawResponse: data,
-      reference: data?.reference || data?.data?.reference || data?.transaction_id,
+      reference: data?.data?.reference || data?.reference || data?.transaction_id,
     };
   } catch (error) {
     console.error("SMEPlug Airtime Error:", error);
@@ -147,9 +148,9 @@ export async function smeplugPurchaseData(
   if (!networkId) return { success: false, message: "Invalid network for SMEPlug", rawResponse: null };
 
   try {
-    const body = { network: networkId, plan_id: planId, phone };
+    const body = { network_id: networkId, plan_id: planId, phone };
     console.log("SMEPlug Data Request:", JSON.stringify(body));
-    const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/data`, {
+    const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/data/purchase`, {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify(body),
@@ -161,7 +162,7 @@ export async function smeplugPurchaseData(
     return {
       ...result,
       rawResponse: data,
-      reference: data?.reference || data?.data?.reference || data?.transaction_id,
+      reference: data?.data?.reference || data?.reference || data?.transaction_id,
     };
   } catch (error) {
     console.error("SMEPlug Data Error:", error);
