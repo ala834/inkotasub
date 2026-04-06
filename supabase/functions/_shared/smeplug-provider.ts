@@ -64,13 +64,14 @@ async function fetchWithRetry(
 function normalizeResult(data: any, httpOk: boolean): Pick<SmeplugResponse, "success" | "message"> {
   const status = String(data?.status ?? "").toLowerCase();
   const success = httpOk && (
+    data?.status === true ||
     data?.success === true ||
     status === "success" ||
     status === "successful" ||
     status === "true"
   );
 
-  const message = data?.message || data?.msg || data?.error || data?.detail ||
+  const message = data?.data?.msg || data?.message || data?.msg || data?.error || data?.detail ||
     (success ? "Transaction successful" : "Transaction failed");
 
   return { success, message: String(message) };
