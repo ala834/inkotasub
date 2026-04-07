@@ -28,19 +28,36 @@ async function subpadiPurchaseRechargeCard(network: string, amount: number, quan
   if (!networkId) return { success: false, message: "Invalid network", rawResponse: null, pins: [] as RechargeCardPin[] };
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const requestBody = { network_id: networkId, amount, quantity };
+    console.log("Subpadi Recharge Card Request:", JSON.stringify(requestBody));
     const response = await fetch("https://subpadi.com/api/v1/recharge-card/", {
       method: "POST",
       headers: { "Authorization": `Token ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ network_id: networkId, amount, quantity }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    const data = await response.json();
-    console.log("Subpadi Recharge Card Response:", JSON.stringify(data));
-    const success = data?.status === "success" || data?.success === true || response.ok;
-    return { success, message: data?.message || (success ? "Recharge cards generated" : "Purchase failed"), rawResponse: data, pins: extractPins(data, network, amount) };
+    const responseText = await response.text();
+    console.log("Subpadi Recharge Card Response Status:", response.status);
+    console.log("Subpadi Recharge Card Response Body:", responseText);
+    
+    let data: any;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      console.error("Subpadi returned non-JSON response:", responseText.substring(0, 500));
+      return { success: false, message: "Recharge card service is currently unavailable. Please try again later.", rawResponse: { raw: responseText.substring(0, 200) }, pins: [] as RechargeCardPin[] };
+    }
+    
+    const success = data?.status === "success" || data?.success === true || (response.ok && !data?.error);
+    if (!success) {
+      const errorMsg = data?.error || data?.message || data?.detail || "Purchase failed";
+      console.error("Subpadi Recharge Card Error:", errorMsg);
+    }
+    return { success, message: data?.message || (success ? "Recharge cards generated" : (data?.error || data?.detail || "Recharge card service is not available at the moment")), rawResponse: data, pins: success ? extractPins(data, network, amount) : [] as RechargeCardPin[] };
   } catch (error) {
+    console.error("Subpadi Recharge Card Exception:", error);
     return { success: false, message: error instanceof Error ? error.message : "API error", rawResponse: null, pins: [] as RechargeCardPin[] };
   }
 }
