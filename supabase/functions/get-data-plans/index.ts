@@ -228,6 +228,22 @@ serve(async (req) => {
       .eq("user_type", userType);
 
     const pricedPlans = basePlans.map((plan: any) => {
+      // If admin set a selling price, use it directly
+      if (plan.sellingPrice && plan.sellingPrice > 0) {
+        const result: any = {
+          id: plan.id,
+          name: plan.name,
+          amount: plan.sellingPrice,
+          validity: plan.validity,
+          category: plan.category || 'General',
+          dataSize: plan.dataSize,
+          isFeatured: plan.isFeatured || false,
+        };
+        if (includeBasePrice) result.baseAmount = plan.amount;
+        return result;
+      }
+
+      // Otherwise use pricing config
       const costPrice = plan.amount;
       const config = pricingConfigs?.find((c: any) => c.network === networkUpper && c.plan_id === plan.id)
         || pricingConfigs?.find((c: any) => c.network === networkUpper && !c.plan_id)
@@ -249,6 +265,7 @@ serve(async (req) => {
         validity: plan.validity,
         category: plan.category || 'General',
         dataSize: plan.dataSize,
+        isFeatured: plan.isFeatured || false,
       };
       if (includeBasePrice) result.baseAmount = plan.amount;
       return result;
