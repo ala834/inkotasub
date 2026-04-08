@@ -1,498 +1,389 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { RefreshCw, Plus, Edit2, Search, ShieldCheck } from "lucide-react";
+import { RefreshCw, Plus, Edit2, Search, Star, Download, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
-interface ServicePlan {
-  id: string;
-  service_type: string;
+interface ProviderPlan {
+  provider: string;
   network: string;
   plan_id: string;
   plan_name: string;
   base_price: number;
-  validity: string | null;
+  validity: string;
+  data_size: number;
+  db_id: string | null;
   is_enabled: boolean;
-  is_manual: boolean;
-  last_synced_at: string | null;
-}
-
-interface PricingConfig {
-  id: string;
-  network: string | null;
-  plan_id: string | null;
-  profit_type: string;
-  profit_value: number;
-  user_type: string;
+  is_featured: boolean;
+  selling_price: number | null;
 }
 
 const NETWORKS = ["MTN", "AIRTEL", "GLO", "9MOBILE"];
+const PROVIDERS = ["smeplug", "subpadi"];
 
 const AdminDataPlansTab = () => {
   const { user } = useAuth();
-  const [plans, setPlans] = useState<ServicePlan[]>([]);
-  const [pricingConfigs, setPricingConfigs] = useState<PricingConfig[]>([]);
+  const [plans, setPlans] = useState<ProviderPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isValidating, setIsValidating] = useState(false);
-  const [validationResult, setValidationResult] = useState<{ valid: number; invalid: number; message: string } | null>(null);
-  const [selectedNetwork, setSelectedNetwork] = useState<string>("all");
+  const [isFetching, setIsFetching] = useState(false);
+  const [isSaving, setSaving] = useState<string | null>(null);
+  const [selectedNetwork, setSelectedNetwork] = useState("all");
+  const [selectedProvider, setSelectedProvider] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // Dialog state
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingPlan, setEditingPlan] = useState<ServicePlan | null>(null);
-  const [formData, setFormData] = useState({
-    network: "MTN",
-    plan_id: "",
-    plan_name: "",
-    base_price: "",
-    validity: "",
+  const [showEnabledOnly, setShowEnabledOnly] = useState(false);
+
+  // Edit selling price dialog
+  const [editPlan, setEditPlan] = useState<ProviderPlan | null>(null);
+  const [editPrice, setEditPrice] = useState("");
+  const [isPriceDialogOpen, setIsPriceDialogOpen] = useState(false);
+
+  // Manual plan dialog
+  const [isManualDialogOpen, setIsManualDialogOpen] = useState(false);
+  const [manualForm, setManualForm] = useState({
+    provider: "subpadi", network: "MTN", plan_id: "", plan_name: "", base_price: "", validity: "", selling_price: "",
   });
 
-  // Profit dialog state
-  const [isProfitDialogOpen, setIsProfitDialogOpen] = useState(false);
-  const [editingPlanForProfit, setEditingPlanForProfit] = useState<ServicePlan | null>(null);
-  const [profitData, setProfitData] = useState({
-    profit_type: "percentage",
-    profit_value: "",
-    user_type: "user",
-  });
+  useEffect(() => { loadPlans(); }, []);
 
-  useEffect(() => {
-    fetchPlans();
-    fetchPricingConfigs();
-  }, []);
-
-  const fetchPlans = async () => {
+  const loadPlans = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from("service_plans")
-      .select("*")
-      .eq("service_type", "data")
-      .order("network")
-      .order("base_price");
+    try {
+      // Load from DB
+      const { data, error } = await supabase
+        .from("service_plans")
+        .select("*")
+        .eq("service_type", "data")
+        .order("network")
+        .order("base_price");
 
-    if (!error && data) {
-      setPlans(data.map(p => ({ ...p, base_price: parseFloat(p.base_price as unknown as string) })));
+      if (!error && data) {
+        setPlans(data.map((p: any) => ({
+          provider: p.provider || "subpadi",
+          network: p.network,
+          plan_id: p.plan_id,
+          plan_name: p.plan_name,
+          base_price: parseFloat(p.base_price),
+          validity: p.validity || "30 Days",
+          data_size: extractDataSize(p.plan_name),
+          db_id: p.id,
+          is_enabled: p.is_enabled,
+          is_featured: p.is_featured || false,
+          selling_price: p.selling_price ? parseFloat(p.selling_price) : null,
+        })));
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to load plans");
     }
     setIsLoading(false);
   };
 
-  const fetchPricingConfigs = async () => {
-    const { data } = await supabase
-      .from("pricing_config")
-      .select("*")
-      .eq("service_type", "data")
-      .eq("is_active", true);
-
-    if (data) {
-      setPricingConfigs(data.map(c => ({
-        ...c,
-        profit_value: parseFloat(c.profit_value as unknown as string),
-      })));
-    }
-  };
-
-  const syncFromSubpadi = async () => {
-    setIsSyncing(true);
+  const fetchFromProviders = async () => {
+    setIsFetching(true);
     try {
-      for (const network of NETWORKS) {
-        const { data, error } = await supabase.functions.invoke("get-data-plans", {
-          body: { network, includeBasePrice: true },
-        });
-
-        if (error) {
-          console.error(`Error fetching ${network} plans:`, error);
-          continue;
-        }
-
-        if (data?.plans) {
-          for (const plan of data.plans) {
-            await supabase
-              .from("service_plans")
-              .upsert({
-                service_type: "data",
-                network: network.toUpperCase(),
-                plan_id: plan.id,
-                plan_name: plan.name,
-                base_price: plan.baseAmount || plan.amount,
-                validity: plan.validity,
-                last_synced_at: new Date().toISOString(),
-                is_manual: false,
-              }, {
-                onConflict: "service_type,network,plan_id",
-              });
-          }
-        }
-      }
-
-      // Log the sync action
-      await supabase.from("price_change_log").insert({
-        admin_id: user?.id,
-        change_type: "plan_synced",
-        new_value: { service_type: "data", networks: NETWORKS },
+      const { data, error } = await supabase.functions.invoke("admin-fetch-data-plans", {
+        body: { action: "fetch" },
       });
 
-      toast.success("Plans synced from SUBPADI");
-      fetchPlans();
-    } catch (error) {
-      console.error("Sync error:", error);
-      toast.error("Failed to sync plans");
+      if (error) throw error;
+      if (data?.success && data.plans) {
+        setPlans(data.plans);
+        toast.success(`Loaded ${data.total} plans from providers`);
+      } else {
+        toast.error("No plans returned");
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Failed to fetch from providers");
     }
-    setIsSyncing(false);
+    setIsFetching(false);
   };
 
-  const validatePlans = async () => {
-    setIsValidating(true);
-    setValidationResult(null);
-    let totalValid = 0;
-    let totalInvalid = 0;
+  const togglePlan = async (plan: ProviderPlan, field: "is_enabled" | "is_featured") => {
+    const newValue = !plan[field];
+    setSaving(plan.plan_id + field);
 
     try {
-      const networks = selectedNetwork === "all" ? NETWORKS : [selectedNetwork];
-      for (const network of networks) {
-        const { data, error } = await supabase.functions.invoke("sync-data-plans", {
-          body: { action: "cleanup", network, limit: 200 },
-        });
+      const updatedPlan = { ...plan, [field]: newValue };
+      const { data, error } = await supabase.functions.invoke("admin-fetch-data-plans", {
+        body: { action: "save_plan", plan: updatedPlan },
+      });
 
-        if (error) {
-          console.error(`Validation error for ${network}:`, error);
-          toast.error(`Failed to validate ${network} plans`);
-          continue;
-        }
+      if (error || !data?.success) throw new Error("Save failed");
 
-        totalValid += data?.validCount || 0;
-        totalInvalid += data?.invalidCount || 0;
-      }
+      setPlans(prev => prev.map(p =>
+        p.provider === plan.provider && p.network === plan.network && p.plan_id === plan.plan_id
+          ? { ...p, [field]: newValue, db_id: data.plan?.id || p.db_id }
+          : p
+      ));
 
-      setValidationResult({ valid: totalValid, invalid: totalInvalid, message: `${totalValid} valid, ${totalInvalid} invalid plans disabled` });
-      
-      if (totalInvalid > 0) {
-        toast.success(`Validation complete: ${totalInvalid} stale plans disabled`);
-        fetchPlans();
-      } else {
-        toast.success("All plans are valid!");
-      }
-    } catch (error) {
-      console.error("Validation error:", error);
-      toast.error("Failed to validate plans");
-    }
-    setIsValidating(false);
-  };
-
-  const handleToggleEnabled = async (plan: ServicePlan) => {
-    const { error } = await supabase
-      .from("service_plans")
-      .update({ is_enabled: !plan.is_enabled })
-      .eq("id", plan.id);
-
-    if (error) {
+      // Log
+      await supabase.from("price_change_log").insert({
+        admin_id: user?.id,
+        change_type: field === "is_enabled" ? (newValue ? "plan_enabled" : "plan_disabled") : (newValue ? "plan_featured" : "plan_unfeatured"),
+        new_value: { plan_id: plan.plan_id, provider: plan.provider, network: plan.network, [field]: newValue },
+      });
+    } catch (e) {
       toast.error("Failed to update plan");
-    } else {
-      // Log the change
-      await supabase.from("price_change_log").insert({
-        admin_id: user?.id,
-        plan_id: plan.id,
-        change_type: plan.is_enabled ? "plan_disabled" : "plan_enabled",
-        old_value: { is_enabled: plan.is_enabled },
-        new_value: { is_enabled: !plan.is_enabled },
+    }
+    setSaving(null);
+  };
+
+  const saveSellingPrice = async () => {
+    if (!editPlan) return;
+    setSaving("price");
+
+    try {
+      const price = editPrice ? parseFloat(editPrice) : null;
+      const updatedPlan = { ...editPlan, selling_price: price };
+      const { data, error } = await supabase.functions.invoke("admin-fetch-data-plans", {
+        body: { action: "save_plan", plan: updatedPlan },
       });
 
-      fetchPlans();
+      if (error || !data?.success) throw new Error("Save failed");
+
+      setPlans(prev => prev.map(p =>
+        p.provider === editPlan.provider && p.network === editPlan.network && p.plan_id === editPlan.plan_id
+          ? { ...p, selling_price: price, db_id: data.plan?.id || p.db_id }
+          : p
+      ));
+
+      await supabase.from("price_change_log").insert({
+        admin_id: user?.id,
+        change_type: "selling_price_set",
+        new_value: { plan_id: editPlan.plan_id, provider: editPlan.provider, selling_price: price },
+      });
+
+      toast.success("Selling price updated");
+      setIsPriceDialogOpen(false);
+    } catch (e) {
+      toast.error("Failed to save price");
     }
+    setSaving(null);
   };
 
-  const handleAddManualPlan = async (e: React.FormEvent) => {
+  const saveManualPlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const planData = {
-      service_type: "data" as const,
-      network: formData.network,
-      plan_id: formData.plan_id || `manual_${Date.now()}`,
-      plan_name: formData.plan_name,
-      base_price: parseFloat(formData.base_price),
-      validity: formData.validity || null,
-      is_manual: true,
-    };
+    setSaving("manual");
 
     try {
-      if (editingPlan) {
-        const { error } = await supabase
-          .from("service_plans")
-          .update(planData)
-          .eq("id", editingPlan.id);
-
-        if (error) throw error;
-        toast.success("Plan updated");
-      } else {
-        const { error } = await supabase
-          .from("service_plans")
-          .insert(planData);
-
-        if (error) throw error;
-        
-        // Log the addition
-        await supabase.from("price_change_log").insert({
-          admin_id: user?.id,
-          change_type: "plan_added",
-          new_value: planData,
-        });
-
-        toast.success("Manual plan added");
-      }
-
-      setIsDialogOpen(false);
-      setEditingPlan(null);
-      setFormData({ network: "MTN", plan_id: "", plan_name: "", base_price: "", validity: "" });
-      fetchPlans();
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to save plan");
-    }
-  };
-
-  const handleSetProfit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingPlanForProfit) return;
-
-    try {
-      // Check if config exists
-      const existingConfig = pricingConfigs.find(
-        c => c.network === editingPlanForProfit.network && 
-            c.plan_id === editingPlanForProfit.plan_id &&
-            c.user_type === profitData.user_type
-      );
-
-      const configData = {
-        service_type: "data",
-        network: editingPlanForProfit.network,
-        plan_id: editingPlanForProfit.plan_id,
-        profit_type: profitData.profit_type,
-        profit_value: parseFloat(profitData.profit_value),
-        user_type: profitData.user_type,
-        is_active: true,
+      const plan = {
+        provider: manualForm.provider,
+        network: manualForm.network,
+        plan_id: manualForm.plan_id || `manual_${Date.now()}`,
+        plan_name: manualForm.plan_name,
+        base_price: parseFloat(manualForm.base_price),
+        validity: manualForm.validity || "30 Days",
+        is_enabled: true,
+        is_featured: false,
+        selling_price: manualForm.selling_price ? parseFloat(manualForm.selling_price) : null,
       };
 
-      if (existingConfig) {
-        const { error } = await supabase
-          .from("pricing_config")
-          .update(configData)
-          .eq("id", existingConfig.id);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("pricing_config")
-          .insert(configData);
-
-        if (error) throw error;
-      }
-
-      // Log the change
-      await supabase.from("price_change_log").insert({
-        admin_id: user?.id,
-        plan_id: editingPlanForProfit.id,
-        change_type: "profit_updated",
-        old_value: existingConfig ? { profit_type: existingConfig.profit_type, profit_value: existingConfig.profit_value } : null,
-        new_value: { profit_type: profitData.profit_type, profit_value: parseFloat(profitData.profit_value) },
+      const { data, error } = await supabase.functions.invoke("admin-fetch-data-plans", {
+        body: { action: "save_plan", plan },
       });
 
-      toast.success("Profit margin updated");
-      setIsProfitDialogOpen(false);
-      setEditingPlanForProfit(null);
-      fetchPricingConfigs();
-    } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to set profit");
+      if (error || !data?.success) throw new Error("Save failed");
+
+      toast.success("Manual plan added");
+      setIsManualDialogOpen(false);
+      setManualForm({ provider: "subpadi", network: "MTN", plan_id: "", plan_name: "", base_price: "", validity: "", selling_price: "" });
+      loadPlans();
+    } catch (e) {
+      toast.error("Failed to add plan");
     }
+    setSaving(null);
   };
 
-  const getProfitForPlan = (plan: ServicePlan, userType: string = "user") => {
-    // Most specific to least specific
-    const config = pricingConfigs.find(
-      c => c.network === plan.network && c.plan_id === plan.plan_id && c.user_type === userType
-    ) || pricingConfigs.find(
-      c => c.network === plan.network && !c.plan_id && c.user_type === userType
-    ) || pricingConfigs.find(
-      c => !c.network && !c.plan_id && c.user_type === userType
-    );
-
-    return config;
-  };
-
-  const calculateFinalPrice = (plan: ServicePlan, userType: string = "user") => {
-    const config = getProfitForPlan(plan, userType);
-    if (!config) return plan.base_price;
-
-    if (config.profit_type === "percentage") {
-      return Math.round(plan.base_price * (1 + config.profit_value / 100));
+  const enableAllFromProvider = async (provider: string) => {
+    const providerPlans = filteredPlans.filter(p => p.provider === provider && !p.is_enabled);
+    if (providerPlans.length === 0) {
+      toast.info("All plans already enabled");
+      return;
     }
-    return plan.base_price + config.profit_value;
+
+    setSaving("bulk");
+    try {
+      const toSave = providerPlans.map(p => ({ ...p, is_enabled: true }));
+      const { data, error } = await supabase.functions.invoke("admin-fetch-data-plans", {
+        body: { action: "bulk_save", plans: toSave },
+      });
+      if (error || !data?.success) throw new Error("Bulk save failed");
+      toast.success(`Enabled ${data.saved} plans from ${provider}`);
+      loadPlans();
+    } catch (e) {
+      toast.error("Failed to bulk enable");
+    }
+    setSaving(null);
   };
 
-  const formatProfit = (config: PricingConfig | undefined) => {
-    if (!config) return "Not set";
-    return config.profit_type === "percentage" 
-      ? `${config.profit_value}%` 
-      : `₦${config.profit_value.toLocaleString()}`;
-  };
-
-  const filteredPlans = plans.filter(plan => {
-    const matchesNetwork = selectedNetwork === "all" || plan.network === selectedNetwork;
-    const matchesSearch = plan.plan_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         plan.plan_id.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesNetwork && matchesSearch;
-  });
-
-  const openProfitDialog = (plan: ServicePlan) => {
-    const existingConfig = getProfitForPlan(plan, "user");
-    setEditingPlanForProfit(plan);
-    setProfitData({
-      profit_type: existingConfig?.profit_type || "percentage",
-      profit_value: existingConfig?.profit_value?.toString() || "",
-      user_type: "user",
+  const filteredPlans = useMemo(() => {
+    return plans.filter(p => {
+      if (selectedNetwork !== "all" && p.network !== selectedNetwork) return false;
+      if (selectedProvider !== "all" && p.provider !== selectedProvider) return false;
+      if (showEnabledOnly && !p.is_enabled) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!p.plan_name.toLowerCase().includes(q) && !p.plan_id.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    }).sort((a, b) => {
+      if (a.network !== b.network) return a.network.localeCompare(b.network);
+      if (a.data_size !== b.data_size) return a.data_size - b.data_size;
+      return a.base_price - b.base_price;
     });
-    setIsProfitDialogOpen(true);
+  }, [plans, selectedNetwork, selectedProvider, searchQuery, showEnabledOnly]);
+
+  const stats = useMemo(() => ({
+    total: plans.length,
+    enabled: plans.filter(p => p.is_enabled).length,
+    featured: plans.filter(p => p.is_featured).length,
+    smeplug: plans.filter(p => p.provider === "smeplug").length,
+    subpadi: plans.filter(p => p.provider === "subpadi").length,
+  }), [plans]);
+
+  const openPriceDialog = (plan: ProviderPlan) => {
+    setEditPlan(plan);
+    setEditPrice(plan.selling_price?.toString() || "");
+    setIsPriceDialogOpen(true);
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {[
+          { label: "Total Plans", value: stats.total, color: "bg-muted" },
+          { label: "Enabled", value: stats.enabled, color: "bg-green-500/10 text-green-700" },
+          { label: "Featured", value: stats.featured, color: "bg-yellow-500/10 text-yellow-700" },
+          { label: "SMEPlug", value: stats.smeplug, color: "bg-blue-500/10 text-blue-700" },
+          { label: "Subpadi", value: stats.subpadi, color: "bg-purple-500/10 text-purple-700" },
+        ].map(s => (
+          <div key={s.label} className={`rounded-xl p-3 text-center ${s.color}`}>
+            <p className="text-2xl font-bold">{s.value}</p>
+            <p className="text-xs font-medium">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <Select value={selectedNetwork} onValueChange={setSelectedNetwork}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="All Networks" />
+            <SelectTrigger className="w-[130px]">
+              <SelectValue placeholder="Network" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Networks</SelectItem>
-              {NETWORKS.map(n => (
-                <SelectItem key={n} value={n}>{n}</SelectItem>
-              ))}
+              {NETWORKS.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
             </SelectContent>
           </Select>
+
+          <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+            <SelectTrigger className="w-[130px]">
+              <SelectValue placeholder="Provider" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Providers</SelectItem>
+              {PROVIDERS.map(p => <SelectItem key={p} value={p}>{p.toUpperCase()}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search plans..."
+              placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 w-[200px]"
+              className="pl-9 w-[180px]"
             />
           </div>
+
+          <div className="flex items-center gap-2">
+            <Switch checked={showEnabledOnly} onCheckedChange={setShowEnabledOnly} />
+            <span className="text-xs text-muted-foreground">Enabled only</span>
+          </div>
         </div>
+
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={validatePlans}
-            disabled={isValidating}
-            className="gap-2"
-          >
-            <ShieldCheck className={`h-4 w-4 ${isValidating ? "animate-pulse" : ""}`} />
-            {isValidating ? "Validating..." : "Validate Plans"}
+          <Button variant="outline" size="sm" onClick={fetchFromProviders} disabled={isFetching} className="gap-2">
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            {isFetching ? "Fetching..." : "Refresh from APIs"}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={syncFromSubpadi}
-            disabled={isSyncing}
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-            Sync from SUBPADI
-          </Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+
+          <Dialog open={isManualDialogOpen} onOpenChange={setIsManualDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-2">
                 <Plus className="h-4 w-4" />
-                Add Manual Plan
+                Add Plan
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{editingPlan ? "Edit Plan" : "Add Manual Plan"}</DialogTitle>
+                <DialogTitle>Add Manual Plan</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleAddManualPlan} className="space-y-4">
+              <form onSubmit={saveManualPlan} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Network</Label>
-                    <Select value={formData.network} onValueChange={(v) => setFormData(prev => ({ ...prev, network: v }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                    <Label>Provider</Label>
+                    <Select value={manualForm.provider} onValueChange={v => setManualForm(f => ({ ...f, provider: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {NETWORKS.map(n => (
-                          <SelectItem key={n} value={n}>{n}</SelectItem>
-                        ))}
+                        {PROVIDERS.map(p => <SelectItem key={p} value={p}>{p.toUpperCase()}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Plan ID</Label>
-                    <Input
-                      value={formData.plan_id}
-                      onChange={(e) => setFormData(prev => ({ ...prev, plan_id: e.target.value }))}
-                      placeholder="Optional"
-                    />
+                    <Label>Network</Label>
+                    <Select value={manualForm.network} onValueChange={v => setManualForm(f => ({ ...f, network: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {NETWORKS.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Plan Name</Label>
-                  <Input
-                    value={formData.plan_name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, plan_name: e.target.value }))}
-                    placeholder="e.g., 1GB (30 Days)"
-                    required
-                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Base Price (₦)</Label>
-                    <Input
-                      type="number"
-                      value={formData.base_price}
-                      onChange={(e) => setFormData(prev => ({ ...prev, base_price: e.target.value }))}
-                      placeholder="500"
-                      required
-                    />
+                    <Label>Plan ID</Label>
+                    <Input value={manualForm.plan_id} onChange={e => setManualForm(f => ({ ...f, plan_id: e.target.value }))} placeholder="Optional" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Plan Name</Label>
+                    <Input value={manualForm.plan_name} onChange={e => setManualForm(f => ({ ...f, plan_name: e.target.value }))} placeholder="1GB (30 Days)" required />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Provider Price (₦)</Label>
+                    <Input type="number" value={manualForm.base_price} onChange={e => setManualForm(f => ({ ...f, base_price: e.target.value }))} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Selling Price (₦)</Label>
+                    <Input type="number" value={manualForm.selling_price} onChange={e => setManualForm(f => ({ ...f, selling_price: e.target.value }))} placeholder="Optional" />
                   </div>
                   <div className="space-y-2">
                     <Label>Validity</Label>
-                    <Input
-                      value={formData.validity}
-                      onChange={(e) => setFormData(prev => ({ ...prev, validity: e.target.value }))}
-                      placeholder="30 Days"
-                    />
+                    <Input value={manualForm.validity} onChange={e => setManualForm(f => ({ ...f, validity: e.target.value }))} placeholder="30 Days" />
                   </div>
                 </div>
-                <Button type="submit" className="w-full">
-                  {editingPlan ? "Update Plan" : "Add Plan"}
+                <Button type="submit" className="w-full" disabled={isSaving === "manual"}>
+                  {isSaving === "manual" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Add Plan
                 </Button>
               </form>
             </DialogContent>
@@ -500,155 +391,150 @@ const AdminDataPlansTab = () => {
         </div>
       </div>
 
-      {validationResult && (
-        <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${validationResult.invalid > 0 ? "bg-orange-50 text-orange-800 border border-orange-200" : "bg-green-50 text-green-800 border border-green-200"}`}>
-          <ShieldCheck className="h-4 w-4" />
-          <span>{validationResult.message}</span>
-        </div>
-      )}
+      {/* Bulk actions */}
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => enableAllFromProvider("smeplug")} disabled={!!isSaving}>
+          <Download className="h-3 w-3 mr-1" /> Enable all SMEPlug
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => enableAllFromProvider("subpadi")} disabled={!!isSaving}>
+          <Download className="h-3 w-3 mr-1" /> Enable all Subpadi
+        </Button>
+      </div>
 
-      {/* Profit Setting Dialog */}
-      <Dialog open={isProfitDialogOpen} onOpenChange={setIsProfitDialogOpen}>
+      {/* Price Dialog */}
+      <Dialog open={isPriceDialogOpen} onOpenChange={setIsPriceDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Set Profit for {editingPlanForProfit?.plan_name}</DialogTitle>
+            <DialogTitle>Set Selling Price</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSetProfit} className="space-y-4">
-            <div className="p-3 bg-muted rounded-lg text-sm">
-              <p><span className="font-medium">Network:</span> {editingPlanForProfit?.network}</p>
-              <p><span className="font-medium">Base Price:</span> ₦{editingPlanForProfit?.base_price?.toLocaleString()}</p>
-            </div>
-            <div className="space-y-2">
-              <Label>User Type</Label>
-              <Select value={profitData.user_type} onValueChange={(v) => setProfitData(prev => ({ ...prev, user_type: v }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">Regular User</SelectItem>
-                  <SelectItem value="agent">Agent</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Profit Type</Label>
-                <Select value={profitData.profit_type} onValueChange={(v) => setProfitData(prev => ({ ...prev, profit_type: v }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="percentage">Percentage (%)</SelectItem>
-                    <SelectItem value="fixed">Fixed (₦)</SelectItem>
-                  </SelectContent>
-                </Select>
+          {editPlan && (
+            <div className="space-y-4">
+              <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+                <p><span className="font-medium">Plan:</span> {editPlan.plan_name}</p>
+                <p><span className="font-medium">Provider:</span> {editPlan.provider.toUpperCase()}</p>
+                <p><span className="font-medium">Network:</span> {editPlan.network}</p>
+                <p><span className="font-medium">Provider Price:</span> ₦{editPlan.base_price.toLocaleString()}</p>
               </div>
               <div className="space-y-2">
-                <Label>Profit Value</Label>
+                <Label>Selling Price (₦)</Label>
                 <Input
                   type="number"
-                  step="0.01"
-                  value={profitData.profit_value}
-                  onChange={(e) => setProfitData(prev => ({ ...prev, profit_value: e.target.value }))}
-                  placeholder={profitData.profit_type === "percentage" ? "5" : "100"}
-                  required
+                  value={editPrice}
+                  onChange={e => setEditPrice(e.target.value)}
+                  placeholder="Leave empty to use pricing config"
                 />
+                {editPrice && (
+                  <p className="text-xs text-muted-foreground">
+                    Profit: ₦{(parseFloat(editPrice) - editPlan.base_price).toLocaleString()}
+                    ({((parseFloat(editPrice) - editPlan.base_price) / editPlan.base_price * 100).toFixed(1)}%)
+                  </p>
+                )}
               </div>
+              <Button onClick={saveSellingPrice} className="w-full" disabled={isSaving === "price"}>
+                {isSaving === "price" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save Price
+              </Button>
             </div>
-            {profitData.profit_value && editingPlanForProfit && (
-              <div className="p-3 bg-primary/10 rounded-lg text-sm">
-                <p className="font-medium">Final User Price:</p>
-                <p className="text-lg font-bold">
-                  ₦{(profitData.profit_type === "percentage"
-                    ? Math.round(editingPlanForProfit.base_price * (1 + parseFloat(profitData.profit_value || "0") / 100))
-                    : editingPlanForProfit.base_price + parseFloat(profitData.profit_value || "0")
-                  ).toLocaleString()}
-                </p>
-              </div>
-            )}
-            <Button type="submit" className="w-full">Save Profit Margin</Button>
-          </form>
+          )}
         </DialogContent>
       </Dialog>
 
+      {/* Table */}
       <div className="glass-card rounded-xl overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Provider</TableHead>
               <TableHead>Network</TableHead>
               <TableHead>Plan</TableHead>
-              <TableHead className="text-right">Base Price</TableHead>
-              <TableHead className="text-right">Profit</TableHead>
-              <TableHead className="text-right">User Price</TableHead>
+              <TableHead className="text-right">Provider Price</TableHead>
+              <TableHead className="text-right">Selling Price</TableHead>
               <TableHead>Validity</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="text-center">Enabled</TableHead>
+              <TableHead className="text-center">Featured</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">Loading...</TableCell>
+                <TableCell colSpan={9} className="text-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                </TableCell>
               </TableRow>
             ) : filteredPlans.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                  No plans found. Click "Sync from SUBPADI" to fetch plans.
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  No plans found. Click "Refresh from APIs" to fetch plans.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredPlans.map((plan) => (
-                <TableRow key={plan.id}>
-                  <TableCell>
-                    <Badge variant="outline">{plan.network}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{plan.plan_name}</span>
-                      {plan.is_manual && (
-                        <Badge variant="secondary" className="text-xs">Manual</Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    ₦{plan.base_price.toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatProfit(getProfitForPlan(plan))}
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-medium text-primary">
-                    ₦{calculateFinalPrice(plan).toLocaleString()}
-                  </TableCell>
-                  <TableCell>{plan.validity || "-"}</TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={plan.is_enabled}
-                      onCheckedChange={() => handleToggleEnabled(plan)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openProfitDialog(plan)}
-                      className="gap-1"
-                    >
-                      <Edit2 className="h-3 w-3" />
-                      Set Profit
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+              filteredPlans.map((plan) => {
+                const key = `${plan.provider}:${plan.network}:${plan.plan_id}`;
+                return (
+                  <TableRow key={key} className={!plan.is_enabled ? "opacity-60" : ""}>
+                    <TableCell>
+                      <Badge variant={plan.provider === "smeplug" ? "default" : "secondary"} className="text-[10px]">
+                        {plan.provider.toUpperCase()}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{plan.network}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-sm">{plan.plan_name}</span>
+                        {plan.is_featured && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      ₦{plan.base_price.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm font-medium text-primary">
+                      {plan.selling_price ? `₦${plan.selling_price.toLocaleString()}` : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-sm">{plan.validity || "—"}</TableCell>
+                    <TableCell className="text-center">
+                      <Switch
+                        checked={plan.is_enabled}
+                        onCheckedChange={() => togglePlan(plan, "is_enabled")}
+                        disabled={isSaving === plan.plan_id + "is_enabled"}
+                      />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Switch
+                        checked={plan.is_featured}
+                        onCheckedChange={() => togglePlan(plan, "is_featured")}
+                        disabled={isSaving === plan.plan_id + "is_featured"}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => openPriceDialog(plan)} className="gap-1 text-xs">
+                        <Edit2 className="h-3 w-3" />
+                        Price
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </div>
 
       <div className="text-xs text-muted-foreground">
-        Last synced: {plans[0]?.last_synced_at ? new Date(plans[0].last_synced_at).toLocaleString() : "Never"}
+        Showing {filteredPlans.length} of {plans.length} plans
       </div>
     </div>
   );
 };
+
+function extractDataSize(name: string): number {
+  const gb = name.match(/(\d+(?:\.\d+)?)\s*GB/i);
+  if (gb) return parseFloat(gb[1]) * 1024;
+  const mb = name.match(/(\d+(?:\.\d+)?)\s*MB/i);
+  if (mb) return parseFloat(mb[1]);
+  return 99999;
+}
 
 export default AdminDataPlansTab;

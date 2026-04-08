@@ -769,11 +769,14 @@ export type Database = {
           created_at: string
           id: string
           is_enabled: boolean
+          is_featured: boolean
           is_manual: boolean
           last_synced_at: string | null
           network: string
           plan_id: string
           plan_name: string
+          provider: string
+          selling_price: number | null
           service_type: string
           updated_at: string
           validity: string | null
@@ -783,11 +786,14 @@ export type Database = {
           created_at?: string
           id?: string
           is_enabled?: boolean
+          is_featured?: boolean
           is_manual?: boolean
           last_synced_at?: string | null
           network: string
           plan_id: string
           plan_name: string
+          provider?: string
+          selling_price?: number | null
           service_type: string
           updated_at?: string
           validity?: string | null
@@ -797,11 +803,14 @@ export type Database = {
           created_at?: string
           id?: string
           is_enabled?: boolean
+          is_featured?: boolean
           is_manual?: boolean
           last_synced_at?: string | null
           network?: string
           plan_id?: string
           plan_name?: string
+          provider?: string
+          selling_price?: number | null
           service_type?: string
           updated_at?: string
           validity?: string | null
