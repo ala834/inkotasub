@@ -98,7 +98,7 @@ serve(async (req) => {
 
       const adminSupabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-      // 1. Try database first
+      // 1. Try database first (only enabled plans)
       try {
         const { data: dbPlans } = await adminSupabase
           .from("service_plans")
@@ -113,9 +113,12 @@ serve(async (req) => {
             name: plan.plan_name,
             amount: parseFloat(plan.base_price),
             baseAmount: parseFloat(plan.base_price),
+            sellingPrice: plan.selling_price ? parseFloat(plan.selling_price) : null,
             validity: plan.validity || "30 Days",
             dataSize: extractDataSize(plan.plan_name),
             category: categorizePlan(plan.plan_name),
+            isFeatured: plan.is_featured || false,
+            provider: plan.provider || "subpadi",
           }));
           source = "database";
           console.log(`Loaded ${basePlans.length} data plans for ${network} from database`);
