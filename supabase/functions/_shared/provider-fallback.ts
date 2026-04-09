@@ -25,6 +25,11 @@ interface ProviderConfig {
   fallbackEnabled: boolean;
 }
 
+interface ExecuteWithFallbackOptions {
+  preferredProvider?: string | null;
+  disableFallback?: boolean;
+}
+
 // Get provider config from database
 async function getProviderConfig(serviceType: string, network?: string): Promise<ProviderConfig> {
   const defaults: ProviderConfig = {
@@ -85,13 +90,32 @@ export async function executeWithFallback(
   smeplugFn?: () => Promise<ProviderResponse>,
   serviceType: string = 'unknown',
   network?: string,
+  options: ExecuteWithFallbackOptions = {},
 ): Promise<FallbackResult> {
-  const config = await getProviderConfig(serviceType, network);
+  let config = await getProviderConfig(serviceType, network);
 
   const providerFns: Record<string, (() => Promise<ProviderResponse>) | undefined> = {
     subpadi: subpadiFn,
     smeplug: smeplugFn,
   };
+
+  const preferredProvider = options.preferredProvider?.toLowerCase();
+  if (preferredProvider && providerFns[preferredProvider]) {
+    const fallbackProvider = options.disableFallback
+      ? null
+      : [config.primaryProvider, config.fallbackProvider].find(
+          (candidate): candidate is string =>
+            Boolean(candidate) &&
+            candidate !== preferredProvider &&
+            Boolean(providerFns[candidate]),
+        ) ?? null;
+
+    config = {
+      primaryProvider: preferredProvider,
+      fallbackProvider,
+      fallbackEnabled: !options.disableFallback && Boolean(fallbackProvider),
+    };
+  }
 
   const primaryFn = providerFns[config.primaryProvider];
   const fallbackFn = config.fallbackProvider ? providerFns[config.fallbackProvider] : undefined;

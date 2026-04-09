@@ -24,6 +24,7 @@ interface DataPlan {
   amount: number;
   validity: string;
   category: string;
+  provider?: string | null;
 }
 
 const CATEGORY_ORDER = ["SME", "SME2", "Corporate", "Gifting", "Direct", "General"];
@@ -159,6 +160,7 @@ const Data = () => {
           phoneNumber,
           planId: selectedPlan.id,
           amount: selectedPlan.amount,
+          provider: selectedPlan.provider,
           transaction_pin: pin,
         },
       });
