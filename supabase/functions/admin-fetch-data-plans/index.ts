@@ -67,11 +67,12 @@ serve(async (req) => {
             else if (Array.isArray(raw?.data)) plans = raw.data;
             else if (Array.isArray(raw?.plans)) plans = raw.plans;
             else if (Array.isArray(raw?.result)) plans = raw.result;
-            else if (typeof raw === "object") {
-              // SMEPlug may return plans grouped by network: { "1": [...], "2": [...] }
-              for (const key of Object.keys(raw)) {
-                if (Array.isArray(raw[key])) {
-                  plans.push(...raw[key].map((p: any) => ({ ...p, _network_key: key })));
+            else {
+              // SMEPlug returns: { status: true, data: { "1": [...], "2": [...] } }
+              const dataObj = raw?.data && typeof raw.data === "object" && !Array.isArray(raw.data) ? raw.data : raw;
+              for (const key of Object.keys(dataObj)) {
+                if (Array.isArray(dataObj[key])) {
+                  plans.push(...dataObj[key].map((p: any) => ({ ...p, _network_key: key })));
                 }
               }
             }
