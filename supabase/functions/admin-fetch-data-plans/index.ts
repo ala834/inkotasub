@@ -285,14 +285,6 @@ serve(async (req) => {
     }
 
     if (action === "sync_to_db") {
-      // Fetch from API and save all plans to DB in one action
-      const fetchResponse = await fetch(new URL(req.url).origin + req.url.split('?')[0], {
-        method: "POST",
-        headers: { "Authorization": authHeader, "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "fetch" }),
-      });
-      // Can't self-call easily, so inline the logic:
-      // Just do bulk_save with all API plans
       if (isSmeplugConfigured()) {
         const result = await smeplugGetDataPlans();
         if (result.success && result.rawResponse) {
