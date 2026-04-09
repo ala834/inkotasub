@@ -11,7 +11,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 
-interface DataPlan { id: string; name: string; price: number; network: string; plan_id: string; }
+interface DataPlan { id: string; name: string; price: number; network: string; plan_id: string; provider?: string | null; }
 interface BulkEntry { id: string; phoneNumber: string; network: string; planId: string; price: number; }
 
 const networks = ["MTN", "GLO", "AIRTEL", "9MOBILE"];
@@ -26,8 +26,20 @@ const BulkData = () => {
   const [results, setResults] = useState<{ phone: string; status: string; message: string }[]>([]);
 
   useEffect(() => {
-    supabase.functions.invoke("get-data-plans").then(({ data }) => {
-      if (data?.plans) setPlans(data.plans.map((p: any) => ({ id: p.plan_id || p.id, name: p.plan_name || p.name, price: p.price || p.base_price, network: p.network, plan_id: p.plan_id || p.id })));
+    Promise.all(
+      networks.map(async (network) => {
+        const { data } = await supabase.functions.invoke("get-data-plans", { body: { network } });
+        return (data?.plans || []).map((p: any) => ({
+          id: p.plan_id || p.id,
+          name: p.plan_name || p.name,
+          price: p.price || p.base_price || p.amount,
+          network,
+          plan_id: p.plan_id || p.id,
+          provider: p.provider || null,
+        }));
+      })
+    ).then((results) => {
+      setPlans(results.flat());
     });
   }, []);
 
@@ -71,7 +83,7 @@ const BulkData = () => {
         try {
           const plan = plans.find((p) => p.plan_id === entry.planId);
           const { data, error } = await supabase.functions.invoke("purchase-data", {
-            body: { network: entry.network, phoneNumber: entry.phoneNumber, planId: entry.planId, amount: entry.price, planName: plan?.name, transaction_pin: pin },
+            body: { network: entry.network, phoneNumber: entry.phoneNumber, planId: entry.planId, amount: entry.price, provider: plan?.provider, planName: plan?.name, transaction_pin: pin },
           });
           batchResults.push({ phone: entry.phoneNumber, status: data?.success ? "success" : "failed", message: data?.message || error?.message || "Error" });
         } catch (err: any) {

@@ -173,6 +173,7 @@ serve(async (req) => {
                   validity: validity,
                   dataSize: extractDataSize(planName),
                   category: categorizePlan(planName),
+                  provider: "smeplug",
                 };
               }).filter((p: any) => p.id && p.amount > 0 && p.name);
 
@@ -238,6 +239,7 @@ serve(async (req) => {
           category: plan.category || 'General',
           dataSize: plan.dataSize,
           isFeatured: plan.isFeatured || false,
+          provider: plan.provider || null,
         };
         if (includeBasePrice) result.baseAmount = plan.amount;
         return result;
@@ -266,6 +268,7 @@ serve(async (req) => {
         category: plan.category || 'General',
         dataSize: plan.dataSize,
         isFeatured: plan.isFeatured || false,
+        provider: plan.provider || null,
       };
       if (includeBasePrice) result.baseAmount = plan.amount;
       return result;

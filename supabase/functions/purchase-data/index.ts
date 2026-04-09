@@ -35,7 +35,7 @@ serve(async (req) => {
     const rateCheck = checkRateLimit(userId, "purchase-data", { maxRequests: 5, windowMs: 60000 });
     if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterMs!, corsHeaders);
 
-    const { network, phoneNumber, planId, amount, transaction_pin: transactionPin } = await req.json();
+    const { network, phoneNumber, planId, amount, provider: requestedProviderRaw, transaction_pin: transactionPin } = await req.json();
     const fraudCheck = await checkFraud(userId, 'data', amount);
     if (!fraudCheck.allowed) return fraudBlockResponse(fraudCheck.reason!, corsHeaders);
 
@@ -60,11 +60,28 @@ serve(async (req) => {
       if (profile.failed_pin_attempts > 0 || needsPinMigration(profile.transaction_pin)) await adminSupabase.from("profiles").update(updates).eq("user_id", userId);
     }
 
+    const networkUpper = network.toUpperCase();
     const isAgent = profile?.is_agent || false;
     const userType = isAgent ? 'agent' : 'user';
-    const { data: pricingConfigs } = await adminSupabase.from("pricing_config").select("*").eq("service_type", "data").eq("is_active", true).eq("user_type", userType);
-    const config = pricingConfigs?.find(c => c.network === network.toUpperCase() && c.plan_id === planId)
-      || pricingConfigs?.find(c => c.network === network.toUpperCase() && !c.plan_id)
+    const normalizedRequestedProvider = typeof requestedProviderRaw === "string" ? requestedProviderRaw.toLowerCase() : undefined;
+    const [{ data: pricingConfigs }, { data: matchingPlans }] = await Promise.all([
+      adminSupabase.from("pricing_config").select("*").eq("service_type", "data").eq("is_active", true).eq("user_type", userType),
+      adminSupabase
+        .from("service_plans")
+        .select("provider")
+        .eq("service_type", "data")
+        .eq("network", networkUpper)
+        .eq("plan_id", String(planId))
+        .eq("is_enabled", true)
+        .limit(1),
+    ]);
+    const selectedPlanProvider = normalizedRequestedProvider
+      || (typeof matchingPlans?.[0]?.provider === "string" ? matchingPlans[0].provider.toLowerCase() : undefined);
+    if (selectedPlanProvider) {
+      console.log(`Resolved ${networkUpper} data plan ${planId} to provider ${selectedPlanProvider}`);
+    }
+    const config = pricingConfigs?.find(c => c.network === networkUpper && c.plan_id === planId)
+      || pricingConfigs?.find(c => c.network === networkUpper && !c.plan_id)
       || pricingConfigs?.find(c => !c.network && !c.plan_id);
 
     let costPrice = amount;
@@ -78,8 +95,8 @@ serve(async (req) => {
     const reference = generateReference('data');
     const ctx: TransactionContext = {
       userId, adminSupabase, serviceType: 'data', sellingPrice, costPrice, profit,
-      reference, description: `${network.toUpperCase()} Data - ${phoneNumber}`,
-      provider: network.toUpperCase(), recipient: phoneNumber,
+      reference, description: `${networkUpper} Data - ${phoneNumber}`,
+      provider: selectedPlanProvider || networkUpper, recipient: phoneNumber,
     };
 
     const lockResult = await acquireLockAndDeductWallet(ctx);
@@ -87,10 +104,11 @@ serve(async (req) => {
 
     // Provider call with fallback
     const result = await executeWithFallback(
-      () => subpadiPurchaseData(network, phoneNumber, planId, costPrice),
-      () => smeplugPurchaseData(network, phoneNumber, planId),
+      () => subpadiPurchaseData(networkUpper, phoneNumber, planId, costPrice),
+      () => smeplugPurchaseData(networkUpper, phoneNumber, planId),
       'data',
-      network,
+      networkUpper,
+      selectedPlanProvider ? { preferredProvider: selectedPlanProvider, disableFallback: true } : undefined,
     );
 
     const providerResult: ProviderResult = {
