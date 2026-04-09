@@ -57,12 +57,30 @@ serve(async (req) => {
       if (isSmeplugConfigured()) {
         try {
           const result = await smeplugGetDataPlans();
+          console.log("SMEPlug raw response keys:", result.rawResponse ? Object.keys(result.rawResponse as any) : "null");
+          console.log("SMEPlug raw sample:", JSON.stringify(result.rawResponse).substring(0, 500));
           if (result.success && result.rawResponse) {
             const raw = result.rawResponse as any;
-            const plans = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.plans) ? raw.plans : [];
+            // Try multiple response formats
+            let plans: any[] = [];
+            if (Array.isArray(raw)) plans = raw;
+            else if (Array.isArray(raw?.data)) plans = raw.data;
+            else if (Array.isArray(raw?.plans)) plans = raw.plans;
+            else if (Array.isArray(raw?.result)) plans = raw.result;
+            else if (typeof raw === "object") {
+              // SMEPlug may return plans grouped by network: { "1": [...], "2": [...] }
+              for (const key of Object.keys(raw)) {
+                if (Array.isArray(raw[key])) {
+                  plans.push(...raw[key].map((p: any) => ({ ...p, _network_key: key })));
+                }
+              }
+            }
+            console.log("Parsed plans count:", plans.length);
             for (const p of plans) {
-              const networkId = p.network_id || p.network;
-              const networkName = typeof networkId === "number" ? (SMEPLUG_NETWORK_MAP[networkId] || "UNKNOWN") : String(p.network_name || p.network || "").toUpperCase();
+              const networkId = p.network_id || p.network || p._network_key;
+              const networkName = typeof networkId === "number" || /^\d+$/.test(String(networkId))
+                ? (SMEPLUG_NETWORK_MAP[Number(networkId)] || "UNKNOWN")
+                : String(p.network_name || p.network || "").toUpperCase();
               const planName = p.plan_name || p.name || p.plan || `${p.size || ""} Data`;
               const price = parseFloat(p.price || p.amount || p.cost || 0);
               const planId = String(p.plan_id || p.id || p.dataplan_id || "");
@@ -80,6 +98,33 @@ serve(async (req) => {
           }
         } catch (e) {
           console.error("SMEPlug fetch error:", e);
+        }
+      }
+
+      // 1b. If no plans from API, load existing smeplug plans from DB
+      if (allPlans.filter(p => p.provider === "smeplug").length === 0) {
+        console.log("No SMEPlug API plans, loading from DB...");
+        const { data: dbSmeplugPlans } = await adminSupabase
+          .from("service_plans")
+          .select("*")
+          .eq("service_type", "data")
+          .eq("provider", "smeplug");
+        if (dbSmeplugPlans) {
+          for (const p of dbSmeplugPlans) {
+            allPlans.push({
+              provider: "smeplug",
+              network: p.network,
+              plan_id: p.plan_id,
+              plan_name: p.plan_name,
+              base_price: parseFloat(p.base_price as any),
+              validity: p.validity || "30 Days",
+              data_size: extractDataSize(p.plan_name),
+              db_id: p.id,
+              is_enabled: p.is_enabled,
+              is_featured: p.is_featured,
+              selling_price: p.selling_price ? parseFloat(p.selling_price as any) : null,
+            });
+          }
         }
       }
 
