@@ -284,6 +284,67 @@ serve(async (req) => {
       );
     }
 
+    if (action === "sync_to_db") {
+      // Fetch from API and save all plans to DB in one action
+      const fetchResponse = await fetch(new URL(req.url).origin + req.url.split('?')[0], {
+        method: "POST",
+        headers: { "Authorization": authHeader, "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "fetch" }),
+      });
+      // Can't self-call easily, so inline the logic:
+      // Just do bulk_save with all API plans
+      if (isSmeplugConfigured()) {
+        const result = await smeplugGetDataPlans();
+        if (result.success && result.rawResponse) {
+          const raw = result.rawResponse as any;
+          let plans: any[] = [];
+          const dataObj = raw?.data && typeof raw.data === "object" && !Array.isArray(raw.data) ? raw.data : null;
+          if (dataObj) {
+            for (const key of Object.keys(dataObj)) {
+              if (Array.isArray(dataObj[key])) {
+                plans.push(...dataObj[key].map((p: any) => ({ ...p, _network_key: key })));
+              }
+            }
+          }
+          let saved = 0;
+          for (const p of plans) {
+            const networkId = p.network_id || p.network || p._network_key;
+            const networkName = typeof networkId === "number" || /^\d+$/.test(String(networkId))
+              ? (SMEPLUG_NETWORK_MAP[Number(networkId)] || "UNKNOWN")
+              : String(p.network_name || p.network || "").toUpperCase();
+            const planName = p.plan_name || p.name || p.plan || `${p.size || ""} Data`;
+            const price = parseFloat(p.price || p.amount || p.cost || 0);
+            const planId = String(p.plan_id || p.id || p.dataplan_id || "");
+            if (!planId || price <= 0) continue;
+            const network = networkName.includes("ETISALAT") ? "9MOBILE" : networkName;
+            const { error } = await adminSupabase
+              .from("service_plans")
+              .upsert({
+                service_type: "data",
+                provider: "smeplug",
+                network,
+                plan_id: planId,
+                plan_name: planName,
+                base_price: price,
+                validity: p.validity || p.duration || p.plan_validity || "30 Days",
+                is_enabled: false,
+                is_featured: false,
+                last_synced_at: new Date().toISOString(),
+              }, { onConflict: "service_type,network,plan_id" });
+            if (!error) saved++;
+          }
+          return new Response(
+            JSON.stringify({ success: true, saved, total: plans.length }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+      return new Response(
+        JSON.stringify({ success: false, message: "No provider configured" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ error: "Invalid action" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
