@@ -194,6 +194,7 @@ serve(async (req) => {
     }
     const recipientNewBalance = parseFloat(recipientNewBal);
 
+    const reference = `TRF_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const senderName = senderProfile?.full_name || user.email;
     const recipientName = recipientProfile.full_name || recipientProfile.phone_number;
 
