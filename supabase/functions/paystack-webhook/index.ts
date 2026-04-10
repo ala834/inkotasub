@@ -150,6 +150,7 @@ async function processWalletCredit(
         }
       }
     }
+  }
 
   // Mark webhook as processed
   await supabase
