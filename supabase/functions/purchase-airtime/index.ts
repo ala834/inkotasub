@@ -111,10 +111,10 @@ serve(async (req) => {
     const lockResult = await acquireLockAndDeductWallet(ctx);
     if (!lockResult.ok) return lockResult.response;
 
-    // Provider call with fallback — SMEPlug is preferred for airtime
+    // Provider call — always send FULL amount so user gets the full value
     const result = await executeWithFallback(
-      () => subpadiPurchaseAirtime(resolvedNetwork, phoneNumber, costPrice),
-      () => smeplugPurchaseAirtime(resolvedNetwork, phoneNumber, costPrice),
+      () => subpadiPurchaseAirtime(resolvedNetwork, phoneNumber, sellingPrice),
+      () => smeplugPurchaseAirtime(resolvedNetwork, phoneNumber, sellingPrice),
       'airtime',
       resolvedNetwork,
       { preferredProvider: 'smeplug' },
