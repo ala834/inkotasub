@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { generateReference } from "../_shared/inkota-service-layer.ts";
-import { smeplugPurchaseRechargeCard } from "../_shared/smeplug-provider.ts";
+import { getSubpadiNetworkId } from "../_shared/subpadi-provider.ts";
 import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { checkFraud, fraudBlockResponse } from "../_shared/fraud-detection.ts";
@@ -19,7 +19,104 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+interface RechargeCardPin { pin: string; serial?: string; network: string; amount: number; }
 
+const RECHARGE_CARD_TIMEOUT_MS = 15000;
+const RECHARGE_CARD_MAX_RETRIES = 2;
+
+function buildRechargeCardAttempts(networkId: number, amount: number, quantity: number) {
+  return [
+    { label: "pin-get-network-quantity", url: `https://subpadi.com/api/pin/?network=${networkId}&amount=${amount}&quantity=${quantity}` },
+    { label: "pin-get-network_id-quantity", url: `https://subpadi.com/api/pin/?network_id=${networkId}&amount=${amount}&quantity=${quantity}` },
+    { label: "pin-get-network-qty", url: `https://subpadi.com/api/pin/?network=${networkId}&amount=${amount}&qty=${quantity}` },
+  ];
+}
+
+function extractPins(data: any, network: string, amount: number): RechargeCardPin[] {
+  const pins: RechargeCardPin[] = [];
+  const rawPins = data?.data?.pins || data?.data?.cards || data?.data?.recharge_cards || data?.data?.vouchers
+    || (Array.isArray(data?.data) ? data.data : null)
+    || data?.pins || data?.cards || data?.recharge_cards || data?.vouchers || [];
+  const pinArray = Array.isArray(rawPins) ? rawPins : [rawPins];
+  for (const item of pinArray) {
+    if (typeof item === 'string') pins.push({ pin: item, network: network.toUpperCase(), amount });
+    else if (item?.pin) pins.push({ pin: item.pin, serial: item.serial || item.serial_number, network: network.toUpperCase(), amount });
+    else if (item?.voucher_pin) pins.push({ pin: item.voucher_pin, serial: item.serial || item.serial_number, network: network.toUpperCase(), amount });
+    else if (item?.pin_number) pins.push({ pin: item.pin_number, serial: item.serial || item.serial_number, network: network.toUpperCase(), amount });
+    else if (item?.token) pins.push({ pin: item.token, serial: item.serial, network: network.toUpperCase(), amount });
+  }
+  if (pins.length === 0) {
+    const singlePin = data?.data?.pin || data?.pin || data?.data?.voucher_pin || data?.voucher_pin || data?.data?.pin_number || data?.pin_number || data?.data?.token || data?.token;
+    if (singlePin) pins.push({ pin: singlePin, serial: data?.data?.serial || data?.serial, network: network.toUpperCase(), amount });
+  }
+  return pins;
+}
+
+function extractErrorMessage(data: any, responseStatus: number, responseText: string) {
+  if (data && typeof data === "object") {
+    const directMessage = data?.error || data?.message || data?.msg || data?.detail;
+    if (typeof directMessage === "string" && directMessage.trim()) return directMessage;
+    if (Array.isArray(data?.error) && data.error.length > 0) return data.error.join("; ");
+    const fieldErrors = Object.entries(data)
+      .filter(([key, value]) => !["success", "status", "Status", "message", "msg", "detail", "error", "reference", "data", "id"].includes(key) && Array.isArray(value) && value.length > 0 && typeof value[0] === "string")
+      .map(([key, value]) => `${key}: ${(value as string[]).join("; ")}`);
+    if (fieldErrors.length > 0) return fieldErrors.join(". ");
+  }
+  if (responseStatus === 404) return "Recharge card provider endpoint was not found.";
+  if (responseText?.includes("<!doctype html")) return `Provider returned HTTP ${responseStatus}.`;
+  return "Recharge card service is temporarily unavailable. Please try again in a few minutes.";
+}
+
+async function subpadiPurchaseRechargeCard(network: string, amount: number, quantity: number) {
+  const token = Deno.env.get("SUBPADI_API_TOKEN");
+  if (!token) return { success: false, message: "Service not configured", rawResponse: null, pins: [] as RechargeCardPin[] };
+  const networkId = getSubpadiNetworkId(network);
+  if (!networkId) return { success: false, message: "Invalid network", rawResponse: null, pins: [] as RechargeCardPin[] };
+
+  const attempts = buildRechargeCardAttempts(networkId, amount, quantity);
+  let lastFailure = { success: false, message: "Recharge card service is temporarily unavailable.", rawResponse: null as unknown, pins: [] as RechargeCardPin[] };
+
+  for (let ai = 0; ai < attempts.length; ai++) {
+    const attempt = attempts[ai];
+    if (ai > 0) await new Promise(r => setTimeout(r, 1500));
+
+    for (let retry = 0; retry <= RECHARGE_CARD_MAX_RETRIES; retry++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), RECHARGE_CARD_TIMEOUT_MS);
+      try {
+        console.log(`Subpadi Recharge Card [${attempt.label}] (attempt ${retry + 1}):`, attempt.url);
+        const response = await fetch(attempt.url, { method: "GET", headers: { "Authorization": `Token ${token}` }, signal: controller.signal });
+        clearTimeout(timeoutId);
+        const responseText = await response.text();
+        console.log(`Subpadi Recharge Card Response [${attempt.label}]:`, response.status, responseText);
+
+        let data: any;
+        try { data = JSON.parse(responseText); } catch { data = { raw: responseText.substring(0, 500) }; }
+
+        if (response.status === 429) {
+          if (retry < RECHARGE_CARD_MAX_RETRIES) { await new Promise(r => setTimeout(r, 2000 * (retry + 1))); continue; }
+          lastFailure = { success: false, message: "Service is busy. Please try again.", rawResponse: data, pins: [] };
+          break;
+        }
+
+        const pins = extractPins(data, network, amount);
+        if ((data?.status === "success" || data?.success === true || response.ok) && pins.length > 0) {
+          return { success: true, message: data?.message || "Recharge cards generated", rawResponse: data, pins };
+        }
+
+        lastFailure = { success: false, message: extractErrorMessage(data, response.status, responseText), rawResponse: data, pins: [] };
+        if (response.status === 405) break;
+        if (response.status < 500) break;
+        if (retry < RECHARGE_CARD_MAX_RETRIES) await new Promise(r => setTimeout(r, 1000 * (retry + 1)));
+      } catch (error) {
+        clearTimeout(timeoutId);
+        lastFailure = { success: false, message: error instanceof Error ? error.message : "API error", rawResponse: null, pins: [] };
+        if (retry < RECHARGE_CARD_MAX_RETRIES) await new Promise(r => setTimeout(r, 1000 * (retry + 1)));
+      }
+    }
+  }
+  return lastFailure;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -87,17 +184,17 @@ serve(async (req) => {
     const lockResult = await acquireLockAndDeductWallet(ctx);
     if (!lockResult.ok) return lockResult.response;
 
-    // Provider call — SMEPlug only for recharge cards (Airtime PIN)
-    const result = await withMetrics('smeplug', 'recharge_card',
-      () => smeplugPurchaseRechargeCard(network, costPricePerCard, quantity),
-      r => r.success && (r.pins?.length ?? 0) > 0
+    // Provider call — Subpadi only (SMEPlug doesn't support recharge card PINs)
+    const result = await withMetrics('subpadi', 'recharge_card',
+      () => subpadiPurchaseRechargeCard(network, costPricePerCard, quantity),
+      r => r.success && r.pins.length > 0
     );
 
     const providerResult: ProviderResult = {
-      success: result.success && (result.pins?.length ?? 0) > 0,
+      success: result.success && result.pins.length > 0,
       message: result.success ? "Recharge cards purchased" : (result.message || "Purchase failed"),
-      providerUsed: 'smeplug', fallbackAttempted: false, rawResponse: result.rawResponse,
-      pins: result.pins || [], extraData: { reference },
+      providerUsed: 'subpadi', fallbackAttempted: false, rawResponse: result.rawResponse,
+      pins: result.pins, extraData: { reference },
     };
 
     return await finalizeTransaction(ctx, lockResult, providerResult);
