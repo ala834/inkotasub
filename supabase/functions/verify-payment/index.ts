@@ -116,20 +116,25 @@ serve(async (req) => {
     }
 
     // If webhook hasn't processed yet, process now (fallback)
-    const { data: wallet } = await adminSupabase
-      .from("wallets")
-      .select("balance")
-      .eq("user_id", userId)
-      .single();
+    // Get balance before credit for transaction record
+    const { data: balanceBefore } = await adminSupabase.rpc("get_wallet_balance", { p_user_id: userId });
+    const currentBalance = parseFloat(balanceBefore ?? "0");
 
-    const currentBalance = parseFloat(wallet?.balance || "0");
-    const newBalance = currentBalance + amountInNaira;
+    // Atomic credit
+    const { data: newBal, error: creditError } = await adminSupabase.rpc("atomic_wallet_credit", {
+      p_user_id: userId,
+      p_amount: amountInNaira,
+    });
 
-    // Update wallet
-    await adminSupabase
-      .from("wallets")
-      .update({ balance: newBalance })
-      .eq("user_id", userId);
+    if (creditError) {
+      console.error("Wallet credit error:", creditError);
+      return new Response(
+        JSON.stringify({ status: "failed", message: "Failed to credit wallet" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const newBalance = parseFloat(newBal);
 
     // Create/update transaction
     if (existingTx) {
