@@ -98,7 +98,11 @@ async function subpadiPurchaseRechargeCard(network: string, amount: number, quan
   };
 
   try {
-    for (const requestAttempt of attempts) {
+    for (let ai = 0; ai < attempts.length; ai++) {
+      const requestAttempt = attempts[ai];
+      // Add delay between different endpoint variants to avoid throttling
+      if (ai > 0) await new Promise((resolve) => setTimeout(resolve, 1500));
+
       for (let retry = 0; retry <= RECHARGE_CARD_MAX_RETRIES; retry++) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), RECHARGE_CARD_TIMEOUT_MS);
@@ -121,6 +125,18 @@ async function subpadiPurchaseRechargeCard(network: string, amount: number, quan
             data = JSON.parse(responseText);
           } catch {
             data = { raw: responseText.substring(0, 500) };
+          }
+
+          // Handle 429 throttling with exponential backoff and retry
+          if (response.status === 429) {
+            console.warn(`Subpadi throttled [${requestAttempt.label}], waiting before retry...`);
+            const backoffMs = 2000 * (retry + 1);
+            if (retry < RECHARGE_CARD_MAX_RETRIES) {
+              await new Promise((resolve) => setTimeout(resolve, backoffMs));
+              continue; // retry same variant
+            }
+            lastFailure = { success: false, message: "Service is busy. Please try again in a moment.", rawResponse: data, pins: [] as RechargeCardPin[] };
+            break; // move to next variant
           }
 
           const pins = extractPins(data, network, amount);
@@ -146,6 +162,8 @@ async function subpadiPurchaseRechargeCard(network: string, amount: number, quan
 
           clearTimeout(timeoutId);
 
+          // 405 = wrong endpoint variant, skip retries and try next variant immediately
+          if (response.status === 405) break;
           if (response.status < 500) break;
           if (retry < RECHARGE_CARD_MAX_RETRIES) await new Promise((resolve) => setTimeout(resolve, 1000 * (retry + 1)));
         } catch (error) {
