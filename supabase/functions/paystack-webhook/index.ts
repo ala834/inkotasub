@@ -28,26 +28,22 @@ async function processWalletCredit(
   reference: string,
   description: string
 ) {
-  // Get current wallet balance
-  const { data: wallet } = await supabase
-    .from("wallets")
-    .select("balance")
-    .eq("user_id", userId)
-    .single();
+  // Get balance before credit for transaction record
+  const { data: balanceBefore } = await supabase.rpc("get_wallet_balance", { p_user_id: userId });
+  const currentBalance = parseFloat(balanceBefore ?? "0");
 
-  const currentBalance = parseFloat(wallet?.balance || "0");
-  const newBalance = currentBalance + amountInNaira;
+  // Atomic credit
+  const { data: newBalance, error: creditError } = await supabase.rpc("atomic_wallet_credit", {
+    p_user_id: userId,
+    p_amount: amountInNaira,
+  });
 
-  // Update wallet
-  const { error: walletError } = await supabase
-    .from("wallets")
-    .update({ balance: newBalance })
-    .eq("user_id", userId);
-
-  if (walletError) {
-    console.error("Wallet update error:", walletError);
-    throw walletError;
+  if (creditError) {
+    console.error("Wallet credit error:", creditError);
+    throw creditError;
   }
+
+  const balanceAfter = parseFloat(newBalance);
 
   // Create or update transaction
   const { data: existingTx } = await supabase
@@ -62,7 +58,7 @@ async function processWalletCredit(
       .update({
         status: "success",
         balance_before: currentBalance,
-        balance_after: newBalance,
+        balance_after: balanceAfter,
       })
       .eq("reference", reference);
   } else {
@@ -71,7 +67,7 @@ async function processWalletCredit(
       type: "credit",
       amount: amountInNaira,
       balance_before: currentBalance,
-      balance_after: newBalance,
+      balance_after: balanceAfter,
       status: "success",
       reference,
       description,
@@ -111,31 +107,32 @@ async function processWalletCredit(
       const rewardPercentage = pendingReferral.reward_percentage || 5;
       const rewardAmount = amountInNaira * (rewardPercentage / 100);
 
-      const { data: referrerWallet } = await supabase
-        .from("wallets")
-        .select("*")
-        .eq("user_id", pendingReferral.referrer_id)
-        .single();
+      // Get referrer balance before credit
+      const { data: referrerBalanceBefore } = await supabase.rpc("get_wallet_balance", { p_user_id: pendingReferral.referrer_id });
 
-      if (referrerWallet) {
-        const referrerNewBalance = parseFloat(referrerWallet.balance) + rewardAmount;
+      if (referrerBalanceBefore !== null) {
+        const refBalBefore = parseFloat(referrerBalanceBefore);
 
-        await supabase
-          .from("wallets")
-          .update({ balance: referrerNewBalance, updated_at: new Date().toISOString() })
-          .eq("user_id", pendingReferral.referrer_id);
-
-        await supabase.from("transactions").insert({
-          user_id: pendingReferral.referrer_id,
-          type: "credit",
-          amount: rewardAmount,
-          balance_before: referrerWallet.balance,
-          balance_after: referrerNewBalance,
-          status: "success",
-          reference: `REF-${Date.now()}`,
-          description: "Referral bonus",
-          metadata: { referred_user_id: userId, deposit_amount: amountInNaira }
+        // Atomic credit for referral reward
+        const { data: referrerNewBal, error: refCreditErr } = await supabase.rpc("atomic_wallet_credit", {
+          p_user_id: pendingReferral.referrer_id,
+          p_amount: rewardAmount,
         });
+
+        if (!refCreditErr) {
+          const refBalAfter = parseFloat(referrerNewBal);
+
+          await supabase.from("transactions").insert({
+            user_id: pendingReferral.referrer_id,
+            type: "credit",
+            amount: rewardAmount,
+            balance_before: refBalBefore,
+            balance_after: refBalAfter,
+            status: "success",
+            reference: `REF-${Date.now()}`,
+            description: "Referral bonus",
+            metadata: { referred_user_id: userId, deposit_amount: amountInNaira }
+          });
 
         await supabase
           .from("referrals")
