@@ -111,8 +111,14 @@ serve(async (req) => {
       selectedPlanProvider ? { preferredProvider: selectedPlanProvider, disableFallback: true } : undefined,
     );
 
+    // Map provider-specific errors to user-friendly messages
+    let userMessage = result.message;
+    if (!result.success && /cannot purchase this bundle for other users/i.test(result.message)) {
+      userMessage = "This data plan is restricted to self-recharge only and cannot be purchased for other numbers. Please choose a different plan.";
+    }
+
     const providerResult: ProviderResult = {
-      success: result.success, message: result.message, providerUsed: result.providerUsed,
+      success: result.success, message: userMessage, providerUsed: result.providerUsed,
       fallbackAttempted: result.fallbackAttempted, rawResponse: result.rawResponse, reference: result.reference,
     };
 
