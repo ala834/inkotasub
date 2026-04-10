@@ -98,11 +98,10 @@ async function subpadiPurchaseRechargeCard(network: string, amount: number, quan
         const timeoutId = setTimeout(() => controller.abort(), RECHARGE_CARD_TIMEOUT_MS);
 
         try {
-          console.log(`Subpadi Recharge Card Request [${requestAttempt.label}] (retry ${retry + 1}/${RECHARGE_CARD_MAX_RETRIES + 1}):`, JSON.stringify(requestAttempt.body));
+          console.log(`Subpadi Recharge Card Request [${requestAttempt.label}] (retry ${retry + 1}/${RECHARGE_CARD_MAX_RETRIES + 1}):`, requestAttempt.url);
           const response = await fetch(requestAttempt.url, {
-            method: "POST",
-            headers: { "Authorization": `Token ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify(requestAttempt.body),
+            method: "GET",
+            headers: { "Authorization": `Token ${token}` },
             signal: controller.signal,
           });
 
