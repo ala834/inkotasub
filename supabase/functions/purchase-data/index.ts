@@ -84,13 +84,15 @@ serve(async (req) => {
       || pricingConfigs?.find(c => c.network === networkUpper && !c.plan_id)
       || pricingConfigs?.find(c => !c.network && !c.plan_id);
 
-    let costPrice = amount;
     const sellingPrice = amount;
+    let costPrice = amount;
     if (config) {
-      costPrice = config.profit_type === 'percentage' ? Math.round(amount / (1 + config.profit_value / 100)) : amount - config.profit_value;
+      costPrice = config.profit_type === 'percentage'
+        ? Math.round(amount * (1 - config.profit_value / 100))
+        : amount - config.profit_value;
     }
     const profit = sellingPrice - costPrice;
-    if (costPrice >= sellingPrice && config) return jsonResponse({ error: "Service temporarily unavailable.", success: false }, 400);
+    if (profit < 0) return jsonResponse({ error: "Service temporarily unavailable.", success: false }, 400);
 
     const reference = generateReference('data');
     const ctx: TransactionContext = {
@@ -104,7 +106,7 @@ serve(async (req) => {
 
     // Provider call with fallback
     const result = await executeWithFallback(
-      () => subpadiPurchaseData(networkUpper, phoneNumber, planId, costPrice),
+      () => subpadiPurchaseData(networkUpper, phoneNumber, planId, sellingPrice),
       () => smeplugPurchaseData(networkUpper, phoneNumber, planId),
       'data',
       networkUpper,
