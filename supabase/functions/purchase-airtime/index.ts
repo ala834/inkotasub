@@ -90,13 +90,16 @@ serve(async (req) => {
     const { data: pricingConfigs } = await adminSupabase.from("pricing_config").select("*").eq("service_type", "airtime").eq("is_active", true).eq("user_type", userType);
     const config = pricingConfigs?.find(c => c.network === resolvedNetwork.toUpperCase() && !c.plan_id) || pricingConfigs?.find(c => !c.network && !c.plan_id);
 
-    let costPrice = amount;
     const sellingPrice = amount;
+    let costPrice = amount;
     if (config) {
-      costPrice = config.profit_type === 'percentage' ? Math.round(amount / (1 + config.profit_value / 100)) : amount - config.profit_value;
+      // costPrice = what we pay the provider (discounted), sellingPrice = what user pays (full amount)
+      costPrice = config.profit_type === 'percentage'
+        ? Math.round(amount * (1 - config.profit_value / 100))
+        : amount - config.profit_value;
     }
     const profit = sellingPrice - costPrice;
-    if (costPrice >= sellingPrice && config) return jsonResponse({ error: "Service temporarily unavailable.", success: false }, 400);
+    if (profit < 0) return jsonResponse({ error: "Service temporarily unavailable.", success: false }, 400);
 
     const reference = generateReference('airtime');
     const ctx: TransactionContext = {
