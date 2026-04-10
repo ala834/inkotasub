@@ -236,9 +236,6 @@ export async function smeplugGetDataPlans(): Promise<SmeplugResponse> {
     console.error("SMEPlug Data Plans Error:", error);
     return { success: false, message: error instanceof Error ? error.message : "API error", rawResponse: null };
   }
-}
-  try {
-    const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/data/plans`, {
       method: "GET",
       headers: getHeaders(),
     });
