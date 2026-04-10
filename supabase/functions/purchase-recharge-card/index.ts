@@ -274,17 +274,17 @@ serve(async (req) => {
     const lockResult = await acquireLockAndDeductWallet(ctx);
     if (!lockResult.ok) return lockResult.response;
 
-    // Provider call (Subpadi only)
-    const result = await withMetrics('subpadi', 'recharge_card',
-      () => subpadiPurchaseRechargeCard(network, costPricePerCard, quantity),
-      r => r.success && r.pins.length > 0
+    // Provider call — SMEPlug only for recharge cards (Airtime PIN)
+    const result = await withMetrics('smeplug', 'recharge_card',
+      () => smeplugPurchaseRechargeCard(network, costPricePerCard, quantity),
+      r => r.success && (r.pins?.length ?? 0) > 0
     );
 
     const providerResult: ProviderResult = {
-      success: result.success && result.pins.length > 0,
+      success: result.success && (result.pins?.length ?? 0) > 0,
       message: result.success ? "Recharge cards purchased" : (result.message || "Purchase failed"),
-      providerUsed: 'subpadi', fallbackAttempted: false, rawResponse: result.rawResponse,
-      pins: result.pins, extraData: { reference },
+      providerUsed: 'smeplug', fallbackAttempted: false, rawResponse: result.rawResponse,
+      pins: result.pins || [], extraData: { reference },
     };
 
     return await finalizeTransaction(ctx, lockResult, providerResult);
