@@ -236,15 +236,5 @@ export async function smeplugGetDataPlans(): Promise<SmeplugResponse> {
     console.error("SMEPlug Data Plans Error:", error);
     return { success: false, message: error instanceof Error ? error.message : "API error", rawResponse: null };
   }
-}
-    console.log("SMEPlug Data Plans Response (count):", Array.isArray(data?.data) ? data.data.length : 'non-array');
-    return {
-      success: response.ok,
-      message: response.ok ? "Plans retrieved" : (data?.message || "Failed to get plans"),
-      rawResponse: data,
-    };
-  } catch (error) {
-    console.error("SMEPlug Data Plans Error:", error);
-    return { success: false, message: error instanceof Error ? error.message : "API error", rawResponse: null };
-  }
-}
+
+
