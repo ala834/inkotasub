@@ -70,7 +70,7 @@ function extractRechargeCardErrorMessage(data: any, responseStatus: number, resp
 
   if (responseStatus === 404) return "Recharge card provider endpoint was not found.";
   if (responseText?.includes("<!doctype html")) return `Provider returned HTTP ${responseStatus}.`;
-  return "Recharge card service is not available at the moment";
+  return "Recharge card service is temporarily unavailable. Please try again in a few minutes.";
 }
 
 async function subpadiPurchaseRechargeCard(network: string, amount: number, quantity: number) {
