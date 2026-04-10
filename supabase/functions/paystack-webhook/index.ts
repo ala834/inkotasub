@@ -134,22 +134,22 @@ async function processWalletCredit(
             metadata: { referred_user_id: userId, deposit_amount: amountInNaira }
           });
 
-        await supabase
-          .from("referrals")
-          .update({ rewarded: true, reward_amount: rewardAmount })
-          .eq("id", pendingReferral.id);
+          await supabase
+            .from("referrals")
+            .update({ rewarded: true, reward_amount: rewardAmount })
+            .eq("id", pendingReferral.id);
 
-        await supabase.from("notifications").insert({
-          user_id: pendingReferral.referrer_id,
-          title: "Referral Bonus!",
-          message: `You earned ₦${rewardAmount.toLocaleString()} from your referral's first deposit!`,
-          type: "success"
-        });
+          await supabase.from("notifications").insert({
+            user_id: pendingReferral.referrer_id,
+            title: "Referral Bonus!",
+            message: `You earned ₦${rewardAmount.toLocaleString()} from your referral's first deposit!`,
+            type: "success"
+          });
 
-        console.log(`Referral reward processed: ${pendingReferral.referrer_id} earned ₦${rewardAmount}`);
+          console.log(`Referral reward processed: ${pendingReferral.referrer_id} earned ₦${rewardAmount}`);
+        }
       }
     }
-  }
 
   // Mark webhook as processed
   await supabase
