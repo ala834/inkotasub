@@ -237,8 +237,6 @@ export async function smeplugGetDataPlans(): Promise<SmeplugResponse> {
     return { success: false, message: error instanceof Error ? error.message : "API error", rawResponse: null };
   }
 }
-    });
-    const data = await response.json();
     console.log("SMEPlug Data Plans Response (count):", Array.isArray(data?.data) ? data.data.length : 'non-array');
     return {
       success: response.ok,
