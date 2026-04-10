@@ -150,50 +150,51 @@ serve(async (req) => {
       });
     }
 
-    // Get sender's wallet
-    const { data: senderWallet, error: senderWalletError } = await supabase
-      .from('wallets').select('*').eq('user_id', user.id).single();
-
-    if (senderWalletError || !senderWallet) {
+    // Get sender's current balance for transaction record
+    const { data: senderBalanceBefore, error: senderBalErr } = await supabase.rpc("get_wallet_balance", { p_user_id: user.id });
+    if (senderBalErr) {
       return new Response(JSON.stringify({ error: 'Sender wallet not found' }), {
         status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    const currentBalance = parseFloat(senderBalanceBefore);
 
-    const currentBalance = parseFloat(senderWallet.balance);
-    if (currentBalance < totalDeduction) {
-      return new Response(JSON.stringify({ error: 'Insufficient balance (including ₦10 transfer fee)' }), {
+    // Atomic debit sender (amount + fee)
+    const { data: senderNewBal, error: debitError } = await supabase.rpc("atomic_wallet_debit", {
+      p_user_id: user.id,
+      p_amount: totalDeduction,
+    });
+
+    if (debitError) {
+      const msg = debitError.message?.includes('insufficient_balance')
+        ? 'Insufficient balance (including ₦10 transfer fee)'
+        : 'Transfer failed';
+      return new Response(JSON.stringify({ error: msg }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    const senderNewBalance = parseFloat(senderNewBal);
 
-    // Get recipient's wallet
-    const { data: recipientWallet, error: recipientWalletError } = await supabase
-      .from('wallets').select('*').eq('user_id', recipientProfile.user_id).single();
+    // Get recipient balance before credit
+    const { data: recipientBalBefore } = await supabase.rpc("get_wallet_balance", { p_user_id: recipientProfile.user_id });
+    const recipientCurrentBalance = parseFloat(recipientBalBefore ?? "0");
 
-    if (recipientWalletError || !recipientWallet) {
+    // Atomic credit recipient (amount only, no fee)
+    const { data: recipientNewBal, error: creditError } = await supabase.rpc("atomic_wallet_credit", {
+      p_user_id: recipientProfile.user_id,
+      p_amount: transferAmount,
+    });
+
+    if (creditError) {
+      // Refund sender atomically
+      await supabase.rpc("atomic_wallet_credit", { p_user_id: user.id, p_amount: totalDeduction });
       return new Response(JSON.stringify({ error: 'Recipient wallet not found' }), {
         status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    const recipientNewBalance = parseFloat(recipientNewBal);
 
     const reference = `TRF_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    // Debit sender (amount + fee)
-    const senderNewBalance = currentBalance - totalDeduction;
-    await supabase
-      .from('wallets')
-      .update({ balance: senderNewBalance, updated_at: new Date().toISOString() })
-      .eq('user_id', user.id);
-
-    // Credit recipient (amount only, no fee)
-    const recipientCurrentBalance = parseFloat(recipientWallet.balance);
-    const recipientNewBalance = recipientCurrentBalance + transferAmount;
-    await supabase
-      .from('wallets')
-      .update({ balance: recipientNewBalance, updated_at: new Date().toISOString() })
-      .eq('user_id', recipientProfile.user_id);
-
     const senderName = senderProfile?.full_name || user.email;
     const recipientName = recipientProfile.full_name || recipientProfile.phone_number;
 

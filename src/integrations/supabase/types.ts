@@ -500,6 +500,13 @@ export type Database = {
             referencedRelation: "pricing_config"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "price_change_log_pricing_config_id_fkey"
+            columns: ["pricing_config_id"]
+            isOneToOne: false
+            referencedRelation: "public_pricing_config"
+            referencedColumns: ["id"]
+          },
         ]
       }
       pricing_config: {
@@ -1198,12 +1205,52 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_pricing_config: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          is_active: boolean | null
+          network: string | null
+          plan_id: string | null
+          service_type: string | null
+          updated_at: string | null
+          user_type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          network?: string | null
+          plan_id?: string | null
+          service_type?: string | null
+          updated_at?: string | null
+          user_type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          network?: string | null
+          plan_id?: string | null
+          service_type?: string | null
+          updated_at?: string | null
+          user_type?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       admin_reset_pin_lock: {
         Args: { target_user_id: string }
         Returns: undefined
+      }
+      atomic_wallet_credit: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: number
+      }
+      atomic_wallet_debit: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: number
       }
       delete_email: {
         Args: { message_id: number; queue_name: string }
@@ -1213,6 +1260,7 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_wallet_balance: { Args: { p_user_id: string }; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
