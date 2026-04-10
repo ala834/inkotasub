@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { generateReference } from "../_shared/inkota-service-layer.ts";
 import { getSubpadiNetworkId } from "../_shared/subpadi-provider.ts";
+import { smeplugPurchaseRechargeCard } from "../_shared/smeplug-provider.ts";
 import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { checkFraud, fraudBlockResponse } from "../_shared/fraud-detection.ts";

@@ -170,8 +170,73 @@ export async function smeplugPurchaseData(
   }
 }
 
+// ─── POST /airtime/recharge-card (PIN generation) ───
+export async function smeplugPurchaseRechargeCard(
+  network: string, amount: number, quantity: number
+): Promise<SmeplugResponse & { pins?: Array<{ pin: string; serial?: string; network: string; amount: number }> }> {
+  const networkId = getSmeplugNetworkId(network);
+  if (!networkId) return { success: false, message: "Invalid network for SMEPlug", rawResponse: null, pins: [] };
+
+  try {
+    const body = { network_id: networkId, amount, quantity };
+    console.log("SMEPlug Recharge Card Request:", JSON.stringify(body));
+    const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/airtime/recharge-card/purchase`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    const data = parseJson(text);
+    console.log("SMEPlug Recharge Card Response:", JSON.stringify(data));
+    const result = normalizeResult(data, response.ok);
+
+    // Extract PINs from response
+    const pins: Array<{ pin: string; serial?: string; network: string; amount: number }> = [];
+    const rawPins = data?.data?.pins || data?.data?.cards || data?.data?.recharge_cards
+      || data?.pins || data?.cards || (Array.isArray(data?.data) ? data.data : []);
+    const pinArray = Array.isArray(rawPins) ? rawPins : rawPins ? [rawPins] : [];
+    for (const item of pinArray) {
+      if (typeof item === 'string') pins.push({ pin: item, network: network.toUpperCase(), amount });
+      else if (item?.pin) pins.push({ pin: item.pin, serial: item.serial || item.serial_number, network: network.toUpperCase(), amount });
+      else if (item?.token) pins.push({ pin: item.token, serial: item.serial, network: network.toUpperCase(), amount });
+    }
+    // Single PIN fallback
+    if (pins.length === 0) {
+      const singlePin = data?.data?.pin || data?.pin || data?.data?.token || data?.token;
+      if (singlePin) pins.push({ pin: singlePin, serial: data?.data?.serial || data?.serial, network: network.toUpperCase(), amount });
+    }
+
+    return {
+      ...result,
+      rawResponse: data,
+      reference: data?.data?.reference || data?.reference || data?.transaction_id,
+      pins,
+    };
+  } catch (error) {
+    console.error("SMEPlug Recharge Card Error:", error);
+    return { success: false, message: error instanceof Error ? error.message : "API error", rawResponse: null, pins: [] };
+  }
+}
+
 // ─── GET /data/plans ───
 export async function smeplugGetDataPlans(): Promise<SmeplugResponse> {
+  try {
+    const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/data/plans`, {
+      method: "GET",
+      headers: getHeaders(),
+    });
+    const data = await response.json();
+    console.log("SMEPlug Data Plans Response (count):", Array.isArray(data?.data) ? data.data.length : 'non-array');
+    return {
+      success: response.ok,
+      message: response.ok ? "Plans retrieved" : (data?.message || "Failed to get plans"),
+      rawResponse: data,
+    };
+  } catch (error) {
+    console.error("SMEPlug Data Plans Error:", error);
+    return { success: false, message: error instanceof Error ? error.message : "API error", rawResponse: null };
+  }
+}
   try {
     const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/data/plans`, {
       method: "GET",
