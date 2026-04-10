@@ -33,29 +33,19 @@ const RECHARGE_CARD_MAX_RETRIES = 2;
 function buildRechargeCardAttempts(networkId: number, amount: number, quantity: number): RechargeCardRequestAttempt[] {
   return [
     {
-      label: "pin-network-quantity",
-      url: "https://subpadi.com/api/pin/",
-      body: { network: networkId, amount, quantity },
+      label: "pin-get-network-quantity",
+      url: `https://subpadi.com/api/pin/?network=${networkId}&amount=${amount}&quantity=${quantity}`,
+      body: {},
     },
     {
-      label: "pin-network_id-quantity",
-      url: "https://subpadi.com/api/pin/",
-      body: { network_id: networkId, amount, quantity },
+      label: "pin-get-network_id-quantity",
+      url: `https://subpadi.com/api/pin/?network_id=${networkId}&amount=${amount}&quantity=${quantity}`,
+      body: {},
     },
     {
-      label: "pin-network-qty",
-      url: "https://subpadi.com/api/pin/",
-      body: { network: networkId, amount, qty: quantity },
-    },
-    {
-      label: "pin-network_id-qty",
-      url: "https://subpadi.com/api/pin/",
-      body: { network_id: networkId, amount, qty: quantity },
-    },
-    {
-      label: "pin-network-number_of_pins",
-      url: "https://subpadi.com/api/pin/",
-      body: { network: networkId, amount, number_of_pins: quantity },
+      label: "pin-get-network-qty",
+      url: `https://subpadi.com/api/pin/?network=${networkId}&amount=${amount}&qty=${quantity}`,
+      body: {},
     },
   ];
 }
