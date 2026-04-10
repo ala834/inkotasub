@@ -92,7 +92,7 @@ serve(async (req) => {
 
     // Provider call (Subpadi only)
     const result = await withMetrics('subpadi', 'electricity',
-      () => subpadiPurchaseElectricity(discoCode, meterNumber, costPrice, meterType),
+      () => subpadiPurchaseElectricity(discoCode, meterNumber, amount, meterType),
       r => r.success && !!r.token
     );
 

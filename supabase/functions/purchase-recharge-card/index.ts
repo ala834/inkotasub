@@ -168,7 +168,11 @@ serve(async (req) => {
     const perCardAmount = amount;
     const totalAmount = perCardAmount * quantity;
     let costPricePerCard = perCardAmount;
-    if (config) { costPricePerCard = config.profit_type === 'percentage' ? Math.round(perCardAmount / (1 + config.profit_value / 100)) : perCardAmount - config.profit_value; }
+    if (config) {
+      costPricePerCard = config.profit_type === 'percentage'
+        ? Math.round(perCardAmount * (1 - config.profit_value / 100))
+        : perCardAmount - config.profit_value;
+    }
     const totalCostPrice = costPricePerCard * quantity;
     const totalProfit = totalAmount - totalCostPrice;
 
@@ -186,7 +190,7 @@ serve(async (req) => {
 
     // Provider call — Subpadi only (SMEPlug doesn't support recharge card PINs)
     const result = await withMetrics('subpadi', 'recharge_card',
-      () => subpadiPurchaseRechargeCard(network, costPricePerCard, quantity),
+      () => subpadiPurchaseRechargeCard(network, perCardAmount, quantity),
       r => r.success && r.pins.length > 0
     );
 

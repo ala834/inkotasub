@@ -63,11 +63,15 @@ serve(async (req) => {
     const { data: pricingConfigs } = await adminSupabase.from("pricing_config").select("*").eq("service_type", "cable").eq("is_active", true).eq("user_type", userType);
     const config = pricingConfigs?.find(c => c.network === provider.toUpperCase() && c.plan_id === planId) || pricingConfigs?.find(c => c.network === provider.toUpperCase() && !c.plan_id) || pricingConfigs?.find(c => !c.network && !c.plan_id);
 
-    let costPrice = amount;
     const sellingPrice = amount;
-    if (config) { costPrice = config.profit_type === 'percentage' ? Math.round(amount / (1 + config.profit_value / 100)) : amount - config.profit_value; }
+    let costPrice = amount;
+    if (config) {
+      costPrice = config.profit_type === 'percentage'
+        ? Math.round(amount * (1 - config.profit_value / 100))
+        : amount - config.profit_value;
+    }
     const profit = sellingPrice - costPrice;
-    if (costPrice >= sellingPrice && config) return jsonResponse({ error: "Service temporarily unavailable.", success: false }, 400);
+    if (profit < 0) return jsonResponse({ error: "Service temporarily unavailable.", success: false }, 400);
 
     const reference = `CABLE_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const providerCode = provider.toLowerCase();
@@ -84,7 +88,7 @@ serve(async (req) => {
 
     // Provider call (Subpadi only)
     const result = await withMetrics('subpadi', 'cable',
-      () => subpadiPurchaseCable(providerCode, smartCardNumber, planId, costPrice),
+      () => subpadiPurchaseCable(providerCode, smartCardNumber, planId, sellingPrice),
       r => r.success
     );
 
