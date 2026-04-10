@@ -33,29 +33,19 @@ const RECHARGE_CARD_MAX_RETRIES = 2;
 function buildRechargeCardAttempts(networkId: number, amount: number, quantity: number): RechargeCardRequestAttempt[] {
   return [
     {
-      label: "pin-network-quantity",
-      url: "https://subpadi.com/api/pin/",
-      body: { network: networkId, amount, quantity },
+      label: "pin-get-network-quantity",
+      url: `https://subpadi.com/api/pin/?network=${networkId}&amount=${amount}&quantity=${quantity}`,
+      body: {},
     },
     {
-      label: "pin-network_id-quantity",
-      url: "https://subpadi.com/api/pin/",
-      body: { network_id: networkId, amount, quantity },
+      label: "pin-get-network_id-quantity",
+      url: `https://subpadi.com/api/pin/?network_id=${networkId}&amount=${amount}&quantity=${quantity}`,
+      body: {},
     },
     {
-      label: "pin-network-qty",
-      url: "https://subpadi.com/api/pin/",
-      body: { network: networkId, amount, qty: quantity },
-    },
-    {
-      label: "pin-network_id-qty",
-      url: "https://subpadi.com/api/pin/",
-      body: { network_id: networkId, amount, qty: quantity },
-    },
-    {
-      label: "pin-network-number_of_pins",
-      url: "https://subpadi.com/api/pin/",
-      body: { network: networkId, amount, number_of_pins: quantity },
+      label: "pin-get-network-qty",
+      url: `https://subpadi.com/api/pin/?network=${networkId}&amount=${amount}&qty=${quantity}`,
+      body: {},
     },
   ];
 }
@@ -108,11 +98,10 @@ async function subpadiPurchaseRechargeCard(network: string, amount: number, quan
         const timeoutId = setTimeout(() => controller.abort(), RECHARGE_CARD_TIMEOUT_MS);
 
         try {
-          console.log(`Subpadi Recharge Card Request [${requestAttempt.label}] (retry ${retry + 1}/${RECHARGE_CARD_MAX_RETRIES + 1}):`, JSON.stringify(requestAttempt.body));
+          console.log(`Subpadi Recharge Card Request [${requestAttempt.label}] (retry ${retry + 1}/${RECHARGE_CARD_MAX_RETRIES + 1}):`, requestAttempt.url);
           const response = await fetch(requestAttempt.url, {
-            method: "POST",
-            headers: { "Authorization": `Token ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify(requestAttempt.body),
+            method: "GET",
+            headers: { "Authorization": `Token ${token}` },
             signal: controller.signal,
           });
 
