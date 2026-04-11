@@ -37,6 +37,17 @@ function networkNameFromId(id: number): string {
   return map[id] || "UNKNOWN";
 }
 
+// Map DB plan_type (uppercase) to user-friendly category names
+function mapPlanTypeToCategory(planType: string): string {
+  switch (planType) {
+    case 'SME': return 'SME';
+    case 'GIFTING': return 'Gifting';
+    case 'CORPORATE': return 'Corporate';
+    case 'GENERAL': return 'General';
+    default: return planType || 'General';
+  }
+}
+
 const PLAN_CACHE_TTL = 5 * 60 * 1000;
 
 serve(async (req) => {
@@ -116,7 +127,7 @@ serve(async (req) => {
             sellingPrice: plan.selling_price ? parseFloat(plan.selling_price) : null,
             validity: plan.validity || "30 Days",
             dataSize: extractDataSize(plan.plan_name),
-            category: categorizePlan(plan.plan_name),
+            category: mapPlanTypeToCategory(plan.plan_type || '') || categorizePlan(plan.plan_name),
             isFeatured: plan.is_featured || false,
             provider: plan.provider || "subpadi",
           }));
@@ -135,17 +146,13 @@ serve(async (req) => {
           
           if (smeplugResult.success && smeplugResult.rawResponse) {
             const raw = smeplugResult.rawResponse as any;
-            // SMEPlug returns { data: [...] } or just an array
             const allPlans: any[] = Array.isArray(raw) ? raw 
               : Array.isArray(raw?.data) ? raw.data 
               : Array.isArray(raw?.plans) ? raw.plans 
               : [];
             
-            console.log(`SMEPlug returned ${allPlans.length} total plans`);
-
             const targetNetworkId = SMEPLUG_NETWORK_MAP[networkUpper];
             
-            // Filter for requested network
             const networkPlans = allPlans.filter((p: any) => {
               const planNetworkId = p.network_id || p.network;
               const planNetworkName = String(p.network_name || p.network || "").toUpperCase();
@@ -155,8 +162,6 @@ serve(async (req) => {
               if (networkUpper === "9MOBILE" && (planNetworkName.includes("ETISALAT") || planNetworkName.includes("9MOBILE"))) return true;
               return false;
             });
-
-            console.log(`Filtered ${networkPlans.length} plans for ${networkUpper}`);
 
             if (networkPlans.length > 0) {
               basePlans = networkPlans.map((p: any) => {
@@ -178,10 +183,7 @@ serve(async (req) => {
               }).filter((p: any) => p.id && p.amount > 0 && p.name);
 
               source = "smeplug";
-              console.log(`Mapped ${basePlans.length} valid SMEPlug plans for ${networkUpper}`);
             }
-          } else {
-            console.error("SMEPlug plans fetch failed:", smeplugResult.message);
           }
         } catch (smeplugError) {
           console.error("SMEPlug API error:", smeplugError);
@@ -192,7 +194,6 @@ serve(async (req) => {
       if (basePlans.length === 0) {
         basePlans = getFallbackPlans(network);
         source = "fallback";
-        console.log(`Using ${basePlans.length} fallback data plans for ${network}`);
       }
 
       // Deduplicate by plan ID
@@ -204,8 +205,11 @@ serve(async (req) => {
         return true;
       });
 
-      // Sort by data size (small → large), then by name
+      // Sort: featured first, then by data size, then by price
       basePlans.sort((a: any, b: any) => {
+        // Featured plans first
+        if (a.isFeatured && !b.isFeatured) return -1;
+        if (!a.isFeatured && b.isFeatured) return 1;
         if (a.dataSize !== b.dataSize) return a.dataSize - b.dataSize;
         return a.name.localeCompare(b.name);
       });
@@ -229,7 +233,6 @@ serve(async (req) => {
       .eq("user_type", userType);
 
     const pricedPlans = basePlans.map((plan: any) => {
-      // If admin set a selling price, use it directly
       if (plan.sellingPrice && plan.sellingPrice > 0) {
         const result: any = {
           id: plan.id,
@@ -245,7 +248,6 @@ serve(async (req) => {
         return result;
       }
 
-      // Otherwise use pricing config
       const costPrice = plan.amount;
       const config = pricingConfigs?.find((c: any) => c.network === networkUpper && c.plan_id === plan.id)
         || pricingConfigs?.find((c: any) => c.network === networkUpper && !c.plan_id)

@@ -8,7 +8,6 @@ const corsHeaders = {
 };
 
 const SMEPLUG_NETWORK_MAP: Record<number, string> = { 1: "MTN", 2: "AIRTEL", 3: "9MOBILE", 4: "GLO" };
-const SUBPADI_NETWORK_MAP: Record<string, string> = { mtn: "MTN", airtel: "AIRTEL", glo: "GLO", "9mobile": "9MOBILE", etisalat: "9MOBILE" };
 
 function extractDataSize(name: string): number {
   const gb = name.match(/(\d+(?:\.\d+)?)\s*GB/i);
@@ -18,13 +17,20 @@ function extractDataSize(name: string): number {
   return 99999;
 }
 
+function categorizePlan(planName: string): string {
+  const name = planName.toUpperCase();
+  if (name.includes('CORPORATE')) return 'CORPORATE';
+  if (name.includes('GIFTING') || name.includes('GIFT')) return 'GIFTING';
+  if (name.includes('SME')) return 'SME';
+  return 'GENERAL';
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Verify admin
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -48,27 +54,23 @@ serve(async (req) => {
 
     let body: any = {};
     try { body = await req.json(); } catch {}
-    const action = body.action || "fetch"; // fetch | save | sync_to_db
+    const action = body.action || "fetch";
 
     if (action === "fetch") {
       const allPlans: any[] = [];
 
-      // 1. Fetch from SMEPlug
+      // 1. Fetch from SMEPlug API
       if (isSmeplugConfigured()) {
         try {
           const result = await smeplugGetDataPlans();
-          console.log("SMEPlug raw response keys:", result.rawResponse ? Object.keys(result.rawResponse as any) : "null");
-          console.log("SMEPlug raw sample:", JSON.stringify(result.rawResponse).substring(0, 500));
           if (result.success && result.rawResponse) {
             const raw = result.rawResponse as any;
-            // Try multiple response formats
             let plans: any[] = [];
             if (Array.isArray(raw)) plans = raw;
             else if (Array.isArray(raw?.data)) plans = raw.data;
             else if (Array.isArray(raw?.plans)) plans = raw.plans;
             else if (Array.isArray(raw?.result)) plans = raw.result;
             else {
-              // SMEPlug returns: { status: true, data: { "1": [...], "2": [...] } }
               const dataObj = raw?.data && typeof raw.data === "object" && !Array.isArray(raw.data) ? raw.data : raw;
               for (const key of Object.keys(dataObj)) {
                 if (Array.isArray(dataObj[key])) {
@@ -76,7 +78,6 @@ serve(async (req) => {
                 }
               }
             }
-            console.log("Parsed plans count:", plans.length);
             for (const p of plans) {
               const networkId = p.network_id || p.network || p._network_key;
               const networkName = typeof networkId === "number" || /^\d+$/.test(String(networkId))
@@ -94,6 +95,7 @@ serve(async (req) => {
                 base_price: price,
                 validity: p.validity || p.duration || p.plan_validity || "30 Days",
                 data_size: extractDataSize(planName),
+                plan_type: categorizePlan(planName),
               });
             }
           }
@@ -102,9 +104,8 @@ serve(async (req) => {
         }
       }
 
-      // 1b. If no plans from API, load existing smeplug plans from DB
+      // If no API plans, load existing smeplug plans from DB
       if (allPlans.filter(p => p.provider === "smeplug").length === 0) {
-        console.log("No SMEPlug API plans, loading from DB...");
         const { data: dbSmeplugPlans } = await adminSupabase
           .from("service_plans")
           .select("*")
@@ -124,12 +125,13 @@ serve(async (req) => {
               is_enabled: p.is_enabled,
               is_featured: p.is_featured,
               selling_price: p.selling_price ? parseFloat(p.selling_price as any) : null,
+              plan_type: (p as any).plan_type || categorizePlan(p.plan_name),
             });
           }
         }
       }
 
-      // 2. Fetch from Subpadi (they don't have a list API, so load from DB)
+      // 2. Load Subpadi plans from DB
       try {
         const { data: dbPlans } = await adminSupabase
           .from("service_plans")
@@ -147,11 +149,11 @@ serve(async (req) => {
               base_price: parseFloat(p.base_price as any),
               validity: p.validity || "30 Days",
               data_size: extractDataSize(p.plan_name),
-              // Include DB state
               db_id: p.id,
               is_enabled: p.is_enabled,
               is_featured: p.is_featured,
               selling_price: p.selling_price ? parseFloat(p.selling_price as any) : null,
+              plan_type: (p as any).plan_type || categorizePlan(p.plan_name),
             });
           }
         }
@@ -159,7 +161,7 @@ serve(async (req) => {
         console.error("DB fetch error:", e);
       }
 
-      // 3. Enrich SMEPlug plans with existing DB state
+      // 3. Enrich SMEPlug API plans with existing DB state
       const { data: existingPlans } = await adminSupabase
         .from("service_plans")
         .select("*")
@@ -171,13 +173,14 @@ serve(async (req) => {
       const enrichedPlans = allPlans.map(p => {
         const key = `${p.provider}:${p.network}:${p.plan_id}`;
         const existing = existingMap.get(key);
-        if (existing && p.provider === "smeplug") {
+        if (existing && p.provider === "smeplug" && !p.db_id) {
           return {
             ...p,
             db_id: existing.id,
             is_enabled: existing.is_enabled,
             is_featured: existing.is_featured,
             selling_price: existing.selling_price ? parseFloat(existing.selling_price as any) : null,
+            plan_type: (existing as any).plan_type || p.plan_type,
           };
         }
         return {
@@ -189,21 +192,29 @@ serve(async (req) => {
         };
       });
 
-      // Sort by network then data size
-      enrichedPlans.sort((a: any, b: any) => {
+      // Deduplicate by provider:network:plan_id
+      const seen = new Set<string>();
+      const deduped = enrichedPlans.filter(p => {
+        const key = `${p.provider}:${p.network}:${p.plan_id}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      deduped.sort((a: any, b: any) => {
         if (a.network !== b.network) return a.network.localeCompare(b.network);
+        if (a.plan_type !== b.plan_type) return a.plan_type.localeCompare(b.plan_type);
         if (a.data_size !== b.data_size) return a.data_size - b.data_size;
         return a.plan_name.localeCompare(b.plan_name);
       });
 
       return new Response(
-        JSON.stringify({ success: true, plans: enrichedPlans, total: enrichedPlans.length }),
+        JSON.stringify({ success: true, plans: deduped, total: deduped.length }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     if (action === "save_plan") {
-      // Upsert a single plan to DB
       const plan = body.plan;
       if (!plan) {
         return new Response(JSON.stringify({ error: "Plan data required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -220,6 +231,7 @@ serve(async (req) => {
         is_enabled: plan.is_enabled ?? false,
         is_featured: plan.is_featured ?? false,
         selling_price: plan.selling_price || null,
+        plan_type: plan.plan_type || categorizePlan(plan.plan_name),
         last_synced_at: new Date().toISOString(),
       };
 
@@ -268,6 +280,7 @@ serve(async (req) => {
           is_enabled: plan.is_enabled ?? false,
           is_featured: plan.is_featured ?? false,
           selling_price: plan.selling_price || null,
+          plan_type: plan.plan_type || categorizePlan(plan.plan_name),
           last_synced_at: new Date().toISOString(),
         };
 
@@ -285,6 +298,9 @@ serve(async (req) => {
     }
 
     if (action === "sync_to_db") {
+      let totalSaved = 0;
+
+      // Sync SMEPlug
       if (isSmeplugConfigured()) {
         const result = await smeplugGetDataPlans();
         if (result.success && result.rawResponse) {
@@ -298,7 +314,6 @@ serve(async (req) => {
               }
             }
           }
-          let saved = 0;
           for (const p of plans) {
             const networkId = p.network_id || p.network || p._network_key;
             const networkName = typeof networkId === "number" || /^\d+$/.test(String(networkId))
@@ -321,19 +336,17 @@ serve(async (req) => {
                 validity: p.validity || p.duration || p.plan_validity || "30 Days",
                 is_enabled: false,
                 is_featured: false,
+                plan_type: categorizePlan(planName),
                 last_synced_at: new Date().toISOString(),
               }, { onConflict: "service_type,network,plan_id" });
-            if (!error) saved++;
+            if (!error) totalSaved++;
           }
-          return new Response(
-            JSON.stringify({ success: true, saved, total: plans.length }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
         }
       }
+
       return new Response(
-        JSON.stringify({ success: false, message: "No provider configured" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: true, saved: totalSaved }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

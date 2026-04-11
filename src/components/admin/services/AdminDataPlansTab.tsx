@@ -15,8 +15,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { RefreshCw, Plus, Edit2, Search, Star, Download, Loader2 } from "lucide-react";
+import { RefreshCw, Plus, Edit2, Search, Star, Download, Loader2, Trash2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ProviderPlan {
   provider: string;
@@ -30,10 +32,19 @@ interface ProviderPlan {
   is_enabled: boolean;
   is_featured: boolean;
   selling_price: number | null;
+  plan_type: string;
 }
 
 const NETWORKS = ["MTN", "AIRTEL", "GLO", "9MOBILE"];
 const PROVIDERS = ["smeplug", "subpadi"];
+const PLAN_TYPES = ["SME", "GIFTING", "CORPORATE", "GENERAL"];
+
+const PLAN_TYPE_COLORS: Record<string, string> = {
+  SME: "bg-blue-500/10 text-blue-700 border-blue-200",
+  GIFTING: "bg-green-500/10 text-green-700 border-green-200",
+  CORPORATE: "bg-purple-500/10 text-purple-700 border-purple-200",
+  GENERAL: "bg-muted text-muted-foreground border-border",
+};
 
 const AdminDataPlansTab = () => {
   const { user } = useAuth();
@@ -43,8 +54,10 @@ const AdminDataPlansTab = () => {
   const [isSaving, setSaving] = useState<string | null>(null);
   const [selectedNetwork, setSelectedNetwork] = useState("all");
   const [selectedProvider, setSelectedProvider] = useState("all");
+  const [selectedPlanType, setSelectedPlanType] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showEnabledOnly, setShowEnabledOnly] = useState(false);
+  const [groupByType, setGroupByType] = useState(true);
 
   // Edit selling price dialog
   const [editPlan, setEditPlan] = useState<ProviderPlan | null>(null);
@@ -54,7 +67,7 @@ const AdminDataPlansTab = () => {
   // Manual plan dialog
   const [isManualDialogOpen, setIsManualDialogOpen] = useState(false);
   const [manualForm, setManualForm] = useState({
-    provider: "subpadi", network: "MTN", plan_id: "", plan_name: "", base_price: "", validity: "", selling_price: "",
+    provider: "subpadi", network: "MTN", plan_id: "", plan_name: "", base_price: "", validity: "", selling_price: "", plan_type: "GENERAL",
   });
 
   useEffect(() => { loadPlans(); }, []);
@@ -62,7 +75,6 @@ const AdminDataPlansTab = () => {
   const loadPlans = async () => {
     setIsLoading(true);
     try {
-      // Load from DB
       const { data, error } = await supabase
         .from("service_plans")
         .select("*")
@@ -83,6 +95,7 @@ const AdminDataPlansTab = () => {
           is_enabled: p.is_enabled,
           is_featured: p.is_featured || false,
           selling_price: p.selling_price ? parseFloat(p.selling_price) : null,
+          plan_type: p.plan_type || categorizePlan(p.plan_name),
         })));
       }
     } catch (e) {
@@ -101,7 +114,10 @@ const AdminDataPlansTab = () => {
 
       if (error) throw error;
       if (data?.success && data.plans) {
-        setPlans(data.plans);
+        setPlans(data.plans.map((p: any) => ({
+          ...p,
+          plan_type: p.plan_type || categorizePlan(p.plan_name),
+        })));
         toast.success(`Loaded ${data.total} plans from providers`);
       } else {
         toast.error("No plans returned");
@@ -131,7 +147,6 @@ const AdminDataPlansTab = () => {
           : p
       ));
 
-      // Log
       await supabase.from("price_change_log").insert({
         admin_id: user?.id,
         change_type: field === "is_enabled" ? (newValue ? "plan_enabled" : "plan_disabled") : (newValue ? "plan_featured" : "plan_unfeatured"),
@@ -191,6 +206,7 @@ const AdminDataPlansTab = () => {
         is_enabled: true,
         is_featured: false,
         selling_price: manualForm.selling_price ? parseFloat(manualForm.selling_price) : null,
+        plan_type: manualForm.plan_type,
       };
 
       const { data, error } = await supabase.functions.invoke("admin-fetch-data-plans", {
@@ -201,7 +217,7 @@ const AdminDataPlansTab = () => {
 
       toast.success("Manual plan added");
       setIsManualDialogOpen(false);
-      setManualForm({ provider: "subpadi", network: "MTN", plan_id: "", plan_name: "", base_price: "", validity: "", selling_price: "" });
+      setManualForm({ provider: "subpadi", network: "MTN", plan_id: "", plan_name: "", base_price: "", validity: "", selling_price: "", plan_type: "GENERAL" });
       loadPlans();
     } catch (e) {
       toast.error("Failed to add plan");
@@ -209,32 +225,85 @@ const AdminDataPlansTab = () => {
     setSaving(null);
   };
 
-  const enableAllFromProvider = async (provider: string) => {
-    const providerPlans = filteredPlans.filter(p => p.provider === provider && !p.is_enabled);
-    if (providerPlans.length === 0) {
-      toast.info("All plans already enabled");
-      return;
-    }
-
+  const bulkAction = async (actionType: string) => {
     setSaving("bulk");
     try {
-      const toSave = providerPlans.map(p => ({ ...p, is_enabled: true }));
+      let toUpdate: ProviderPlan[] = [];
+      let field: "is_enabled" = "is_enabled";
+      let newValue = true;
+
+      switch (actionType) {
+        case "enable_smeplug":
+          toUpdate = filteredPlans.filter(p => p.provider === "smeplug" && !p.is_enabled);
+          break;
+        case "enable_subpadi":
+          toUpdate = filteredPlans.filter(p => p.provider === "subpadi" && !p.is_enabled);
+          break;
+        case "disable_expensive": {
+          // For each network+plan_type combo, if the same size exists cheaper, disable the expensive one
+          const groups = new Map<string, ProviderPlan[]>();
+          filteredPlans.forEach(p => {
+            const key = `${p.network}:${p.plan_type}:${p.data_size}`;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(p);
+          });
+          groups.forEach(group => {
+            if (group.length > 1) {
+              const sorted = [...group].sort((a, b) => a.base_price - b.base_price);
+              // Disable all but cheapest
+              toUpdate.push(...sorted.slice(1).filter(p => p.is_enabled));
+            }
+          });
+          newValue = false;
+          break;
+        }
+        case "disable_all":
+          toUpdate = filteredPlans.filter(p => p.is_enabled);
+          newValue = false;
+          break;
+      }
+
+      if (toUpdate.length === 0) {
+        toast.info("No plans to update");
+        setSaving(null);
+        return;
+      }
+
+      const toSave = toUpdate.map(p => ({ ...p, [field]: newValue }));
       const { data, error } = await supabase.functions.invoke("admin-fetch-data-plans", {
         body: { action: "bulk_save", plans: toSave },
       });
       if (error || !data?.success) throw new Error("Bulk save failed");
-      toast.success(`Enabled ${data.saved} plans from ${provider}`);
+      toast.success(`Updated ${data.saved} plans`);
       loadPlans();
     } catch (e) {
-      toast.error("Failed to bulk enable");
+      toast.error("Failed to perform bulk action");
     }
     setSaving(null);
   };
+
+  // Detect duplicates (same network + similar data size from different providers)
+  const duplicates = useMemo(() => {
+    const groups = new Map<string, ProviderPlan[]>();
+    plans.forEach(p => {
+      const key = `${p.network}:${p.data_size}:${p.plan_type}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(p);
+    });
+    const dupes: { key: string; plans: ProviderPlan[] }[] = [];
+    groups.forEach((group, key) => {
+      if (group.length > 1 && group.some(p => p.provider === "smeplug") && group.some(p => p.provider === "subpadi")) {
+        dupes.push({ key, plans: group });
+      }
+    });
+    return dupes;
+  }, [plans]);
 
   const filteredPlans = useMemo(() => {
     return plans.filter(p => {
       if (selectedNetwork !== "all" && p.network !== selectedNetwork) return false;
       if (selectedProvider !== "all" && p.provider !== selectedProvider) return false;
+      if (selectedPlanType !== "all" && p.plan_type !== selectedPlanType) return false;
       if (showEnabledOnly && !p.is_enabled) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -243,10 +312,22 @@ const AdminDataPlansTab = () => {
       return true;
     }).sort((a, b) => {
       if (a.network !== b.network) return a.network.localeCompare(b.network);
+      if (a.plan_type !== b.plan_type) return a.plan_type.localeCompare(b.plan_type);
       if (a.data_size !== b.data_size) return a.data_size - b.data_size;
       return a.base_price - b.base_price;
     });
-  }, [plans, selectedNetwork, selectedProvider, searchQuery, showEnabledOnly]);
+  }, [plans, selectedNetwork, selectedProvider, selectedPlanType, searchQuery, showEnabledOnly]);
+
+  const groupedPlans = useMemo(() => {
+    if (!groupByType) return { "All Plans": filteredPlans };
+    const groups: Record<string, ProviderPlan[]> = {};
+    filteredPlans.forEach(p => {
+      const type = p.plan_type || "GENERAL";
+      if (!groups[type]) groups[type] = [];
+      groups[type].push(p);
+    });
+    return groups;
+  }, [filteredPlans, groupByType]);
 
   const stats = useMemo(() => ({
     total: plans.length,
@@ -254,7 +335,8 @@ const AdminDataPlansTab = () => {
     featured: plans.filter(p => p.is_featured).length,
     smeplug: plans.filter(p => p.provider === "smeplug").length,
     subpadi: plans.filter(p => p.provider === "subpadi").length,
-  }), [plans]);
+    duplicates: duplicates.length,
+  }), [plans, duplicates]);
 
   const openPriceDialog = (plan: ProviderPlan) => {
     setEditPlan(plan);
@@ -262,16 +344,101 @@ const AdminDataPlansTab = () => {
     setIsPriceDialogOpen(true);
   };
 
+  const renderPlanTable = (planList: ProviderPlan[]) => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Provider</TableHead>
+          <TableHead>Network</TableHead>
+          <TableHead>Plan</TableHead>
+          <TableHead>Type</TableHead>
+          <TableHead className="text-right">Cost Price</TableHead>
+          <TableHead className="text-right">Selling Price</TableHead>
+          <TableHead>Validity</TableHead>
+          <TableHead className="text-center">Enabled</TableHead>
+          <TableHead className="text-center">Featured</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {planList.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+              No plans found
+            </TableCell>
+          </TableRow>
+        ) : (
+          planList.map((plan) => {
+            const key = `${plan.provider}:${plan.network}:${plan.plan_id}`;
+            const isDuplicate = duplicates.some(d => d.plans.includes(plan));
+            return (
+              <TableRow key={key} className={`${!plan.is_enabled ? "opacity-60" : ""} ${isDuplicate ? "bg-yellow-500/5" : ""}`}>
+                <TableCell>
+                  <Badge variant={plan.provider === "smeplug" ? "default" : "secondary"} className="text-[10px]">
+                    {plan.provider.toUpperCase()}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">{plan.network}</Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium text-sm">{plan.plan_name}</span>
+                    {plan.is_featured && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
+                    {isDuplicate && <AlertTriangle className="h-3 w-3 text-yellow-500" />}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className={`text-[10px] ${PLAN_TYPE_COLORS[plan.plan_type] || ""}`}>
+                    {plan.plan_type}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm">
+                  ₦{plan.base_price.toLocaleString()}
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm font-medium text-primary">
+                  {plan.selling_price ? `₦${plan.selling_price.toLocaleString()}` : <span className="text-muted-foreground">—</span>}
+                </TableCell>
+                <TableCell className="text-sm">{plan.validity || "—"}</TableCell>
+                <TableCell className="text-center">
+                  <Switch
+                    checked={plan.is_enabled}
+                    onCheckedChange={() => togglePlan(plan, "is_enabled")}
+                    disabled={isSaving === plan.plan_id + "is_enabled"}
+                  />
+                </TableCell>
+                <TableCell className="text-center">
+                  <Switch
+                    checked={plan.is_featured}
+                    onCheckedChange={() => togglePlan(plan, "is_featured")}
+                    disabled={isSaving === plan.plan_id + "is_featured"}
+                  />
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button variant="ghost" size="sm" onClick={() => openPriceDialog(plan)} className="gap-1 text-xs">
+                    <Edit2 className="h-3 w-3" />
+                    Price
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })
+        )}
+      </TableBody>
+    </Table>
+  );
+
   return (
     <div className="space-y-4">
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
         {[
           { label: "Total Plans", value: stats.total, color: "bg-muted" },
           { label: "Enabled", value: stats.enabled, color: "bg-green-500/10 text-green-700" },
           { label: "Featured", value: stats.featured, color: "bg-yellow-500/10 text-yellow-700" },
           { label: "SMEPlug", value: stats.smeplug, color: "bg-blue-500/10 text-blue-700" },
           { label: "Subpadi", value: stats.subpadi, color: "bg-purple-500/10 text-purple-700" },
+          { label: "Duplicates", value: stats.duplicates, color: stats.duplicates > 0 ? "bg-yellow-500/10 text-yellow-700" : "bg-muted" },
         ].map(s => (
           <div key={s.label} className={`rounded-xl p-3 text-center ${s.color}`}>
             <p className="text-2xl font-bold">{s.value}</p>
@@ -279,6 +446,26 @@ const AdminDataPlansTab = () => {
           </div>
         ))}
       </div>
+
+      {/* Duplicate warnings */}
+      {duplicates.length > 0 && (
+        <Card className="border-yellow-200 bg-yellow-50/50 dark:bg-yellow-900/10">
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-sm flex items-center gap-2 text-yellow-700">
+              <AlertTriangle className="h-4 w-4" />
+              {duplicates.length} duplicate plan{duplicates.length !== 1 ? "s" : ""} detected (same size from both providers)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            <p className="text-xs text-muted-foreground mb-2">
+              Use "Disable Expensive Duplicates" to auto-keep only the cheaper provider for each.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => bulkAction("disable_expensive")} disabled={!!isSaving}>
+              <Trash2 className="h-3 w-3 mr-1" /> Disable Expensive Duplicates
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -303,6 +490,16 @@ const AdminDataPlansTab = () => {
             </SelectContent>
           </Select>
 
+          <Select value={selectedPlanType} onValueChange={setSelectedPlanType}>
+            <SelectTrigger className="w-[130px]">
+              <SelectValue placeholder="Plan Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {PLAN_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -317,12 +514,17 @@ const AdminDataPlansTab = () => {
             <Switch checked={showEnabledOnly} onCheckedChange={setShowEnabledOnly} />
             <span className="text-xs text-muted-foreground">Enabled only</span>
           </div>
+
+          <div className="flex items-center gap-2">
+            <Switch checked={groupByType} onCheckedChange={setGroupByType} />
+            <span className="text-xs text-muted-foreground">Group by type</span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={fetchFromProviders} disabled={isFetching} className="gap-2">
             <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-            {isFetching ? "Fetching..." : "Refresh from APIs"}
+            {isFetching ? "Syncing..." : "Sync from APIs"}
           </Button>
 
           <Dialog open={isManualDialogOpen} onOpenChange={setIsManualDialogOpen}>
@@ -359,26 +561,37 @@ const AdminDataPlansTab = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
+                    <Label>Plan Type</Label>
+                    <Select value={manualForm.plan_type} onValueChange={v => setManualForm(f => ({ ...f, plan_type: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PLAN_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Plan Name</Label>
+                    <Input value={manualForm.plan_name} onChange={e => setManualForm(f => ({ ...f, plan_name: e.target.value }))} placeholder="1GB SME (30 Days)" required />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     <Label>Plan ID</Label>
                     <Input value={manualForm.plan_id} onChange={e => setManualForm(f => ({ ...f, plan_id: e.target.value }))} placeholder="Optional" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Plan Name</Label>
-                    <Input value={manualForm.plan_name} onChange={e => setManualForm(f => ({ ...f, plan_name: e.target.value }))} placeholder="1GB (30 Days)" required />
+                    <Label>Validity</Label>
+                    <Input value={manualForm.validity} onChange={e => setManualForm(f => ({ ...f, validity: e.target.value }))} placeholder="30 Days" />
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Provider Price (₦)</Label>
+                    <Label>Cost Price (₦)</Label>
                     <Input type="number" value={manualForm.base_price} onChange={e => setManualForm(f => ({ ...f, base_price: e.target.value }))} required />
                   </div>
                   <div className="space-y-2">
                     <Label>Selling Price (₦)</Label>
-                    <Input type="number" value={manualForm.selling_price} onChange={e => setManualForm(f => ({ ...f, selling_price: e.target.value }))} placeholder="Optional" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Validity</Label>
-                    <Input value={manualForm.validity} onChange={e => setManualForm(f => ({ ...f, validity: e.target.value }))} placeholder="30 Days" />
+                    <Input type="number" value={manualForm.selling_price} onChange={e => setManualForm(f => ({ ...f, selling_price: e.target.value }))} placeholder="Optional override" />
                   </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={isSaving === "manual"}>
@@ -392,12 +605,18 @@ const AdminDataPlansTab = () => {
       </div>
 
       {/* Bulk actions */}
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={() => enableAllFromProvider("smeplug")} disabled={!!isSaving}>
+      <div className="flex gap-2 flex-wrap">
+        <Button variant="outline" size="sm" onClick={() => bulkAction("enable_smeplug")} disabled={!!isSaving}>
           <Download className="h-3 w-3 mr-1" /> Enable all SMEPlug
         </Button>
-        <Button variant="outline" size="sm" onClick={() => enableAllFromProvider("subpadi")} disabled={!!isSaving}>
+        <Button variant="outline" size="sm" onClick={() => bulkAction("enable_subpadi")} disabled={!!isSaving}>
           <Download className="h-3 w-3 mr-1" /> Enable all Subpadi
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => bulkAction("disable_expensive")} disabled={!!isSaving}>
+          <Trash2 className="h-3 w-3 mr-1" /> Disable Expensive Duplicates
+        </Button>
+        <Button variant="destructive" size="sm" onClick={() => bulkAction("disable_all")} disabled={!!isSaving}>
+          <Trash2 className="h-3 w-3 mr-1" /> Disable All Shown
         </Button>
       </div>
 
@@ -413,7 +632,8 @@ const AdminDataPlansTab = () => {
                 <p><span className="font-medium">Plan:</span> {editPlan.plan_name}</p>
                 <p><span className="font-medium">Provider:</span> {editPlan.provider.toUpperCase()}</p>
                 <p><span className="font-medium">Network:</span> {editPlan.network}</p>
-                <p><span className="font-medium">Provider Price:</span> ₦{editPlan.base_price.toLocaleString()}</p>
+                <p><span className="font-medium">Type:</span> {editPlan.plan_type}</p>
+                <p><span className="font-medium">Cost Price:</span> ₦{editPlan.base_price.toLocaleString()}</p>
               </div>
               <div className="space-y-2">
                 <Label>Selling Price (₦)</Label>
@@ -439,88 +659,50 @@ const AdminDataPlansTab = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Table */}
-      <div className="glass-card rounded-xl overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Provider</TableHead>
-              <TableHead>Network</TableHead>
-              <TableHead>Plan</TableHead>
-              <TableHead className="text-right">Provider Price</TableHead>
-              <TableHead className="text-right">Selling Price</TableHead>
-              <TableHead>Validity</TableHead>
-              <TableHead className="text-center">Enabled</TableHead>
-              <TableHead className="text-center">Featured</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                </TableCell>
-              </TableRow>
-            ) : filteredPlans.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                  No plans found. Click "Refresh from APIs" to fetch plans.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredPlans.map((plan) => {
-                const key = `${plan.provider}:${plan.network}:${plan.plan_id}`;
-                return (
-                  <TableRow key={key} className={!plan.is_enabled ? "opacity-60" : ""}>
-                    <TableCell>
-                      <Badge variant={plan.provider === "smeplug" ? "default" : "secondary"} className="text-[10px]">
-                        {plan.provider.toUpperCase()}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{plan.network}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-sm">{plan.plan_name}</span>
-                        {plan.is_featured && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm">
-                      ₦{plan.base_price.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm font-medium text-primary">
-                      {plan.selling_price ? `₦${plan.selling_price.toLocaleString()}` : <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell className="text-sm">{plan.validity || "—"}</TableCell>
-                    <TableCell className="text-center">
-                      <Switch
-                        checked={plan.is_enabled}
-                        onCheckedChange={() => togglePlan(plan, "is_enabled")}
-                        disabled={isSaving === plan.plan_id + "is_enabled"}
-                      />
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Switch
-                        checked={plan.is_featured}
-                        onCheckedChange={() => togglePlan(plan, "is_featured")}
-                        disabled={isSaving === plan.plan_id + "is_featured"}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => openPriceDialog(plan)} className="gap-1 text-xs">
-                        <Edit2 className="h-3 w-3" />
-                        Price
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      {/* Plans Table(s) */}
+      {isLoading ? (
+        <div className="glass-card rounded-xl p-8 text-center">
+          <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+        </div>
+      ) : groupByType && Object.keys(groupedPlans).length > 1 ? (
+        <div className="space-y-6">
+          {PLAN_TYPES.filter(t => groupedPlans[t]?.length > 0).map(type => (
+            <Card key={type} className="overflow-hidden">
+              <CardHeader className={`py-3 px-4 ${PLAN_TYPE_COLORS[type] || "bg-muted"}`}>
+                <CardTitle className="text-sm flex items-center justify-between">
+                  <span>{type} Data Plans</span>
+                  <Badge variant="outline">{groupedPlans[type].length} plans</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  {renderPlanTable(groupedPlans[type])}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {/* Show any ungrouped */}
+          {Object.keys(groupedPlans).filter(t => !PLAN_TYPES.includes(t)).map(type => (
+            <Card key={type} className="overflow-hidden">
+              <CardHeader className="py-3 px-4 bg-muted">
+                <CardTitle className="text-sm flex items-center justify-between">
+                  <span>{type} Data Plans</span>
+                  <Badge variant="outline">{groupedPlans[type].length} plans</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  {renderPlanTable(groupedPlans[type])}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="glass-card rounded-xl overflow-hidden overflow-x-auto">
+          {renderPlanTable(filteredPlans)}
+        </div>
+      )}
 
       <div className="text-xs text-muted-foreground">
         Showing {filteredPlans.length} of {plans.length} plans
@@ -535,6 +717,14 @@ function extractDataSize(name: string): number {
   const mb = name.match(/(\d+(?:\.\d+)?)\s*MB/i);
   if (mb) return parseFloat(mb[1]);
   return 99999;
+}
+
+function categorizePlan(planName: string): string {
+  const name = planName.toUpperCase();
+  if (name.includes('CORPORATE')) return 'CORPORATE';
+  if (name.includes('GIFTING') || name.includes('GIFT')) return 'GIFTING';
+  if (name.includes('SME')) return 'SME';
+  return 'GENERAL';
 }
 
 export default AdminDataPlansTab;
