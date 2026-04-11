@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { subpadiGetUserBalance, isSubpadiConfigured } from "../_shared/subpadi-provider.ts";
 import { smeplugGetBalance, isSmeplugConfigured } from "../_shared/smeplug-provider.ts";
+import { clubkonnectGetBalance, isClubkonnectConfigured } from "../_shared/clubkonnect-provider.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,6 +60,20 @@ serve(async (req) => {
       };
     } else {
       providers.smeplug = { configured: false, connected: false, balance: null };
+    }
+
+    // Check ClubKonnect
+    if (isClubkonnectConfigured()) {
+      const ck = await clubkonnectGetBalance();
+      const ckRaw = ck.rawResponse as any;
+      providers.clubkonnect = {
+        configured: true,
+        connected: ck.success,
+        balance: ck.success ? (ckRaw?.balance ?? ckRaw?.Balance ?? ckRaw?.wallet_balance) : null,
+        details: ck.rawResponse,
+      };
+    } else {
+      providers.clubkonnect = { configured: false, connected: false, balance: null };
     }
 
     return new Response(JSON.stringify({ success: true, providers }), {

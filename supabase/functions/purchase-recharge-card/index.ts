@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { generateReference } from "../_shared/inkota-service-layer.ts";
 import { getSubpadiNetworkId } from "../_shared/subpadi-provider.ts";
+import { clubkonnectPurchaseEPIN, isClubkonnectConfigured } from "../_shared/clubkonnect-provider.ts";
 import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { checkFraud, fraudBlockResponse } from "../_shared/fraud-detection.ts";
@@ -188,16 +189,33 @@ serve(async (req) => {
     const lockResult = await acquireLockAndDeductWallet(ctx);
     if (!lockResult.ok) return lockResult.response;
 
-    // Provider call — Subpadi only (SMEPlug doesn't support recharge card PINs)
-    const result = await withMetrics('subpadi', 'recharge_card',
+    // Provider call — try Subpadi first, fallback to ClubKonnect
+    let result = await withMetrics('subpadi', 'recharge_card',
       () => subpadiPurchaseRechargeCard(network, perCardAmount, quantity),
       r => r.success && r.pins.length > 0
     );
 
+    let providerUsed = 'subpadi';
+    let fallbackAttempted = false;
+
+    // If Subpadi failed and ClubKonnect is configured, try ClubKonnect
+    if ((!result.success || result.pins.length === 0) && isClubkonnectConfigured()) {
+      console.log("Subpadi recharge card failed, trying ClubKonnect fallback");
+      fallbackAttempted = true;
+      const ckResult = await withMetrics('clubkonnect', 'recharge_card',
+        () => clubkonnectPurchaseEPIN(network, perCardAmount, quantity),
+        r => r.success && (r.pins?.length ?? 0) > 0
+      );
+      if (ckResult.success && (ckResult.pins?.length ?? 0) > 0) {
+        result = { success: true, message: ckResult.message, rawResponse: ckResult.rawResponse, pins: ckResult.pins || [] };
+        providerUsed = 'clubkonnect';
+      }
+    }
+
     const providerResult: ProviderResult = {
       success: result.success && result.pins.length > 0,
       message: result.success ? "Recharge cards purchased" : (result.message || "Purchase failed"),
-      providerUsed: 'subpadi', fallbackAttempted: false, rawResponse: result.rawResponse,
+      providerUsed, fallbackAttempted, rawResponse: result.rawResponse,
       pins: result.pins, extraData: { reference },
     };
 
