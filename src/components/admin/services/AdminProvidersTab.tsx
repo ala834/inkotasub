@@ -265,7 +265,6 @@ const AdminProvidersTab = () => {
                             <SelectItem key={p} value={p} className="capitalize">
                               {p === "subpadi" ? "Subpadi" : p === "smeplug" ? "SMEPlug" : p === "clubkonnect" ? "ClubKonnect" : p}
                             </SelectItem>
-                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -286,7 +285,6 @@ const AdminProvidersTab = () => {
                           {PROVIDERS.filter((p) => p !== config.primary_provider).map((p) => (
                             <SelectItem key={p} value={p} className="capitalize">
                               {p === "subpadi" ? "Subpadi" : p === "smeplug" ? "SMEPlug" : p === "clubkonnect" ? "ClubKonnect" : p}
-                            </SelectItem>
                             </SelectItem>
                           ))}
                         </SelectContent>
