@@ -454,45 +454,19 @@ serve(async (req) => {
         }
       }
 
-      // Sync Subpadi
+      // Subpadi: no plan catalog API — plans are managed manually by admin
+      // Count existing Subpadi plans in DB for reporting
       let subpadiSaved = 0;
-      if (isSubpadiConfigured()) {
-        try {
-          const rawPlans = await fetchSubpadiDataPlans();
-          if (rawPlans.length > 0) {
-            const normalizedPlans = normalizeSubpadiPlans(rawPlans);
-            for (const p of normalizedPlans) {
-              const { error } = await adminSupabase
-                .from("service_plans")
-                .upsert({
-                  service_type: "data",
-                  provider: "subpadi",
-                  network: p.network,
-                  plan_id: p.plan_id,
-                  plan_name: p.plan_name,
-                  base_price: p.base_price,
-                  validity: p.validity,
-                  is_enabled: false,
-                  is_featured: false,
-                  plan_type: p.plan_type,
-                  last_synced_at: new Date().toISOString(),
-                }, { onConflict: "service_type,network,plan_id" });
-              if (!error) {
-                subpadiSaved++;
-              } else {
-                console.error(`Failed to save Subpadi plan ${p.plan_id}:`, error.message);
-              }
-            }
-            console.log(`Subpadi sync: saved ${subpadiSaved} plans`);
-            totalSaved += subpadiSaved;
-          } else {
-            syncErrors.push("Subpadi API returned 0 plans");
-          }
-        } catch (e) {
-          syncErrors.push(`Subpadi error: ${e instanceof Error ? e.message : String(e)}`);
-        }
+      const { data: existingSubpadi } = await adminSupabase
+        .from("service_plans")
+        .select("id")
+        .eq("service_type", "data")
+        .eq("provider", "subpadi");
+      const subpadiInDb = existingSubpadi?.length || 0;
+      if (subpadiInDb === 0) {
+        syncErrors.push("No Subpadi plans in database. Subpadi does not provide a plan catalog API — add plans manually using plan IDs from the Subpadi dashboard.");
       } else {
-        syncErrors.push("Subpadi API token not configured");
+        console.log(`${subpadiInDb} Subpadi plans already in DB (manually managed)`);
       }
 
       return new Response(
