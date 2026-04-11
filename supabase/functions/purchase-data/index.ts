@@ -110,7 +110,7 @@ serve(async (req) => {
       () => smeplugPurchaseData(networkUpper, phoneNumber, planId),
       'data',
       networkUpper,
-      selectedPlanProvider ? { preferredProvider: selectedPlanProvider, disableFallback: true } : undefined,
+      selectedPlanProvider ? { preferredProvider: selectedPlanProvider } : undefined,
     );
 
     // Map provider-specific errors to user-friendly messages
