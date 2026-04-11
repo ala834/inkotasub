@@ -18,7 +18,7 @@ export interface FallbackResult {
   token?: string;
 }
 
-type ProviderResponse = SubpadiResponse | SmeplugResponse;
+type ProviderResponse = SubpadiResponse | SmeplugResponse | ClubkonnectResponse;
 
 interface ProviderConfig {
   primaryProvider: string;
