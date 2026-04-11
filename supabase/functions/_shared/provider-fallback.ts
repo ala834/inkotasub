@@ -81,6 +81,7 @@ function isProviderConfigured(provider: string): boolean {
   switch (provider) {
     case 'subpadi': return isSubpadiConfigured();
     case 'smeplug': return isSmeplugConfigured();
+    case 'clubkonnect': return isClubkonnectConfigured();
     default: return false;
   }
 }
