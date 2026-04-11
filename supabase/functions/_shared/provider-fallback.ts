@@ -1,8 +1,9 @@
 // Multi-provider execution with fallback support
-// Providers: Subpadi (primary), SMEPlug (fallback)
+// Providers: Subpadi, SMEPlug, ClubKonnect
 
 import { isSubpadiConfigured, type SubpadiResponse } from "./subpadi-provider.ts";
 import { isSmeplugConfigured, type SmeplugResponse } from "./smeplug-provider.ts";
+import { isClubkonnectConfigured, type ClubkonnectResponse } from "./clubkonnect-provider.ts";
 import { withMetrics } from "./provider-metrics.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
