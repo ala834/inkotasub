@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 
 // OneSignal App ID - stored as a constant since it's a public identifier (like Supabase anon key)
-const ONESIGNAL_APP_ID = "YOUR_ONESIGNAL_APP_ID"; // Will be replaced with actual ID
+const ONESIGNAL_APP_ID = "9e89422c-1fd5-42cf-865d-e7371ebd960c";
 
 export const usePushNotifications = () => {
   const [playerId, setPlayerId] = useState<string | null>(null);
