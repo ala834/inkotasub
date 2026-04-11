@@ -118,7 +118,12 @@ const AdminDataPlansTab = () => {
           ...p,
           plan_type: p.plan_type || categorizePlan(p.plan_name),
         })));
-        toast.success(`Loaded ${data.total} plans from providers`);
+        const smeplugCount = data.smeplugCount || data.plans.filter((p: any) => p.provider === "smeplug").length;
+        const subpadiCount = data.subpadiCount || data.plans.filter((p: any) => p.provider === "subpadi").length;
+        toast.success(`Loaded ${data.total} plans (SMEPlug: ${smeplugCount}, Subpadi: ${subpadiCount})`);
+        if (data.errors?.length) {
+          data.errors.forEach((e: string) => toast.info(e, { duration: 8000 }));
+        }
       } else {
         toast.error("No plans returned");
       }
