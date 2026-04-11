@@ -10,6 +10,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import SplashScreen from "@/components/SplashScreen";
 import PWAInstallPrompt from "@/components/common/PWAInstallPrompt";
 import OfflineFallback from "@/components/common/OfflineFallback";
+import PushNotificationInit from "@/components/common/PushNotificationInit";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
@@ -65,6 +66,7 @@ const App = () => {
           {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
           <PWAInstallPrompt />
           <OfflineFallback />
+          <PushNotificationInit />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
