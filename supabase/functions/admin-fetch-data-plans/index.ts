@@ -8,6 +8,8 @@ const corsHeaders = {
 };
 
 const SMEPLUG_NETWORK_MAP: Record<number, string> = { 1: "MTN", 2: "AIRTEL", 3: "9MOBILE", 4: "GLO" };
+const SUBPADI_NETWORK_MAP: Record<number, string> = { 1: "MTN", 2: "GLO", 3: "AIRTEL", 4: "9MOBILE" };
+const SUBPADI_BASE_URL = "https://subpadi.com/api";
 
 function extractDataSize(name: string): number {
   const gb = name.match(/(\d+(?:\.\d+)?)\s*GB/i);
@@ -24,6 +26,29 @@ function categorizePlan(planName: string): string {
   if (name.includes('SME')) return 'SME';
   return 'GENERAL';
 }
+
+function isSubpadiConfigured(): boolean {
+  return !!Deno.env.get("SUBPADI_API_TOKEN");
+}
+
+// Note: Subpadi does NOT have a plan catalog/listing API endpoint.
+// GET /api/data/ returns transaction history, NOT available plans.
+// Subpadi plans must be added manually by the admin using plan IDs from the Subpadi dashboard.
+// This function returns an empty array with a log explaining why.
+async function fetchSubpadiDataPlans(): Promise<{ plans: any[]; message: string }> {
+  if (!Deno.env.get("SUBPADI_API_TOKEN")) {
+    return { plans: [], message: "SUBPADI_API_TOKEN not configured" };
+  }
+  
+  console.log("Subpadi does not provide a plan catalog API. Plans must be added manually from the Subpadi dashboard.");
+  return { 
+    plans: [], 
+    message: "Subpadi does not have a plan listing API. Add plans manually using plan IDs from the Subpadi dashboard." 
+  };
+}
+
+
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -58,6 +83,7 @@ serve(async (req) => {
 
     if (action === "fetch") {
       const allPlans: any[] = [];
+      const fetchErrors: string[] = [];
 
       // 1. Fetch from SMEPlug API
       if (isSmeplugConfigured()) {
@@ -98,13 +124,17 @@ serve(async (req) => {
                 plan_type: categorizePlan(planName),
               });
             }
+            console.log(`Fetched ${allPlans.length} SMEPlug plans from API`);
+          } else {
+            fetchErrors.push(`SMEPlug API: ${result.message}`);
           }
         } catch (e) {
           console.error("SMEPlug fetch error:", e);
+          fetchErrors.push(`SMEPlug: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
 
-      // If no API plans, load existing smeplug plans from DB
+      // If no SMEPlug API plans, load from DB
       if (allPlans.filter(p => p.provider === "smeplug").length === 0) {
         const { data: dbSmeplugPlans } = await adminSupabase
           .from("service_plans")
@@ -131,15 +161,20 @@ serve(async (req) => {
         }
       }
 
-      // 2. Load Subpadi plans from DB
-      try {
+      // 2. Subpadi does NOT have a plan catalog API — always load from DB
+      // Plans must be added manually by admin using plan IDs from Subpadi dashboard
+      let subpadiFromApi = false;
+
+      // Fallback: load Subpadi plans from DB if API returned nothing
+      if (!subpadiFromApi) {
         const { data: dbPlans } = await adminSupabase
           .from("service_plans")
           .select("*")
           .eq("service_type", "data")
           .eq("provider", "subpadi");
         
-        if (dbPlans) {
+        if (dbPlans && dbPlans.length > 0) {
+          console.log(`Loading ${dbPlans.length} Subpadi plans from DB`);
           for (const p of dbPlans) {
             allPlans.push({
               provider: "subpadi",
@@ -156,24 +191,23 @@ serve(async (req) => {
               plan_type: (p as any).plan_type || categorizePlan(p.plan_name),
             });
           }
+        } else {
+          console.log("No Subpadi plans in DB either");
         }
-      } catch (e) {
-        console.error("DB fetch error:", e);
       }
 
-      // 3. Enrich SMEPlug API plans with existing DB state
+      // 3. Enrich API plans with existing DB state
       const { data: existingPlans } = await adminSupabase
         .from("service_plans")
         .select("*")
-        .eq("service_type", "data")
-        .eq("provider", "smeplug");
+        .eq("service_type", "data");
 
       const existingMap = new Map((existingPlans || []).map((p: any) => [`${p.provider}:${p.network}:${p.plan_id}`, p]));
 
       const enrichedPlans = allPlans.map(p => {
         const key = `${p.provider}:${p.network}:${p.plan_id}`;
         const existing = existingMap.get(key);
-        if (existing && p.provider === "smeplug" && !p.db_id) {
+        if (existing && !p.db_id) {
           return {
             ...p,
             db_id: existing.id,
@@ -208,8 +242,20 @@ serve(async (req) => {
         return a.plan_name.localeCompare(b.plan_name);
       });
 
+      const smeplugCount = deduped.filter(p => p.provider === "smeplug").length;
+      const subpadiCount = deduped.filter(p => p.provider === "subpadi").length;
+      console.log(`Returning ${deduped.length} plans: ${smeplugCount} SMEPlug, ${subpadiCount} Subpadi`);
+
       return new Response(
-        JSON.stringify({ success: true, plans: deduped, total: deduped.length }),
+        JSON.stringify({ 
+          success: true, 
+          plans: deduped, 
+          total: deduped.length,
+          smeplugCount,
+          subpadiCount,
+          subpadiFromApi,
+          errors: fetchErrors.length > 0 ? fetchErrors : undefined,
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -299,53 +345,81 @@ serve(async (req) => {
 
     if (action === "sync_to_db") {
       let totalSaved = 0;
+      const syncErrors: string[] = [];
 
       // Sync SMEPlug
       if (isSmeplugConfigured()) {
-        const result = await smeplugGetDataPlans();
-        if (result.success && result.rawResponse) {
-          const raw = result.rawResponse as any;
-          let plans: any[] = [];
-          const dataObj = raw?.data && typeof raw.data === "object" && !Array.isArray(raw.data) ? raw.data : null;
-          if (dataObj) {
-            for (const key of Object.keys(dataObj)) {
-              if (Array.isArray(dataObj[key])) {
-                plans.push(...dataObj[key].map((p: any) => ({ ...p, _network_key: key })));
+        try {
+          const result = await smeplugGetDataPlans();
+          if (result.success && result.rawResponse) {
+            const raw = result.rawResponse as any;
+            let plans: any[] = [];
+            const dataObj = raw?.data && typeof raw.data === "object" && !Array.isArray(raw.data) ? raw.data : null;
+            if (dataObj) {
+              for (const key of Object.keys(dataObj)) {
+                if (Array.isArray(dataObj[key])) {
+                  plans.push(...dataObj[key].map((p: any) => ({ ...p, _network_key: key })));
+                }
               }
             }
+            for (const p of plans) {
+              const networkId = p.network_id || p.network || p._network_key;
+              const networkName = typeof networkId === "number" || /^\d+$/.test(String(networkId))
+                ? (SMEPLUG_NETWORK_MAP[Number(networkId)] || "UNKNOWN")
+                : String(p.network_name || p.network || "").toUpperCase();
+              const planName = p.plan_name || p.name || p.plan || `${p.size || ""} Data`;
+              const price = parseFloat(p.price || p.amount || p.cost || 0);
+              const planId = String(p.plan_id || p.id || p.dataplan_id || "");
+              if (!planId || price <= 0) continue;
+              const network = networkName.includes("ETISALAT") ? "9MOBILE" : networkName;
+              const { error } = await adminSupabase
+                .from("service_plans")
+                .upsert({
+                  service_type: "data",
+                  provider: "smeplug",
+                  network,
+                  plan_id: planId,
+                  plan_name: planName,
+                  base_price: price,
+                  validity: p.validity || p.duration || p.plan_validity || "30 Days",
+                  is_enabled: false,
+                  is_featured: false,
+                  plan_type: categorizePlan(planName),
+                  last_synced_at: new Date().toISOString(),
+                }, { onConflict: "service_type,network,plan_id" });
+              if (!error) totalSaved++;
+            }
+            console.log(`SMEPlug sync: saved ${totalSaved} plans`);
+          } else {
+            syncErrors.push(`SMEPlug: ${result.message}`);
           }
-          for (const p of plans) {
-            const networkId = p.network_id || p.network || p._network_key;
-            const networkName = typeof networkId === "number" || /^\d+$/.test(String(networkId))
-              ? (SMEPLUG_NETWORK_MAP[Number(networkId)] || "UNKNOWN")
-              : String(p.network_name || p.network || "").toUpperCase();
-            const planName = p.plan_name || p.name || p.plan || `${p.size || ""} Data`;
-            const price = parseFloat(p.price || p.amount || p.cost || 0);
-            const planId = String(p.plan_id || p.id || p.dataplan_id || "");
-            if (!planId || price <= 0) continue;
-            const network = networkName.includes("ETISALAT") ? "9MOBILE" : networkName;
-            const { error } = await adminSupabase
-              .from("service_plans")
-              .upsert({
-                service_type: "data",
-                provider: "smeplug",
-                network,
-                plan_id: planId,
-                plan_name: planName,
-                base_price: price,
-                validity: p.validity || p.duration || p.plan_validity || "30 Days",
-                is_enabled: false,
-                is_featured: false,
-                plan_type: categorizePlan(planName),
-                last_synced_at: new Date().toISOString(),
-              }, { onConflict: "service_type,network,plan_id" });
-            if (!error) totalSaved++;
-          }
+        } catch (e) {
+          syncErrors.push(`SMEPlug error: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
 
+      // Subpadi: no plan catalog API — plans are managed manually by admin
+      // Count existing Subpadi plans in DB for reporting
+      let subpadiSaved = 0;
+      const { data: existingSubpadi } = await adminSupabase
+        .from("service_plans")
+        .select("id")
+        .eq("service_type", "data")
+        .eq("provider", "subpadi");
+      const subpadiInDb = existingSubpadi?.length || 0;
+      if (subpadiInDb === 0) {
+        syncErrors.push("No Subpadi plans in database. Subpadi does not provide a plan catalog API — add plans manually using plan IDs from the Subpadi dashboard.");
+      } else {
+        console.log(`${subpadiInDb} Subpadi plans already in DB (manually managed)`);
+      }
+
       return new Response(
-        JSON.stringify({ success: true, saved: totalSaved }),
+        JSON.stringify({ 
+          success: true, 
+          saved: totalSaved, 
+          subpadiSaved,
+          errors: syncErrors.length > 0 ? syncErrors : undefined,
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
