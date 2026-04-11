@@ -107,42 +107,43 @@ npm install
 npx cap sync android
 ```
 
-## Firebase Cloud Messaging (FCM) Setup
+## OneSignal Push Notifications Setup
 
-### 1. Create a Firebase Project
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Click **"Add Project"** → name it (e.g., "INKOTA SUB")
-3. Disable Google Analytics (optional) → **Create Project**
+### 1. Create a OneSignal Account & App
+1. Go to [OneSignal Dashboard](https://onesignal.com/)
+2. Create an account or log in
+3. Click **"New App/Website"** → name it (e.g., "INKOTA SUB")
+4. Select **Android** platform
+5. Enter your **Firebase Server Key** (from Firebase Console → Project Settings → Cloud Messaging)
+6. Copy your **OneSignal App ID**
 
-### 2. Add Android App to Firebase
-1. Click **Android icon** to add an Android app
-2. **Package name**: `app.lovable.ffadf645a240467b9613fa616c1f2eb6`
-3. **App nickname**: INKOTA SUB
-4. Click **Register App**
+### 2. Update OneSignal App ID in Code
+1. Open `src/hooks/usePushNotifications.ts`
+2. Replace `YOUR_ONESIGNAL_APP_ID` with your actual OneSignal App ID
 
-### 3. Download google-services.json
-1. Download the `google-services.json` file
-2. Place it in: `android/app/google-services.json`
+### 3. Add OneSignal Gradle Plugin
+In `android/app/build.gradle`, add:
+```gradle
+plugins {
+    id 'com.onesignal.androidsdk.onesignal-gradle-plugin' version '0.14.0'
+}
+```
 
-### 4. Add Firebase Dependencies
-In `android/build.gradle` (project-level), add:
+In `android/build.gradle` (project-level), ensure you have:
 ```gradle
 buildscript {
-    dependencies {
-        classpath 'com.google.gms:google-services:4.4.2'
+    repositories {
+        gradlePluginPortal()
     }
 }
 ```
 
-In `android/app/build.gradle` (app-level), add:
-```gradle
-apply plugin: 'com.google.gms.google-services'
-
-dependencies {
-    implementation platform('com.google.firebase:firebase-bom:33.7.0')
-    implementation 'com.google.firebase:firebase-messaging'
-}
-```
+### 4. Add google-services.json
+OneSignal still uses FCM under the hood for Android delivery:
+1. Go to [Firebase Console](https://console.firebase.google.com/) → Create/select project
+2. Add Android app with package: `app.lovable.ffadf645a240467b9613fa616c1f2eb6`
+3. Download `google-services.json` → place in `android/app/`
+4. Add Firebase dependencies as described in OneSignal docs
 
 ### 5. Sync & Run
 ```bash
@@ -150,7 +151,7 @@ npx cap sync android
 npx cap run android
 ```
 
-The app will automatically request notification permission and register with FCM on launch.
+The app will automatically initialize OneSignal and request notification permission on launch.
 
 ---
 
