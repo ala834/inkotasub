@@ -201,7 +201,7 @@ export async function clubkonnectPurchaseEPIN(
 
   try {
     const requestId = generateRequestId();
-    const url = buildUrl("APIGetEPINV1.asp", {
+    const url = buildUrl("APIEPINV1.asp", {
       MobileNetwork: networkCode,
       Value: String(amount),
       Quantity: String(quantity),
