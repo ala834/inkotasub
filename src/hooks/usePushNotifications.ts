@@ -1,143 +1,90 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import { PushNotifications } from "@capacitor/push-notifications";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "sonner";
+
+// OneSignal App ID - stored as a constant since it's a public identifier (like Supabase anon key)
+const ONESIGNAL_APP_ID = "YOUR_ONESIGNAL_APP_ID"; // Will be replaced with actual ID
 
 export const usePushNotifications = () => {
-  const { user } = useAuth();
-  const [fcmToken, setFcmToken] = useState<string | null>(null);
+  const [playerId, setPlayerId] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<string>("prompt");
   const [isNative, setIsNative] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     setIsNative(Capacitor.isNativePlatform());
   }, []);
 
-  const saveTokenToServer = useCallback(
-    async (token: string) => {
-      if (!user) return;
-
-      try {
-        // Upsert the push subscription token
-        const { error } = await supabase.from("push_subscriptions").upsert(
-          {
-            user_id: user.id,
-            endpoint: token,
-            p256dh: "fcm",
-            auth: "fcm",
-          },
-          { onConflict: "user_id,endpoint" }
-        );
-
-        if (error) {
-          console.error("Failed to save FCM token:", error);
-        } else {
-          console.log("FCM token saved to server");
-        }
-      } catch (err) {
-        console.error("Error saving FCM token:", err);
-      }
-    },
-    [user]
-  );
-
-  const registerPushNotifications = useCallback(async () => {
-    if (!isNative) {
-      console.log("Push notifications only available on native platforms");
-      return false;
-    }
-
-    try {
-      // Check current permission status
-      const permResult = await PushNotifications.checkPermissions();
-      setPermissionStatus(permResult.receive);
-
-      if (permResult.receive === "prompt" || permResult.receive === "prompt-with-rationale") {
-        const requestResult = await PushNotifications.requestPermissions();
-        setPermissionStatus(requestResult.receive);
-
-        if (requestResult.receive !== "granted") {
-          toast.error("Push notification permission denied");
-          return false;
-        }
-      } else if (permResult.receive !== "granted") {
-        toast.error("Push notifications are blocked. Enable them in device settings.");
-        return false;
-      }
-
-      // Register with FCM
-      await PushNotifications.register();
-      return true;
-    } catch (error) {
-      console.error("Error registering push notifications:", error);
-      toast.error("Failed to set up push notifications");
-      return false;
-    }
-  }, [isNative]);
-
   useEffect(() => {
-    if (!isNative || !user) return;
+    if (!isNative || isInitialized) return;
 
-    // Listen for successful registration (FCM token received)
-    const registrationListener = PushNotifications.addListener(
-      "registration",
-      (token) => {
-        console.log("FCM Token:", token.value);
-        setFcmToken(token.value);
-        saveTokenToServer(token.value);
-      }
-    );
+    const initOneSignal = async () => {
+      try {
+        // Dynamic import for native-only plugin
+        const OneSignalPlugin = await import("onesignal-cordova-plugin");
+        const OneSignal = OneSignalPlugin.default;
 
-    // Listen for registration errors
-    const errorListener = PushNotifications.addListener(
-      "registrationError",
-      (error) => {
-        console.error("Push registration error:", error);
-        toast.error("Failed to register for push notifications");
-      }
-    );
+        // Set log level for debugging (remove in production)
+        OneSignal.Debug.setLogLevel(6); // VERBOSE
 
-    // Listen for notifications received while app is in foreground
-    const foregroundListener = PushNotifications.addListener(
-      "pushNotificationReceived",
-      (notification) => {
-        console.log("Foreground notification:", notification);
-        toast(notification.title || "New Notification", {
-          description: notification.body || "",
+        // Initialize with App ID
+        OneSignal.initialize(ONESIGNAL_APP_ID);
+
+        // Request notification permission
+        const accepted = await OneSignal.Notifications.requestPermission(true);
+        setPermissionStatus(accepted ? "granted" : "denied");
+        console.log("[OneSignal] Permission accepted:", accepted);
+
+        // Listen for notification received in foreground
+        OneSignal.Notifications.addEventListener("foregroundWillDisplay", (event: any) => {
+          console.log("[OneSignal] Foreground notification:", event.notification);
+          // Let OneSignal display the notification
+          event.getNotification().display();
         });
-      }
-    );
 
-    // Listen for notification taps (when user taps a notification)
-    const actionListener = PushNotifications.addListener(
-      "pushNotificationActionPerformed",
-      (action) => {
-        console.log("Notification action:", action);
-        // Navigate or handle based on action.notification.data
-        const data = action.notification.data;
-        if (data?.route) {
-          window.location.href = data.route;
+        // Listen for notification clicks
+        OneSignal.Notifications.addEventListener("click", (event: any) => {
+          console.log("[OneSignal] Notification clicked:", event);
+          const data = event.notification?.additionalData;
+          if (data?.route) {
+            window.location.href = data.route;
+          }
+        });
+
+        // Get the OneSignal Player/Subscription ID
+        const subscriptionId = OneSignal.User.pushSubscription.getPushSubscriptionId();
+        const token = OneSignal.User.pushSubscription.getPushSubscriptionToken();
+        
+        if (subscriptionId) {
+          setPlayerId(subscriptionId);
+          console.log("[OneSignal] Player ID:", subscriptionId);
         }
+        if (token) {
+          console.log("[OneSignal] Push Token:", token.substring(0, 20) + "...");
+        }
+
+        // Listen for subscription changes
+        OneSignal.User.pushSubscription.addEventListener("change", (event: any) => {
+          console.log("[OneSignal] Subscription changed:", event);
+          if (event.current?.id) {
+            setPlayerId(event.current.id);
+            console.log("[OneSignal] Updated Player ID:", event.current.id);
+          }
+        });
+
+        setIsInitialized(true);
+        console.log("[OneSignal] Initialized successfully");
+      } catch (error) {
+        console.error("[OneSignal] Initialization error:", error);
       }
-    );
-
-    // Auto-register on mount
-    registerPushNotifications();
-
-    return () => {
-      registrationListener.then((l) => l.remove());
-      errorListener.then((l) => l.remove());
-      foregroundListener.then((l) => l.remove());
-      actionListener.then((l) => l.remove());
     };
-  }, [isNative, user, registerPushNotifications, saveTokenToServer]);
+
+    initOneSignal();
+  }, [isNative, isInitialized]);
 
   return {
-    fcmToken,
+    playerId,
     permissionStatus,
     isNative,
-    registerPushNotifications,
+    isInitialized,
   };
 };
