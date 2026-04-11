@@ -782,6 +782,7 @@ export type Database = {
           network: string
           plan_id: string
           plan_name: string
+          plan_type: string
           provider: string
           selling_price: number | null
           service_type: string
@@ -799,6 +800,7 @@ export type Database = {
           network: string
           plan_id: string
           plan_name: string
+          plan_type?: string
           provider?: string
           selling_price?: number | null
           service_type: string
@@ -816,6 +818,7 @@ export type Database = {
           network?: string
           plan_id?: string
           plan_name?: string
+          plan_type?: string
           provider?: string
           selling_price?: number | null
           service_type?: string

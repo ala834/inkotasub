@@ -29,6 +29,15 @@ interface DataPlan {
 
 const CATEGORY_ORDER = ["SME", "SME2", "Corporate", "Gifting", "Direct", "General"];
 
+const CATEGORY_LABELS: Record<string, string> = {
+  SME: "SME Data",
+  SME2: "SME2 Data",
+  Corporate: "Corporate Gifting",
+  Gifting: "Gifting Data",
+  Direct: "Direct Data",
+  General: "Data Plans",
+};
+
 const Data = () => {
   const navigate = useNavigate();
   const { wallet } = useWallet();
@@ -111,8 +120,11 @@ const Data = () => {
         p.name.toLowerCase().includes(q) || p.amount.toString().includes(q) || p.validity.toLowerCase().includes(q)
       );
     }
-    // Sort by dataSize (small→large), then by amount
+    // Sort: featured first, then by dataSize (small→large), then cheapest
     plans = [...plans].sort((a, b) => {
+      const featA = (a as any).isFeatured ? 1 : 0;
+      const featB = (b as any).isFeatured ? 1 : 0;
+      if (featA !== featB) return featB - featA;
       const sizeA = (a as any).dataSize || 99999;
       const sizeB = (b as any).dataSize || 99999;
       if (sizeA !== sizeB) return sizeA - sizeB;
@@ -271,7 +283,7 @@ const Data = () => {
                           : "bg-background/50 text-muted-foreground border-border hover:border-primary/50"
                       )}
                     >
-                      {cat}
+                      {CATEGORY_LABELS[cat] || cat}
                     </button>
                   ))}
                 </div>
