@@ -222,6 +222,12 @@ serve(async (req) => {
     return await finalizeTransaction(ctx, lockResult, providerResult);
   } catch (error: unknown) {
     console.error("Error:", error);
-    return jsonResponse({ error: error instanceof Error ? error.message : "Unknown error", success: false }, 500);
+    // Return 200 with structured error so client can read the body and handle gracefully
+    return jsonResponse({ 
+      error: error instanceof Error ? error.message : "An unexpected error occurred. Please try again later.", 
+      success: false,
+      fallback: true,
+      message: "Recharge card service is temporarily unavailable. Please try again in a few minutes."
+    }, 200);
   }
 });
