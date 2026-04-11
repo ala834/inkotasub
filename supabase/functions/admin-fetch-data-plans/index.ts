@@ -47,64 +47,8 @@ async function fetchSubpadiDataPlans(): Promise<{ plans: any[]; message: string 
   };
 }
 
-function normalizeSubpadiPlans(rawPlans: any[]): any[] {
-  const normalized: any[] = [];
 
-  for (const p of rawPlans) {
-    // Extract fields - Subpadi plans typically have: id, network, plan_name/name, amount/price, plan_type, etc.
-    const networkId = p.network_id || p.network;
-    let networkName: string;
-    if (typeof networkId === "number" || /^\d+$/.test(String(networkId))) {
-      networkName = SUBPADI_NETWORK_MAP[Number(networkId)] || "UNKNOWN";
-    } else {
-      networkName = String(p.network_name || p.network || "UNKNOWN").toUpperCase();
-    }
-    if (networkName.includes("ETISALAT")) networkName = "9MOBILE";
 
-    const planName = p.plan_name || p.name || p.plan || p.description || `${p.size || p.volume || ""} Data`;
-    const price = parseFloat(p.amount || p.price || p.cost || p.plan_amount || 0);
-    const planId = String(p.id || p.plan_id || p.dataplan_id || "");
-
-    if (!planId || price <= 0) {
-      continue;
-    }
-
-    // Extract validity
-    let validity = p.validity || p.duration || p.plan_validity || p.month_validate || "";
-    if (!validity && planName) {
-      const dayMatch = planName.match(/(\d+)\s*days?/i);
-      const monthMatch = planName.match(/(\d+)\s*months?/i);
-      if (dayMatch) validity = `${dayMatch[1]} Days`;
-      else if (monthMatch) validity = `${monthMatch[1]} Month${parseInt(monthMatch[1]) > 1 ? 's' : ''}`;
-      else validity = "30 Days";
-    }
-
-    // Determine plan type
-    let planType = p.plan_type || p.type || "";
-    if (planType) {
-      planType = String(planType).toUpperCase();
-      if (!["SME", "GIFTING", "CORPORATE", "GENERAL"].includes(planType)) {
-        planType = categorizePlan(planName);
-      }
-    } else {
-      planType = categorizePlan(planName);
-    }
-
-    normalized.push({
-      provider: "subpadi",
-      network: networkName,
-      plan_id: planId,
-      plan_name: planName,
-      base_price: price,
-      validity: validity || "30 Days",
-      data_size: extractDataSize(planName),
-      plan_type: planType,
-    });
-  }
-
-  console.log(`Normalized ${normalized.length} Subpadi plans from ${rawPlans.length} raw plans`);
-  return normalized;
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
