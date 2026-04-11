@@ -51,8 +51,8 @@ export const usePushNotifications = () => {
         });
 
         // Get the OneSignal Player/Subscription ID
-        const subscriptionId = OneSignal.User.pushSubscription.getPushSubscriptionId();
-        const token = OneSignal.User.pushSubscription.getPushSubscriptionToken();
+        const subscriptionId = (OneSignal.User.pushSubscription as any).id;
+        const token = (OneSignal.User.pushSubscription as any).token;
         
         if (subscriptionId) {
           setPlayerId(subscriptionId);
