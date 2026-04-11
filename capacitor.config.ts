@@ -23,9 +23,7 @@ const config: CapacitorConfig = {
       splashFullScreen: true,
       splashImmersive: true,
     },
-    PushNotifications: {
-      presentationOptions: ['badge', 'sound', 'alert'],
-    },
+    // OneSignal handles push notifications natively - no Capacitor plugin config needed
   },
 };
 
