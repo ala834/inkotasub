@@ -358,6 +358,8 @@ const AdminProvidersTab = () => {
               <li>15-second timeout with automatic retry (2 retries)</li>
             </ul>
           </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
