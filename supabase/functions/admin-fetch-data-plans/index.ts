@@ -31,75 +31,20 @@ function isSubpadiConfigured(): boolean {
   return !!Deno.env.get("SUBPADI_API_TOKEN");
 }
 
-async function fetchSubpadiDataPlans(): Promise<any[]> {
-  const token = Deno.env.get("SUBPADI_API_TOKEN");
-  if (!token) {
-    console.error("SUBPADI_API_TOKEN not configured");
-    return [];
+// Note: Subpadi does NOT have a plan catalog/listing API endpoint.
+// GET /api/data/ returns transaction history, NOT available plans.
+// Subpadi plans must be added manually by the admin using plan IDs from the Subpadi dashboard.
+// This function returns an empty array with a log explaining why.
+async function fetchSubpadiDataPlans(): Promise<{ plans: any[]; message: string }> {
+  if (!Deno.env.get("SUBPADI_API_TOKEN")) {
+    return { plans: [], message: "SUBPADI_API_TOKEN not configured" };
   }
-
-  const headers = {
-    "Authorization": `Token ${token}`,
-    "Content-Type": "application/json",
+  
+  console.log("Subpadi does not provide a plan catalog API. Plans must be added manually from the Subpadi dashboard.");
+  return { 
+    plans: [], 
+    message: "Subpadi does not have a plan listing API. Add plans manually using plan IDs from the Subpadi dashboard." 
   };
-
-  try {
-    console.log("Fetching Subpadi data plans from GET /api/data/...");
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-    const response = await fetch(`${SUBPADI_BASE_URL}/data/`, {
-      method: "GET",
-      headers,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-
-    const text = await response.text();
-    console.log("Subpadi data plans response status:", response.status);
-    console.log("Subpadi data plans response length:", text.length);
-
-    if (!response.ok) {
-      console.error("Subpadi data plans API error:", response.status, text.substring(0, 500));
-      return [];
-    }
-
-    let data: any;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      console.error("Failed to parse Subpadi data plans response");
-      return [];
-    }
-
-    // The response could be an array directly, or wrapped in an object
-    let plans: any[] = [];
-    if (Array.isArray(data)) {
-      plans = data;
-    } else if (data?.results && Array.isArray(data.results)) {
-      plans = data.results;
-    } else if (data?.data && Array.isArray(data.data)) {
-      plans = data.data;
-    } else if (data?.plans && Array.isArray(data.plans)) {
-      plans = data.plans;
-    } else if (typeof data === "object" && data !== null) {
-      // Try to find arrays within the response (e.g. keyed by network)
-      for (const key of Object.keys(data)) {
-        if (Array.isArray(data[key])) {
-          plans.push(...data[key].map((p: any) => ({ ...p, _source_key: key })));
-        }
-      }
-    }
-
-    console.log(`Subpadi returned ${plans.length} raw data plans`);
-    if (plans.length > 0) {
-      console.log("Subpadi sample plan:", JSON.stringify(plans[0]).substring(0, 300));
-    }
-
-    return plans;
-  } catch (error) {
-    console.error("Subpadi data plans fetch error:", error instanceof Error ? error.message : String(error));
-    return [];
-  }
 }
 
 function normalizeSubpadiPlans(rawPlans: any[]): any[] {
