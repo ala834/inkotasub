@@ -107,6 +107,53 @@ npm install
 npx cap sync android
 ```
 
+## Firebase Cloud Messaging (FCM) Setup
+
+### 1. Create a Firebase Project
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Click **"Add Project"** → name it (e.g., "INKOTA SUB")
+3. Disable Google Analytics (optional) → **Create Project**
+
+### 2. Add Android App to Firebase
+1. Click **Android icon** to add an Android app
+2. **Package name**: `app.lovable.ffadf645a240467b9613fa616c1f2eb6`
+3. **App nickname**: INKOTA SUB
+4. Click **Register App**
+
+### 3. Download google-services.json
+1. Download the `google-services.json` file
+2. Place it in: `android/app/google-services.json`
+
+### 4. Add Firebase Dependencies
+In `android/build.gradle` (project-level), add:
+```gradle
+buildscript {
+    dependencies {
+        classpath 'com.google.gms:google-services:4.4.2'
+    }
+}
+```
+
+In `android/app/build.gradle` (app-level), add:
+```gradle
+apply plugin: 'com.google.gms.google-services'
+
+dependencies {
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
+    implementation 'com.google.firebase:firebase-messaging'
+}
+```
+
+### 5. Sync & Run
+```bash
+npx cap sync android
+npx cap run android
+```
+
+The app will automatically request notification permission and register with FCM on launch.
+
+---
+
 ## Production Build
 
 When ready to remove the dev server URL:
