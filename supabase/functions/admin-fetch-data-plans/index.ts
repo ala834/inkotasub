@@ -217,25 +217,9 @@ serve(async (req) => {
         }
       }
 
-      // 2. Fetch Subpadi plans from API first, fallback to DB
+      // 2. Subpadi does NOT have a plan catalog API — always load from DB
+      // Plans must be added manually by admin using plan IDs from Subpadi dashboard
       let subpadiFromApi = false;
-      if (isSubpadiConfigured()) {
-        try {
-          const rawSubpadiPlans = await fetchSubpadiDataPlans();
-          if (rawSubpadiPlans.length > 0) {
-            const normalizedPlans = normalizeSubpadiPlans(rawSubpadiPlans);
-            allPlans.push(...normalizedPlans);
-            subpadiFromApi = true;
-            console.log(`Added ${normalizedPlans.length} Subpadi plans from API`);
-          } else {
-            console.log("No plans from Subpadi API, falling back to DB");
-            fetchErrors.push("Subpadi API returned 0 plans");
-          }
-        } catch (e) {
-          console.error("Subpadi API fetch error:", e);
-          fetchErrors.push(`Subpadi API: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
 
       // Fallback: load Subpadi plans from DB if API returned nothing
       if (!subpadiFromApi) {
