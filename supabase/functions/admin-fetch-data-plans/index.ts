@@ -8,6 +8,8 @@ const corsHeaders = {
 };
 
 const SMEPLUG_NETWORK_MAP: Record<number, string> = { 1: "MTN", 2: "AIRTEL", 3: "9MOBILE", 4: "GLO" };
+const SUBPADI_NETWORK_MAP: Record<number, string> = { 1: "MTN", 2: "GLO", 3: "AIRTEL", 4: "9MOBILE" };
+const SUBPADI_BASE_URL = "https://subpadi.com/api";
 
 function extractDataSize(name: string): number {
   const gb = name.match(/(\d+(?:\.\d+)?)\s*GB/i);
@@ -23,6 +25,140 @@ function categorizePlan(planName: string): string {
   if (name.includes('GIFTING') || name.includes('GIFT')) return 'GIFTING';
   if (name.includes('SME')) return 'SME';
   return 'GENERAL';
+}
+
+function isSubpadiConfigured(): boolean {
+  return !!Deno.env.get("SUBPADI_API_TOKEN");
+}
+
+async function fetchSubpadiDataPlans(): Promise<any[]> {
+  const token = Deno.env.get("SUBPADI_API_TOKEN");
+  if (!token) {
+    console.error("SUBPADI_API_TOKEN not configured");
+    return [];
+  }
+
+  const headers = {
+    "Authorization": `Token ${token}`,
+    "Content-Type": "application/json",
+  };
+
+  try {
+    console.log("Fetching Subpadi data plans from GET /api/data/...");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const response = await fetch(`${SUBPADI_BASE_URL}/data/`, {
+      method: "GET",
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    const text = await response.text();
+    console.log("Subpadi data plans response status:", response.status);
+    console.log("Subpadi data plans response length:", text.length);
+
+    if (!response.ok) {
+      console.error("Subpadi data plans API error:", response.status, text.substring(0, 500));
+      return [];
+    }
+
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      console.error("Failed to parse Subpadi data plans response");
+      return [];
+    }
+
+    // The response could be an array directly, or wrapped in an object
+    let plans: any[] = [];
+    if (Array.isArray(data)) {
+      plans = data;
+    } else if (data?.results && Array.isArray(data.results)) {
+      plans = data.results;
+    } else if (data?.data && Array.isArray(data.data)) {
+      plans = data.data;
+    } else if (data?.plans && Array.isArray(data.plans)) {
+      plans = data.plans;
+    } else if (typeof data === "object" && data !== null) {
+      // Try to find arrays within the response (e.g. keyed by network)
+      for (const key of Object.keys(data)) {
+        if (Array.isArray(data[key])) {
+          plans.push(...data[key].map((p: any) => ({ ...p, _source_key: key })));
+        }
+      }
+    }
+
+    console.log(`Subpadi returned ${plans.length} raw data plans`);
+    if (plans.length > 0) {
+      console.log("Subpadi sample plan:", JSON.stringify(plans[0]).substring(0, 300));
+    }
+
+    return plans;
+  } catch (error) {
+    console.error("Subpadi data plans fetch error:", error instanceof Error ? error.message : String(error));
+    return [];
+  }
+}
+
+function normalizeSubpadiPlans(rawPlans: any[]): any[] {
+  const normalized: any[] = [];
+
+  for (const p of rawPlans) {
+    // Extract fields - Subpadi plans typically have: id, network, plan_name/name, amount/price, plan_type, etc.
+    const networkId = p.network_id || p.network;
+    let networkName: string;
+    if (typeof networkId === "number" || /^\d+$/.test(String(networkId))) {
+      networkName = SUBPADI_NETWORK_MAP[Number(networkId)] || "UNKNOWN";
+    } else {
+      networkName = String(p.network_name || p.network || "UNKNOWN").toUpperCase();
+    }
+    if (networkName.includes("ETISALAT")) networkName = "9MOBILE";
+
+    const planName = p.plan_name || p.name || p.plan || p.description || `${p.size || p.volume || ""} Data`;
+    const price = parseFloat(p.amount || p.price || p.cost || p.plan_amount || 0);
+    const planId = String(p.id || p.plan_id || p.dataplan_id || "");
+
+    if (!planId || price <= 0) {
+      continue;
+    }
+
+    // Extract validity
+    let validity = p.validity || p.duration || p.plan_validity || p.month_validate || "";
+    if (!validity && planName) {
+      const dayMatch = planName.match(/(\d+)\s*days?/i);
+      const monthMatch = planName.match(/(\d+)\s*months?/i);
+      if (dayMatch) validity = `${dayMatch[1]} Days`;
+      else if (monthMatch) validity = `${monthMatch[1]} Month${parseInt(monthMatch[1]) > 1 ? 's' : ''}`;
+      else validity = "30 Days";
+    }
+
+    // Determine plan type
+    let planType = p.plan_type || p.type || "";
+    if (planType) {
+      planType = String(planType).toUpperCase();
+      if (!["SME", "GIFTING", "CORPORATE", "GENERAL"].includes(planType)) {
+        planType = categorizePlan(planName);
+      }
+    } else {
+      planType = categorizePlan(planName);
+    }
+
+    normalized.push({
+      provider: "subpadi",
+      network: networkName,
+      plan_id: planId,
+      plan_name: planName,
+      base_price: price,
+      validity: validity || "30 Days",
+      data_size: extractDataSize(planName),
+      plan_type: planType,
+    });
+  }
+
+  console.log(`Normalized ${normalized.length} Subpadi plans from ${rawPlans.length} raw plans`);
+  return normalized;
 }
 
 serve(async (req) => {
@@ -58,6 +194,7 @@ serve(async (req) => {
 
     if (action === "fetch") {
       const allPlans: any[] = [];
+      const fetchErrors: string[] = [];
 
       // 1. Fetch from SMEPlug API
       if (isSmeplugConfigured()) {
@@ -98,13 +235,17 @@ serve(async (req) => {
                 plan_type: categorizePlan(planName),
               });
             }
+            console.log(`Fetched ${allPlans.length} SMEPlug plans from API`);
+          } else {
+            fetchErrors.push(`SMEPlug API: ${result.message}`);
           }
         } catch (e) {
           console.error("SMEPlug fetch error:", e);
+          fetchErrors.push(`SMEPlug: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
 
-      // If no API plans, load existing smeplug plans from DB
+      // If no SMEPlug API plans, load from DB
       if (allPlans.filter(p => p.provider === "smeplug").length === 0) {
         const { data: dbSmeplugPlans } = await adminSupabase
           .from("service_plans")
@@ -131,15 +272,36 @@ serve(async (req) => {
         }
       }
 
-      // 2. Load Subpadi plans from DB
-      try {
+      // 2. Fetch Subpadi plans from API first, fallback to DB
+      let subpadiFromApi = false;
+      if (isSubpadiConfigured()) {
+        try {
+          const rawSubpadiPlans = await fetchSubpadiDataPlans();
+          if (rawSubpadiPlans.length > 0) {
+            const normalizedPlans = normalizeSubpadiPlans(rawSubpadiPlans);
+            allPlans.push(...normalizedPlans);
+            subpadiFromApi = true;
+            console.log(`Added ${normalizedPlans.length} Subpadi plans from API`);
+          } else {
+            console.log("No plans from Subpadi API, falling back to DB");
+            fetchErrors.push("Subpadi API returned 0 plans");
+          }
+        } catch (e) {
+          console.error("Subpadi API fetch error:", e);
+          fetchErrors.push(`Subpadi API: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+
+      // Fallback: load Subpadi plans from DB if API returned nothing
+      if (!subpadiFromApi) {
         const { data: dbPlans } = await adminSupabase
           .from("service_plans")
           .select("*")
           .eq("service_type", "data")
           .eq("provider", "subpadi");
         
-        if (dbPlans) {
+        if (dbPlans && dbPlans.length > 0) {
+          console.log(`Loading ${dbPlans.length} Subpadi plans from DB`);
           for (const p of dbPlans) {
             allPlans.push({
               provider: "subpadi",
@@ -156,24 +318,23 @@ serve(async (req) => {
               plan_type: (p as any).plan_type || categorizePlan(p.plan_name),
             });
           }
+        } else {
+          console.log("No Subpadi plans in DB either");
         }
-      } catch (e) {
-        console.error("DB fetch error:", e);
       }
 
-      // 3. Enrich SMEPlug API plans with existing DB state
+      // 3. Enrich API plans with existing DB state
       const { data: existingPlans } = await adminSupabase
         .from("service_plans")
         .select("*")
-        .eq("service_type", "data")
-        .eq("provider", "smeplug");
+        .eq("service_type", "data");
 
       const existingMap = new Map((existingPlans || []).map((p: any) => [`${p.provider}:${p.network}:${p.plan_id}`, p]));
 
       const enrichedPlans = allPlans.map(p => {
         const key = `${p.provider}:${p.network}:${p.plan_id}`;
         const existing = existingMap.get(key);
-        if (existing && p.provider === "smeplug" && !p.db_id) {
+        if (existing && !p.db_id) {
           return {
             ...p,
             db_id: existing.id,
@@ -208,8 +369,20 @@ serve(async (req) => {
         return a.plan_name.localeCompare(b.plan_name);
       });
 
+      const smeplugCount = deduped.filter(p => p.provider === "smeplug").length;
+      const subpadiCount = deduped.filter(p => p.provider === "subpadi").length;
+      console.log(`Returning ${deduped.length} plans: ${smeplugCount} SMEPlug, ${subpadiCount} Subpadi`);
+
       return new Response(
-        JSON.stringify({ success: true, plans: deduped, total: deduped.length }),
+        JSON.stringify({ 
+          success: true, 
+          plans: deduped, 
+          total: deduped.length,
+          smeplugCount,
+          subpadiCount,
+          subpadiFromApi,
+          errors: fetchErrors.length > 0 ? fetchErrors : undefined,
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -299,53 +472,107 @@ serve(async (req) => {
 
     if (action === "sync_to_db") {
       let totalSaved = 0;
+      const syncErrors: string[] = [];
 
       // Sync SMEPlug
       if (isSmeplugConfigured()) {
-        const result = await smeplugGetDataPlans();
-        if (result.success && result.rawResponse) {
-          const raw = result.rawResponse as any;
-          let plans: any[] = [];
-          const dataObj = raw?.data && typeof raw.data === "object" && !Array.isArray(raw.data) ? raw.data : null;
-          if (dataObj) {
-            for (const key of Object.keys(dataObj)) {
-              if (Array.isArray(dataObj[key])) {
-                plans.push(...dataObj[key].map((p: any) => ({ ...p, _network_key: key })));
+        try {
+          const result = await smeplugGetDataPlans();
+          if (result.success && result.rawResponse) {
+            const raw = result.rawResponse as any;
+            let plans: any[] = [];
+            const dataObj = raw?.data && typeof raw.data === "object" && !Array.isArray(raw.data) ? raw.data : null;
+            if (dataObj) {
+              for (const key of Object.keys(dataObj)) {
+                if (Array.isArray(dataObj[key])) {
+                  plans.push(...dataObj[key].map((p: any) => ({ ...p, _network_key: key })));
+                }
               }
             }
+            for (const p of plans) {
+              const networkId = p.network_id || p.network || p._network_key;
+              const networkName = typeof networkId === "number" || /^\d+$/.test(String(networkId))
+                ? (SMEPLUG_NETWORK_MAP[Number(networkId)] || "UNKNOWN")
+                : String(p.network_name || p.network || "").toUpperCase();
+              const planName = p.plan_name || p.name || p.plan || `${p.size || ""} Data`;
+              const price = parseFloat(p.price || p.amount || p.cost || 0);
+              const planId = String(p.plan_id || p.id || p.dataplan_id || "");
+              if (!planId || price <= 0) continue;
+              const network = networkName.includes("ETISALAT") ? "9MOBILE" : networkName;
+              const { error } = await adminSupabase
+                .from("service_plans")
+                .upsert({
+                  service_type: "data",
+                  provider: "smeplug",
+                  network,
+                  plan_id: planId,
+                  plan_name: planName,
+                  base_price: price,
+                  validity: p.validity || p.duration || p.plan_validity || "30 Days",
+                  is_enabled: false,
+                  is_featured: false,
+                  plan_type: categorizePlan(planName),
+                  last_synced_at: new Date().toISOString(),
+                }, { onConflict: "service_type,network,plan_id" });
+              if (!error) totalSaved++;
+            }
+            console.log(`SMEPlug sync: saved ${totalSaved} plans`);
+          } else {
+            syncErrors.push(`SMEPlug: ${result.message}`);
           }
-          for (const p of plans) {
-            const networkId = p.network_id || p.network || p._network_key;
-            const networkName = typeof networkId === "number" || /^\d+$/.test(String(networkId))
-              ? (SMEPLUG_NETWORK_MAP[Number(networkId)] || "UNKNOWN")
-              : String(p.network_name || p.network || "").toUpperCase();
-            const planName = p.plan_name || p.name || p.plan || `${p.size || ""} Data`;
-            const price = parseFloat(p.price || p.amount || p.cost || 0);
-            const planId = String(p.plan_id || p.id || p.dataplan_id || "");
-            if (!planId || price <= 0) continue;
-            const network = networkName.includes("ETISALAT") ? "9MOBILE" : networkName;
-            const { error } = await adminSupabase
-              .from("service_plans")
-              .upsert({
-                service_type: "data",
-                provider: "smeplug",
-                network,
-                plan_id: planId,
-                plan_name: planName,
-                base_price: price,
-                validity: p.validity || p.duration || p.plan_validity || "30 Days",
-                is_enabled: false,
-                is_featured: false,
-                plan_type: categorizePlan(planName),
-                last_synced_at: new Date().toISOString(),
-              }, { onConflict: "service_type,network,plan_id" });
-            if (!error) totalSaved++;
-          }
+        } catch (e) {
+          syncErrors.push(`SMEPlug error: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
 
+      // Sync Subpadi
+      let subpadiSaved = 0;
+      if (isSubpadiConfigured()) {
+        try {
+          const rawPlans = await fetchSubpadiDataPlans();
+          if (rawPlans.length > 0) {
+            const normalizedPlans = normalizeSubpadiPlans(rawPlans);
+            for (const p of normalizedPlans) {
+              const { error } = await adminSupabase
+                .from("service_plans")
+                .upsert({
+                  service_type: "data",
+                  provider: "subpadi",
+                  network: p.network,
+                  plan_id: p.plan_id,
+                  plan_name: p.plan_name,
+                  base_price: p.base_price,
+                  validity: p.validity,
+                  is_enabled: false,
+                  is_featured: false,
+                  plan_type: p.plan_type,
+                  last_synced_at: new Date().toISOString(),
+                }, { onConflict: "service_type,network,plan_id" });
+              if (!error) {
+                subpadiSaved++;
+              } else {
+                console.error(`Failed to save Subpadi plan ${p.plan_id}:`, error.message);
+              }
+            }
+            console.log(`Subpadi sync: saved ${subpadiSaved} plans`);
+            totalSaved += subpadiSaved;
+          } else {
+            syncErrors.push("Subpadi API returned 0 plans");
+          }
+        } catch (e) {
+          syncErrors.push(`Subpadi error: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      } else {
+        syncErrors.push("Subpadi API token not configured");
+      }
+
       return new Response(
-        JSON.stringify({ success: true, saved: totalSaved }),
+        JSON.stringify({ 
+          success: true, 
+          saved: totalSaved, 
+          subpadiSaved,
+          errors: syncErrors.length > 0 ? syncErrors : undefined,
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
