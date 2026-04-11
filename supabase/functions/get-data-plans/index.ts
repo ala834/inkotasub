@@ -146,18 +146,35 @@ serve(async (req) => {
           
           if (smeplugResult.success && smeplugResult.rawResponse) {
             const raw = smeplugResult.rawResponse as any;
-            const allPlans: any[] = Array.isArray(raw) ? raw 
-              : Array.isArray(raw?.data) ? raw.data 
-              : Array.isArray(raw?.plans) ? raw.plans 
-              : [];
+            let allPlans: any[] = [];
+            
+            if (Array.isArray(raw)) {
+              allPlans = raw;
+            } else if (Array.isArray(raw?.data)) {
+              allPlans = raw.data;
+            } else if (Array.isArray(raw?.plans)) {
+              allPlans = raw.plans;
+            } else {
+              // Handle object-keyed format: { data: { "1": [...], "2": [...] } } or { "1": [...] }
+              const dataObj = raw?.data && typeof raw.data === "object" && !Array.isArray(raw.data) ? raw.data : raw;
+              if (dataObj && typeof dataObj === "object") {
+                for (const key of Object.keys(dataObj)) {
+                  if (Array.isArray(dataObj[key])) {
+                    allPlans.push(...dataObj[key].map((p: any) => ({ ...p, _network_key: key })));
+                  }
+                }
+              }
+            }
+            
+            console.log(`SMEPlug API returned ${allPlans.length} total plans`);
             
             const targetNetworkId = SMEPLUG_NETWORK_MAP[networkUpper];
             
             const networkPlans = allPlans.filter((p: any) => {
-              const planNetworkId = p.network_id || p.network;
+              const planNetworkId = p.network_id || p.network || p._network_key;
               const planNetworkName = String(p.network_name || p.network || "").toUpperCase();
               
-              if (targetNetworkId && planNetworkId == targetNetworkId) return true;
+              if (targetNetworkId && (planNetworkId == targetNetworkId || planNetworkId == String(targetNetworkId))) return true;
               if (planNetworkName.includes(networkUpper)) return true;
               if (networkUpper === "9MOBILE" && (planNetworkName.includes("ETISALAT") || planNetworkName.includes("9MOBILE"))) return true;
               return false;
