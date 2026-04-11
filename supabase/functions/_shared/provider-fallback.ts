@@ -93,12 +93,14 @@ export async function executeWithFallback(
   serviceType: string = 'unknown',
   network?: string,
   options: ExecuteWithFallbackOptions = {},
+  clubkonnectFn?: () => Promise<ProviderResponse>,
 ): Promise<FallbackResult> {
   let config = await getProviderConfig(serviceType, network);
 
   const providerFns: Record<string, (() => Promise<ProviderResponse>) | undefined> = {
     subpadi: subpadiFn,
     smeplug: smeplugFn,
+    clubkonnect: clubkonnectFn,
   };
 
   const preferredProvider = options.preferredProvider?.toLowerCase();
