@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import VirtualAccountCard from "@/components/wallet/VirtualAccountCard";
