@@ -112,7 +112,7 @@ serve(async (req) => {
         Authorization: `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify({
-        from: "INKOTA SUB <onboarding@resend.dev>",
+        from: "INKOTA SUB <noreply@notify.www.inkotasub.com>",
         to: [emailLower],
         subject: emailSubject,
         html: `
