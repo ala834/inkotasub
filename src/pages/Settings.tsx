@@ -107,9 +107,15 @@ const Settings = () => {
 
   // Dialog states
   const [changePinOpen, setChangePinOpen] = useState(false);
+  const [pinChangeStep, setPinChangeStep] = useState<"confirm" | "otp" | "newpin" | "success">("confirm");
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [verificationToken, setVerificationToken] = useState("");
+  const [maskedEmail, setMaskedEmail] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpResendCooldown, setOtpResendCooldown] = useState(0);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
