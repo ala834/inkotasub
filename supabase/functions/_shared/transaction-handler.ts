@@ -209,6 +209,30 @@ export async function finalizeTransaction(
       if (providerResult.reference) responseBody.reference = providerResult.reference;
       if (providerResult.extraData) Object.assign(responseBody, providerResult.extraData);
 
+      // Send receipt email (fire-and-forget)
+      try {
+        fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-receipt-email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({
+            userId,
+            type: "vtu_purchase",
+            amount: sellingPrice,
+            reference,
+            description: getSuccessMessage(serviceType),
+            balanceAfter: newBalance,
+            serviceType,
+            recipient,
+            provider: providerResult.providerUsed,
+          }),
+        }).catch(e => console.error("Receipt email error:", e));
+      } catch (e) {
+        console.error("Receipt email fire-and-forget error:", e);
+      }
+
       return jsonResponse(responseBody);
     } else {
       // REFUND wallet - provider failed
