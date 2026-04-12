@@ -19,30 +19,11 @@ serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ success: false, error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-
-    const supabaseUser = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
+    // Parse body FIRST (can only read once)
     const {
       deviceId,
       deviceName,
@@ -51,11 +32,37 @@ serve(async (req) => {
       osVersion,
     } = await req.json();
 
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    // Use getClaims for faster, lighter auth check
+    const supabaseAnon = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabaseAnon.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims?.sub) {
+      console.error("Auth error:", claimsError);
+      return new Response(
+        JSON.stringify({ success: true, alerted: false, reason: "auth_failed" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const userId = claimsData.claims.sub as string;
+    const userEmail = claimsData.claims.email as string;
+
     // Check if this device already exists for user (known device)
     const { data: existingDevice } = await supabaseAdmin
       .from("trusted_devices")
       .select("id")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("device_id", deviceId)
       .maybeSingle();
 
@@ -68,7 +75,7 @@ serve(async (req) => {
     }
 
     // Get user email and profile
-    const email = user.email;
+    const email = userEmail;
     if (!email) {
       return new Response(
         JSON.stringify({ success: true, alerted: false, reason: "no_email" }),
@@ -79,7 +86,7 @@ serve(async (req) => {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("full_name")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     const userName = profile?.full_name || "User";
