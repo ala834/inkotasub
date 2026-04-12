@@ -50,9 +50,14 @@ const Header = ({ onMenuClick }: HeaderProps) => {
           </Button>
           <div className="flex items-center gap-2">
             <AppLogo className="w-8 h-8" />
-            <span className="font-display font-bold text-lg text-foreground">
-              INKOTA<span className="text-primary">SUB</span>
-            </span>
+            <div className="flex flex-col">
+              <span className="font-display font-bold text-lg text-foreground leading-tight">
+                INKOTA<span className="text-primary">SUB</span>
+              </span>
+              {profile?.username && (
+                <span className="text-xs text-muted-foreground leading-tight">@{profile.username}</span>
+              )}
+            </div>
           </div>
         </div>
 
