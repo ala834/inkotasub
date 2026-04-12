@@ -4,10 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useVirtualAccount } from "@/hooks/useVirtualAccount";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { cn } from "@/lib/utils";
 
 const VirtualAccountCard = () => {
   const { virtualAccount, isLoading, isCreating, isUnavailable, createVirtualAccount } = useVirtualAccount();
+  const { settings } = useAppSettings();
+  const depositCharge = parseFloat(settings.deposit_charge_amount || "25") || 0;
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [hasAttemptedCreate, setHasAttemptedCreate] = useState(false);
 
@@ -185,7 +188,11 @@ const VirtualAccountCard = () => {
             <ol className="list-decimal list-inside space-y-1">
               <li>Transfer to the account number above</li>
               <li>Your wallet will be credited instantly</li>
-              <li>No extra charges apply</li>
+              <li>
+                {depositCharge > 0
+                  ? `A processing fee of ₦${depositCharge.toLocaleString()} will be deducted per funding`
+                  : "No extra charges apply"}
+              </li>
             </ol>
           </div>
         </div>

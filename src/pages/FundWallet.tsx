@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppSettings } from "@/contexts/AppSettingsContext";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import VirtualAccountCard from "@/components/wallet/VirtualAccountCard";
@@ -17,6 +18,8 @@ const FundWallet = () => {
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"card" | "bank" | "ussd">("card");
   const [isLoading, setIsLoading] = useState(false);
+  const { settings } = useAppSettings();
+  const depositCharge = parseFloat(settings.deposit_charge_amount || "25") || 0;
 
   const quickAmounts = [1000, 2000, 5000, 10000, 20000, 50000];
 
@@ -208,6 +211,11 @@ const FundWallet = () => {
           </Button>
 
           <p className="text-center text-xs text-muted-foreground">
+            {parseFloat(amount || "0") > 0 && depositCharge > 0 && (
+              <span className="block mb-1 text-destructive font-medium">
+                A processing fee of ₦{depositCharge.toLocaleString()} will be deducted. You'll receive ₦{Math.max(0, parseFloat(amount || "0") - depositCharge).toLocaleString()}.
+              </span>
+            )}
             Powered by Paystack. Your payment is secure.
           </p>
         </motion.div>
