@@ -188,7 +188,11 @@ const VirtualAccountCard = () => {
             <ol className="list-decimal list-inside space-y-1">
               <li>Transfer to the account number above</li>
               <li>Your wallet will be credited instantly</li>
-              <li>No extra charges apply</li>
+              <li>
+                {depositCharge > 0
+                  ? `A processing fee of ₦${depositCharge.toLocaleString()} will be deducted per funding`
+                  : "No extra charges apply"}
+              </li>
             </ol>
           </div>
         </div>
