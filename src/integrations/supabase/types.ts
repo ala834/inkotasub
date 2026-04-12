@@ -555,6 +555,7 @@ export type Database = {
           daily_transaction_limit: number | null
           failed_pin_attempts: number | null
           full_name: string | null
+          has_transaction_pin: boolean
           id: string
           is_agent: boolean | null
           kyc_level: Database["public"]["Enums"]["kyc_level"] | null
@@ -572,6 +573,7 @@ export type Database = {
           daily_transaction_limit?: number | null
           failed_pin_attempts?: number | null
           full_name?: string | null
+          has_transaction_pin?: boolean
           id?: string
           is_agent?: boolean | null
           kyc_level?: Database["public"]["Enums"]["kyc_level"] | null
@@ -589,6 +591,7 @@ export type Database = {
           daily_transaction_limit?: number | null
           failed_pin_attempts?: number | null
           full_name?: string | null
+          has_transaction_pin?: boolean
           id?: string
           is_agent?: boolean | null
           kyc_level?: Database["public"]["Enums"]["kyc_level"] | null
