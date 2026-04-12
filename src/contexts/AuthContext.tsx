@@ -150,6 +150,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         platform = "web";
       }
 
+      // Send login alert BEFORE upsert so edge function can detect new device
+      sendLoginAlert(userId, accessToken, { deviceId, deviceName, deviceModel, osVersion, platform });
+
       // Check if blocked
       const { data: blocked } = await supabase
         .from("trusted_devices")
