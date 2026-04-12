@@ -62,7 +62,7 @@ serve(async (req) => {
     const { data: existingDevice } = await supabaseAdmin
       .from("trusted_devices")
       .select("id")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("device_id", deviceId)
       .maybeSingle();
 
@@ -75,7 +75,7 @@ serve(async (req) => {
     }
 
     // Get user email and profile
-    const email = user.email;
+    const email = userEmail;
     if (!email) {
       return new Response(
         JSON.stringify({ success: true, alerted: false, reason: "no_email" }),
@@ -86,7 +86,7 @@ serve(async (req) => {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("full_name")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     const userName = profile?.full_name || "User";
