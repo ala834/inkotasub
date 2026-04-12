@@ -853,7 +853,7 @@ const Settings = () => {
           {/* Step 4: Success */}
           {pinChangeStep === "success" && (
             <DialogHeader>
-              <div className="mx-auto w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-2">
+              <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-2">
                 <Shield className="h-7 w-7 text-primary" />
               </div>
               <DialogTitle className="text-center">PIN Updated!</DialogTitle>
