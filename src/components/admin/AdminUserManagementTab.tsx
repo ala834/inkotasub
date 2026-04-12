@@ -66,7 +66,7 @@ interface UserProfile {
   is_agent: boolean | null;
   suspended_at: string | null;
   created_at: string;
-  transaction_pin: string | null;
+  has_transaction_pin: boolean;
   wallet?: {
     balance: number;
   };

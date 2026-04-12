@@ -190,7 +190,7 @@ const Settings = () => {
       return;
     }
 
-    const hasExistingPin = !!profile?.transaction_pin;
+    const hasExistingPin = !!profile?.has_transaction_pin;
     
     try {
       const { data, error } = await supabase.functions.invoke("manage-pin", {
@@ -636,15 +636,15 @@ const Settings = () => {
       <Dialog open={changePinOpen} onOpenChange={setChangePinOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{profile?.transaction_pin ? "Change" : "Set"} Transaction PIN</DialogTitle>
+            <DialogTitle>{profile?.has_transaction_pin ? "Change" : "Set"} Transaction PIN</DialogTitle>
             <DialogDescription>
-              {profile?.transaction_pin
+              {profile?.has_transaction_pin
                 ? "Enter your current PIN and set a new 4-digit PIN."
                 : "Enter a 4-digit PIN to secure your transactions."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {profile?.transaction_pin && (
+            {profile?.has_transaction_pin && (
               <div className="space-y-2">
                 <Label htmlFor="currentPin">Current PIN</Label>
                 <Input
@@ -688,7 +688,7 @@ const Settings = () => {
               Cancel
             </Button>
             <Button onClick={handleChangePin}>
-              {profile?.transaction_pin ? "Update" : "Set"} PIN
+              {profile?.has_transaction_pin ? "Update" : "Set"} PIN
             </Button>
           </DialogFooter>
         </DialogContent>

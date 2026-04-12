@@ -17,7 +17,7 @@ const Dashboard = () => {
 
   // Prompt PIN setup if user has no transaction PIN
   useEffect(() => {
-    if (profile && !profile.transaction_pin) {
+    if (profile && !profile.has_transaction_pin) {
       setShowPinSetup(true);
     }
   }, [profile]);
