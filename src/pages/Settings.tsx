@@ -330,7 +330,7 @@ const Settings = () => {
           icon: Shield,
           label: "Transaction PIN",
           description: "Set or change your transaction PIN",
-          action: () => setChangePinOpen(true),
+          action: () => handleOpenChangePinDialog(),
         },
         {
           icon: Fingerprint,
@@ -417,7 +417,7 @@ const Settings = () => {
           icon: Lock,
           label: "Change Transaction PIN",
           description: "Update your 4-digit PIN",
-          action: () => setChangePinOpen(true),
+          action: () => handleOpenChangePinDialog(),
         },
         {
           icon: Shield,
