@@ -58,6 +58,26 @@ const History = () => {
     }
   };
 
+  const isDepositCharge = (tx: Transaction) => {
+    return (tx.metadata as any)?.type === "deposit_charge" || 
+           tx.description?.toLowerCase().includes("deposit processing fee");
+  };
+
+  const getTransactionLabel = (tx: Transaction) => {
+    if (isDepositCharge(tx)) return "Deposit Charge";
+    const desc = tx.description?.toLowerCase() || "";
+    if (desc.includes("funding") || desc.includes("wallet funded") || desc.includes("credit")) {
+      return tx.type === "credit" ? "Wallet Funded" : tx.description || "Transaction";
+    }
+    if (desc.includes("referral")) return "Referral Bonus";
+    if (desc.includes("data")) return "Data Purchase";
+    if (desc.includes("airtime")) return "Airtime Purchase";
+    if (desc.includes("electricity")) return "Electricity Payment";
+    if (desc.includes("cable") || desc.includes("tv")) return "Cable TV Subscription";
+    if (desc.includes("transfer")) return tx.type === "debit" ? "Transfer Sent" : "Transfer Received";
+    return tx.description || "Transaction";
+  };
+
   const handleTransactionClick = (transaction: Transaction) => {
     navigate(`/receipt/${transaction.id}`);
   };
@@ -163,12 +183,14 @@ const History = () => {
                       <div
                         className={cn(
                           "w-10 h-10 rounded-full flex items-center justify-center",
-                          transaction.type === "credit"
-                            ? "bg-success/10"
-                            : "bg-destructive/10"
+                          isDepositCharge(transaction)
+                            ? "bg-destructive/10"
+                            : transaction.type === "credit"
+                              ? "bg-success/10"
+                              : "bg-destructive/10"
                         )}
                       >
-                        {transaction.type === "credit" ? (
+                        {transaction.type === "credit" && !isDepositCharge(transaction) ? (
                           <ArrowDownLeft className="h-5 w-5 text-success" />
                         ) : (
                           <ArrowUpRight className="h-5 w-5 text-destructive" />
@@ -176,7 +198,7 @@ const History = () => {
                       </div>
                       <div>
                         <p className="font-medium text-foreground">
-                          {transaction.description || "Transaction"}
+                          {getTransactionLabel(transaction)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(transaction.created_at), "MMM d, yyyy • h:mm a")}
@@ -184,9 +206,10 @@ const History = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p
+                       <p
                         className={cn(
                           "font-semibold",
+                          isDepositCharge(transaction) ? "text-destructive" :
                           transaction.type === "credit" ? "text-success" : "text-destructive"
                         )}
                       >

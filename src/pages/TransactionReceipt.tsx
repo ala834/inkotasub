@@ -104,7 +104,16 @@ const TransactionReceipt = () => {
     return null;
   };
 
+  const isDepositCharge = (): boolean => {
+    return transaction?.metadata?.type === "deposit_charge";
+  };
+
+  const isDepositWithCharge = (): boolean => {
+    return (transaction?.metadata?.deposit_charge != null && transaction?.metadata?.original_amount != null && transaction?.type === "credit");
+  };
+
   const getServiceName = (): string => {
+    if (isDepositCharge()) return "Deposit Processing Fee";
     const meta = transaction?.metadata;
     if (meta?.plan_name) return meta.plan_name;
     if (meta?.service_type) {
@@ -387,6 +396,32 @@ const TransactionReceipt = () => {
                   </button>
                 </div>
               </div>
+            )}
+
+            {/* Deposit charge breakdown */}
+            {isDepositWithCharge() && (
+              <>
+                <div className="bg-muted/50 rounded-xl p-3 space-y-2 my-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Deposit Amount</span>
+                    <span className="text-sm font-medium text-foreground">
+                      {formatCurrency(transaction.metadata!.original_amount)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Processing Fee</span>
+                    <span className="text-sm font-medium text-destructive">
+                      -{formatCurrency(transaction.metadata!.deposit_charge)}
+                    </span>
+                  </div>
+                  <div className="border-t border-border/50 pt-2 flex justify-between items-center">
+                    <span className="text-sm font-medium text-muted-foreground">Net Credit</span>
+                    <span className="text-sm font-bold text-success">
+                      {formatCurrency(transaction.amount)}
+                    </span>
+                  </div>
+                </div>
+              </>
             )}
 
             <DetailRow
