@@ -244,7 +244,7 @@ const Auth = () => {
                     <Input
                       id="fullName"
                       type="text"
-                      placeholder="John Doe"
+                      placeholder="Enter your full name"
                       value={formData.fullName}
                       onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                       className="pl-10 h-12 rounded-xl"
@@ -260,7 +260,7 @@ const Auth = () => {
                     <Input
                       id="username"
                       type="text"
-                      placeholder="alamin018"
+                       placeholder="Enter username"
                       value={formData.username}
                       onChange={(e) => setFormData({ ...formData, username: e.target.value.replace(/\s/g, "").toLowerCase() })}
                       className="pl-10 h-12 rounded-xl lowercase"
@@ -277,7 +277,7 @@ const Auth = () => {
                       id="phoneNumber"
                       type="tel"
                       inputMode="numeric"
-                      placeholder="08012345678"
+                      placeholder="Enter phone number"
                       value={formData.phoneNumber}
                       onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value.replace(/[^\d+]/g, "").slice(0, 14) })}
                       className="pl-10 h-12 rounded-xl"
@@ -293,7 +293,7 @@ const Auth = () => {
                     <Input
                       id="email"
                       type="email"
-                      placeholder="you@example.com"
+                       placeholder="Enter email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="pl-10 h-12 rounded-xl"
@@ -314,7 +314,7 @@ const Auth = () => {
                       <Input
                         id="email"
                         type="email"
-                        placeholder="you@example.com"
+                        placeholder="Enter email"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         className="pl-10 h-12 rounded-xl"
@@ -330,7 +330,7 @@ const Auth = () => {
                       <Input
                         id="loginUsername"
                         type="text"
-                        placeholder="alamin018"
+                        placeholder="Enter username"
                         value={formData.username}
                         onChange={(e) => setFormData({ ...formData, username: e.target.value.replace(/\s/g, "").toLowerCase() })}
                         className="pl-10 h-12 rounded-xl lowercase"
