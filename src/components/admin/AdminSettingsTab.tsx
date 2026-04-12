@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Save, RefreshCw, AlertTriangle, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { Save, RefreshCw, AlertTriangle, Wifi, WifiOff, Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
 
 interface AppSetting {
@@ -262,6 +262,26 @@ const AdminSettingsTab = () => {
               <Switch
                 checked={formData.disable_registration === "true"}
                 onCheckedChange={(checked) => handleChange("disable_registration", checked ? "true" : "false")}
+              />
+            </div>
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg border border-amber-200">
+              <div className="flex items-start gap-3">
+                <Mail className="h-5 w-5 text-amber-500 mt-0.5" />
+                <div>
+                  <Label className="text-base font-medium">Email Test Mode</Label>
+                  <p className="text-sm text-muted-foreground">
+                    When enabled, all emails are logged instead of being sent. Check edge function logs to see email content.
+                  </p>
+                  {formData.EMAIL_TEST_MODE === "true" && (
+                    <Badge variant="outline" className="mt-1 text-amber-600 border-amber-300 bg-amber-50">
+                      Test Mode Active
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <Switch
+                checked={formData.EMAIL_TEST_MODE === "true"}
+                onCheckedChange={(checked) => handleChange("EMAIL_TEST_MODE", checked ? "true" : "false")}
               />
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
