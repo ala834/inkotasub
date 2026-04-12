@@ -48,6 +48,7 @@ const PLAN_TYPE_COLORS: Record<string, string> = {
 
 const AdminDataPlansTab = () => {
   const { user } = useAuth();
+  const [isFetchingSubpadi, setIsFetchingSubpadi] = useState(false);
   const [plans, setPlans] = useState<ProviderPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
@@ -132,6 +133,33 @@ const AdminDataPlansTab = () => {
       toast.error("Failed to fetch from providers");
     }
     setIsFetching(false);
+  };
+
+  const fetchSubpadiPlans = async () => {
+    setIsFetchingSubpadi(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-fetch-data-plans", {
+        body: { action: "fetch_subpadi" },
+      });
+
+      if (error) throw error;
+      
+      if (data?.fromApi && data.saved > 0) {
+        toast.success(`Fetched and saved ${data.saved} Subpadi plans from API`);
+        loadPlans();
+      } else if (data?.existingInDb > 0) {
+        toast.info(`Subpadi API did not return plan data. ${data.existingInDb} plans already in database (manually added).`, { duration: 8000 });
+      } else {
+        toast.info(data?.message || "No Subpadi plans found. Add them manually.", { duration: 8000 });
+        if (data?.hint) {
+          toast.info(data.hint, { duration: 10000 });
+        }
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Failed to fetch Subpadi plans");
+    }
+    setIsFetchingSubpadi(false);
   };
 
   const togglePlan = async (plan: ProviderPlan, field: "is_enabled" | "is_featured") => {
@@ -452,23 +480,37 @@ const AdminDataPlansTab = () => {
         ))}
       </div>
 
-      {/* Subpadi info banner when no Subpadi plans */}
-      {stats.subpadi === 0 && (
-        <Card className="border-purple-200 bg-purple-50/50 dark:bg-purple-900/10">
-          <CardContent className="py-3 px-4">
-            <p className="text-sm font-medium text-purple-700 dark:text-purple-400 mb-1">
-              No Subpadi data plans found
-            </p>
-            <p className="text-xs text-muted-foreground mb-2">
-              Subpadi does not provide a plan catalog API. You need to add Subpadi plans manually using the "Add Plan" button. 
-              Get the plan IDs from your Subpadi dashboard, then add each plan with provider set to "subpadi".
-            </p>
-            <Button variant="outline" size="sm" onClick={() => { setManualForm(f => ({ ...f, provider: "subpadi" })); setIsManualDialogOpen(true); }}>
-              <Plus className="h-3 w-3 mr-1" /> Add Subpadi Plan
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {/* Subpadi info banner */}
+      <Card className="border-purple-200 bg-purple-50/50 dark:bg-purple-900/10">
+        <CardContent className="py-3 px-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="text-sm font-medium text-purple-700 dark:text-purple-400">
+                Subpadi Plans: {stats.subpadi} {stats.subpadi > 0 ? "loaded" : "— none found"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {stats.subpadi > 0
+                  ? "Plans loaded from database. Click 'Fetch Subpadi' to check for new plans from API."
+                  : "Click 'Fetch Subpadi' to try the API, or add plans manually using IDs from the Subpadi dashboard."}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={fetchSubpadiPlans} disabled={isFetchingSubpadi} className="gap-1">
+                <Download className={`h-3 w-3 ${isFetchingSubpadi ? "animate-spin" : ""}`} />
+                {isFetchingSubpadi ? "Fetching..." : "Fetch Subpadi"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => { setManualForm(f => ({ ...f, provider: "subpadi" })); setIsManualDialogOpen(true); }}>
+                <Plus className="h-3 w-3 mr-1" /> Add Manual
+              </Button>
+              {stats.subpadi > 0 && (
+                <Button variant="outline" size="sm" onClick={() => bulkAction("enable_subpadi")} disabled={!!isSaving}>
+                  Enable All Subpadi
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Duplicate warnings */}
       {duplicates.length > 0 && (
