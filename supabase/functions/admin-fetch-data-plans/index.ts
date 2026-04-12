@@ -90,7 +90,9 @@ async function fetchSubpadiDataPlans(): Promise<{ plans: any[]; message: string;
         // Check if this has plan data embedded (from transaction history)
         const planId = String(p.plan || p.plan_id || p.id || '');
         const planName = p.plan_name || p.dataplan || p.name || '';
-        const planAmount = parseFloat(p.plan_amount || p.amount || p.price || 0);
+        // Strip currency symbols like ₦ from plan_amount
+        const rawAmount = String(p.plan_amount || p.amount || p.price || '0').replace(/[₦,NGN\s]/gi, '');
+        const planAmount = parseFloat(rawAmount) || 0;
         const networkId = p.plan_network || p.network || p.network_id || p._network_key;
         
         if (!planId || !planName || planAmount <= 0) continue;
