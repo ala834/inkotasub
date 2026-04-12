@@ -93,6 +93,18 @@ serve(async (req) => {
       );
     }
 
+    // Customize email content based on purpose
+    const isPinChange = purpose === "reset_pin";
+    const emailSubject = isPinChange
+      ? "Transaction PIN Change OTP - INKOTA SUB"
+      : "Verify your INKOTA SUB account";
+    const emailHeading = isPinChange
+      ? "Change Transaction PIN"
+      : "Verify your email";
+    const emailBody = isPinChange
+      ? `Use the code below to verify your identity before changing your transaction PIN. This code expires in ${expiryMinutes} minutes.`
+      : `Use the code below to verify your INKOTA SUB account. This code expires in ${expiryMinutes} minutes.`;
+
     const resendResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -102,7 +114,7 @@ serve(async (req) => {
       body: JSON.stringify({
         from: "INKOTA SUB <onboarding@resend.dev>",
         to: [emailLower],
-        subject: "Verify your INKOTA SUB account",
+        subject: emailSubject,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 30px 20px;">
             <div style="text-align: center; margin-bottom: 30px;">
@@ -111,9 +123,9 @@ serve(async (req) => {
               </h1>
             </div>
             <div style="background: #f8f9fa; border-radius: 12px; padding: 30px; text-align: center;">
-              <h2 style="color: #333; font-size: 18px; margin: 0 0 10px;">Verify your email</h2>
+              <h2 style="color: #333; font-size: 18px; margin: 0 0 10px;">${emailHeading}</h2>
               <p style="color: #666; font-size: 14px; margin: 0 0 24px;">
-                Use the code below to verify your INKOTA SUB account. This code expires in ${expiryMinutes} minutes.
+                ${emailBody}
               </p>
               <div style="background: #fff; border: 2px solid #e5e7eb; border-radius: 8px; padding: 16px; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1a1a2e; font-family: monospace;">
                 ${otpCode}
