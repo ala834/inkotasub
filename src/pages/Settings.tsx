@@ -716,65 +716,152 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Change PIN Dialog */}
-      <Dialog open={changePinOpen} onOpenChange={setChangePinOpen}>
+      {/* Change PIN Dialog - Multi-step OTP verification */}
+      <Dialog open={changePinOpen} onOpenChange={(open) => { if (!open) resetPinDialog(); }}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{profile?.has_transaction_pin ? "Change" : "Set"} Transaction PIN</DialogTitle>
-            <DialogDescription>
-              {profile?.has_transaction_pin
-                ? "Enter your current PIN and set a new 4-digit PIN."
-                : "Enter a 4-digit PIN to secure your transactions."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {profile?.has_transaction_pin && (
-              <div className="space-y-2">
-                <Label htmlFor="currentPin">Current PIN</Label>
-                <Input
-                  id="currentPin"
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={4}
-                  value={currentPin}
-                  onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ""))}
-                  placeholder="Enter current PIN"
-                />
+          {/* Step 1: Confirm identity - send OTP */}
+          {pinChangeStep === "confirm" && (
+            <>
+              <DialogHeader>
+                <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+                  <Mail className="h-7 w-7 text-primary" />
+                </div>
+                <DialogTitle className="text-center">Verify Your Identity</DialogTitle>
+                <DialogDescription className="text-center">
+                  To change your transaction PIN, we'll send a verification code to your registered email address.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <p className="text-sm text-center text-muted-foreground mb-4">
+                  A 6-digit OTP will be sent to <span className="font-medium text-foreground">{user?.email}</span>
+                </p>
               </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="newPin">New PIN</Label>
-              <Input
-                id="newPin"
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                value={newPin}
-                onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
-                placeholder="Enter 4-digit PIN"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPin">Confirm PIN</Label>
-              <Input
-                id="confirmPin"
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                value={confirmPin}
-                onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ""))}
-                placeholder="Confirm 4-digit PIN"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setChangePinOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleChangePin}>
-              {profile?.has_transaction_pin ? "Update" : "Set"} PIN
-            </Button>
-          </DialogFooter>
+              <DialogFooter className="flex-col gap-2 sm:flex-col">
+                <Button onClick={handleSendPinChangeOtp} disabled={otpLoading} className="w-full gradient-primary text-primary-foreground">
+                  {otpLoading ? (
+                    <span className="flex items-center gap-2"><span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Sending...</span>
+                  ) : "Send Verification Code"}
+                </Button>
+                <Button variant="outline" onClick={resetPinDialog} className="w-full">Cancel</Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {/* Step 2: Enter OTP */}
+          {pinChangeStep === "otp" && (
+            <>
+              <DialogHeader>
+                <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+                  <Shield className="h-7 w-7 text-primary" />
+                </div>
+                <DialogTitle className="text-center">Enter Verification Code</DialogTitle>
+                <DialogDescription className="text-center">
+                  We sent a 6-digit code to {maskedEmail}. It expires in 5 minutes.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="otpInput">OTP Code</Label>
+                  <Input
+                    id="otpInput"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="Enter 6-digit code"
+                    className="h-12 rounded-xl text-center text-lg tracking-widest font-mono"
+                    autoFocus
+                  />
+                </div>
+                <div className="text-center">
+                  <Button
+                    variant="link"
+                    size="sm"
+                    disabled={otpResendCooldown > 0 || otpLoading}
+                    onClick={handleSendPinChangeOtp}
+                    className="text-xs"
+                  >
+                    {otpResendCooldown > 0 ? `Resend OTP in ${otpResendCooldown}s` : "Resend OTP"}
+                  </Button>
+                </div>
+              </div>
+              <DialogFooter className="flex-col gap-2 sm:flex-col">
+                <Button onClick={handleVerifyPinOtp} disabled={otpLoading || otpCode.length !== 6} className="w-full gradient-primary text-primary-foreground">
+                  {otpLoading ? (
+                    <span className="flex items-center gap-2"><span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Verifying...</span>
+                  ) : "Verify Code"}
+                </Button>
+                <Button variant="outline" onClick={resetPinDialog} className="w-full">Cancel</Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {/* Step 3: Enter new PIN */}
+          {pinChangeStep === "newpin" && (
+            <>
+              <DialogHeader>
+                <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+                  <Lock className="h-7 w-7 text-primary" />
+                </div>
+                <DialogTitle className="text-center">
+                  {profile?.has_transaction_pin ? "Set New PIN" : "Create Transaction PIN"}
+                </DialogTitle>
+                <DialogDescription className="text-center">
+                  {profile?.has_transaction_pin
+                    ? "Your identity has been verified. Enter your new 4-digit PIN."
+                    : "Enter a 4-digit PIN to secure your transactions."}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="newPin">New PIN</Label>
+                  <Input
+                    id="newPin"
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={newPin}
+                    onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
+                    placeholder="Enter 4-digit PIN"
+                    className="h-12 rounded-xl text-center text-lg tracking-widest"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPin">Confirm PIN</Label>
+                  <Input
+                    id="confirmPin"
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={confirmPin}
+                    onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ""))}
+                    placeholder="Confirm 4-digit PIN"
+                    className="h-12 rounded-xl text-center text-lg tracking-widest"
+                  />
+                </div>
+              </div>
+              <DialogFooter className="flex-col gap-2 sm:flex-col">
+                <Button onClick={handleChangePin} disabled={newPin.length !== 4 || confirmPin.length !== 4} className="w-full gradient-primary text-primary-foreground">
+                  {profile?.has_transaction_pin ? "Update PIN" : "Set PIN"}
+                </Button>
+                <Button variant="outline" onClick={resetPinDialog} className="w-full">Cancel</Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {/* Step 4: Success */}
+          {pinChangeStep === "success" && (
+            <DialogHeader>
+              <div className="mx-auto w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-2">
+                <Shield className="h-7 w-7 text-green-600" />
+              </div>
+              <DialogTitle className="text-center">PIN Updated!</DialogTitle>
+              <DialogDescription className="text-center">
+                Your transaction PIN has been changed successfully.
+              </DialogDescription>
+            </DialogHeader>
+          )}
         </DialogContent>
       </Dialog>
 
