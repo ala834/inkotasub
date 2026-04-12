@@ -60,7 +60,7 @@ async function fetchSubpadiDataPlans(): Promise<{ plans: any[]; message: string;
     console.log(`Subpadi GET /api/data/ status=${res.status}, type=${typeof data}, isArray=${Array.isArray(data)}`);
     
     if (data) {
-      // Could be array of plans or object with nested plans
+      // Could be array of transaction history with plan info embedded, or direct plan catalog
       let rawPlans: any[] = [];
       
       if (Array.isArray(data)) {
@@ -70,7 +70,6 @@ async function fetchSubpadiDataPlans(): Promise<{ plans: any[]; message: string;
       } else if (data.results && Array.isArray(data.results)) {
         rawPlans = data.results;
       } else if (typeof data === "object" && !Array.isArray(data)) {
-        // Check for network-keyed format: { "1": [...], "2": [...] }
         for (const key of Object.keys(data)) {
           if (Array.isArray(data[key])) {
             rawPlans.push(...data[key].map((p: any) => ({ ...p, _network_key: parseInt(key, 10) })));
@@ -79,52 +78,47 @@ async function fetchSubpadiDataPlans(): Promise<{ plans: any[]; message: string;
       }
 
       console.log(`Subpadi GET /api/data/ found ${rawPlans.length} raw items`);
-
-      // Check if these look like plans (have plan-like fields) vs transaction history
-      for (const p of rawPlans) {
-        // Plan-like: has plan_type, plan_name/dataplan, amount/price, network
-        const isPlanLike = (p.plan_type || p.dataplan || p.plan_name || p.plan) && 
-                          (p.amount || p.price || p.plan_amount) &&
-                          (p.network || p.network_id || p._network_key);
-        
-        // Transaction-like: has created_at/date, status, mobile_number
-        const isTransactionLike = (p.created_at || p.date || p.created) && 
-                                  (p.mobile_number || p.phone_number);
-
-        if (isPlanLike && !isTransactionLike) {
-          const networkId = p.network || p.network_id || p._network_key;
-          const networkName = typeof networkId === "number" || /^\d+$/.test(String(networkId))
-            ? (SUBPADI_NETWORK_MAP[Number(networkId)] || `NETWORK_${networkId}`)
-            : String(p.network_name || networkId || "").toUpperCase();
-
-          const planName = p.plan_name || p.dataplan || p.plan || p.name || `${p.size || p.plan_type || ''} Data`;
-          const price = parseFloat(p.amount || p.price || p.plan_amount || p.cost || 0);
-          const planId = String(p.id || p.plan_id || p.dataplan_id || '');
-          const validity = p.validity || p.month_validate || p.duration || "30 Days";
-          const planType = p.plan_type || '';
-
-          if (planId && price > 0) {
-            allPlans.push({
-              provider: "subpadi",
-              network: networkName,
-              plan_id: planId,
-              plan_name: planName,
-              base_price: price,
-              validity: validity,
-              data_size: extractDataSize(planName),
-              plan_type: categorizePlan(planType || planName),
-            });
-          }
-        }
+      if (rawPlans.length > 0) {
+        console.log("Sample item keys:", Object.keys(rawPlans[0]).join(", "));
       }
 
-      if (allPlans.length > 0) {
-        console.log(`Successfully extracted ${allPlans.length} Subpadi data plans from API`);
-        return { plans: allPlans, message: `Fetched ${allPlans.length} plans from Subpadi API`, rawResponse: data };
-      } else if (rawPlans.length > 0) {
-        console.log(`Subpadi /api/data/ returned ${rawPlans.length} items but they look like transaction history, not plans`);
-        console.log("Sample item keys:", Object.keys(rawPlans[0]).join(", "));
-        console.log("Sample item:", JSON.stringify(rawPlans[0]).substring(0, 500));
+      // Extract unique plans from transaction history
+      // Subpadi transaction items have: plan (ID), plan_name, plan_amount, plan_network, network
+      const uniquePlans = new Map<string, any>();
+      
+      for (const p of rawPlans) {
+        // Check if this has plan data embedded (from transaction history)
+        const planId = String(p.plan || p.plan_id || p.id || '');
+        const planName = p.plan_name || p.dataplan || p.name || '';
+        const planAmount = parseFloat(p.plan_amount || p.amount || p.price || 0);
+        const networkId = p.plan_network || p.network || p.network_id || p._network_key;
+        
+        if (!planId || !planName || planAmount <= 0) continue;
+        
+        const networkName = typeof networkId === "number" || /^\d+$/.test(String(networkId))
+          ? (SUBPADI_NETWORK_MAP[Number(networkId)] || `NETWORK_${networkId}`)
+          : String(p.network_name || networkId || "").toUpperCase();
+
+        const key = `${networkName}:${planId}`;
+        if (!uniquePlans.has(key)) {
+          const dataType = p.data_type || p.plan_type || '';
+          uniquePlans.set(key, {
+            provider: "subpadi",
+            network: networkName,
+            plan_id: planId,
+            plan_name: planName,
+            base_price: planAmount,
+            validity: p.validity || p.month_validate || "30 Days",
+            data_size: extractDataSize(planName),
+            plan_type: categorizePlan(dataType || planName),
+          });
+        }
+      }
+      
+      if (uniquePlans.size > 0) {
+        const plans = Array.from(uniquePlans.values());
+        console.log(`Extracted ${plans.length} unique Subpadi plans from transaction history`);
+        return { plans, message: `Extracted ${plans.length} unique plans from Subpadi transaction history`, rawResponse: data };
       }
     }
   } catch (e) {
