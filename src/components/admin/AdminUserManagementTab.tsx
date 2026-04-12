@@ -363,7 +363,7 @@ const AdminUserManagementTab = () => {
       u.email || "",
       u.phone_number || "",
       u.suspended_at ? "Suspended" : "Active",
-      u.transaction_pin ? "Encrypted" : "Not Set",
+      u.has_transaction_pin ? "Set" : "Not Set",
       getBalance(u).toFixed(2),
       String(u.transaction_count || 0),
       u.virtual_account?.account_number || "",
@@ -554,7 +554,7 @@ const AdminUserManagementTab = () => {
                     <TableCell>
                       <Badge variant="outline" className="gap-1">
                         <Lock className="h-3 w-3" />
-                        {user.transaction_pin ? "Set" : "Not Set"}
+                        {user.has_transaction_pin ? "Set" : "Not Set"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-medium">
@@ -716,7 +716,7 @@ const AdminUserManagementTab = () => {
                   <p className="text-sm text-muted-foreground mb-1">Transaction PIN</p>
                   <Badge variant="outline" className="gap-1">
                     <Lock className="h-3 w-3" />
-                    {selectedUser.transaction_pin ? "Set (Encrypted)" : "Not Set"}
+                    {selectedUser.has_transaction_pin ? "Set" : "Not Set"}
                   </Badge>
                 </div>
                 <div className="bg-muted rounded-lg p-3">
