@@ -232,7 +232,7 @@ export async function finalizeTransaction(
         fallback_provider: null,
       });
 
-      return jsonResponse({ success: false, message: providerResult.message || "Transaction failed. Please try again." }, 400);
+      return jsonResponse({ success: false, message: providerResult.message || "Transaction failed. Please try again." });
     }
   } finally {
     await releaseLock();
