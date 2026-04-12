@@ -118,7 +118,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const registerCurrentDevice = async (userId: string) => {
+  const sendLoginAlert = async (userId: string, accessToken: string, deviceInfo: { deviceId: string; deviceName: string; deviceModel: string; osVersion: string; platform: string }) => {
+    try {
+      await supabase.functions.invoke("send-login-alert", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: deviceInfo,
+      });
+    } catch (error) {
+      console.error("Login alert error:", error);
+    }
+  };
+
+  const registerCurrentDevice = async (userId: string, accessToken: string) => {
     try {
       let deviceId: string, deviceName: string, deviceModel: string, osVersion: string, platform: string;
       
@@ -138,6 +149,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         osVersion = "unknown";
         platform = "web";
       }
+
+      // Send login alert BEFORE upsert so edge function can detect new device
+      sendLoginAlert(userId, accessToken, { deviceId, deviceName, deviceModel, osVersion, platform });
 
       // Check if blocked
       const { data: blocked } = await supabase
@@ -223,7 +237,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             if (event === "SIGNED_IN") {
               ensureVirtualAccount(session.user.id, session.access_token);
               processEmailReferral(session.user.id, session.access_token);
-              registerCurrentDevice(session.user.id);
+              registerCurrentDevice(session.user.id, session.access_token);
             }
           }, 0);
         } else {
