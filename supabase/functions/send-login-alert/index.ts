@@ -1,13 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendEmailWithTestMode } from "../_shared/email-sender.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -23,7 +22,6 @@ serve(async (req) => {
       );
     }
 
-    // Parse body FIRST (can only read once)
     const {
       deviceId,
       deviceName,
@@ -38,7 +36,6 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Use getClaims for faster, lighter auth check
     const supabaseAnon = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -58,7 +55,6 @@ serve(async (req) => {
     const userId = claimsData.claims.sub as string;
     const userEmail = claimsData.claims.email as string;
 
-    // Check if this device already exists for user (known device)
     const { data: existingDevice } = await supabaseAdmin
       .from("trusted_devices")
       .select("id")
@@ -66,7 +62,6 @@ serve(async (req) => {
       .eq("device_id", deviceId)
       .maybeSingle();
 
-    // Only send alert for NEW devices
     if (existingDevice) {
       return new Response(
         JSON.stringify({ success: true, alerted: false, reason: "known_device" }),
@@ -74,7 +69,6 @@ serve(async (req) => {
       );
     }
 
-    // Get user email and profile
     const email = userEmail;
     if (!email) {
       return new Response(
@@ -91,13 +85,11 @@ serve(async (req) => {
 
     const userName = profile?.full_name || "User";
 
-    // Get IP and approximate location
     const clientIp =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       req.headers.get("cf-connecting-ip") ||
       "Unknown";
 
-    // Try to get location from IP (best-effort via Cloudflare headers)
     const country = req.headers.get("cf-ipcountry") || "Unknown";
     const city = req.headers.get("cf-ipcity") || "";
     const location = city ? `${city}, ${country}` : country;
@@ -112,7 +104,6 @@ serve(async (req) => {
       timeZoneName: "short",
     });
 
-    // Build email HTML
     const htmlContent = `
 <!DOCTYPE html>
 <html lang="en">
@@ -125,30 +116,20 @@ serve(async (req) => {
     <tr>
       <td align="center">
         <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-          <!-- Header -->
           <tr>
             <td style="background-color:#dc2626;padding:24px 32px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td>
-                    <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;">⚠️ New Login Detected</h1>
-                    <p style="margin:4px 0 0;color:#fecaca;font-size:13px;">INKOTA SUB Security Alert</p>
-                  </td>
-                </tr>
-              </table>
+              <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;">⚠️ New Login Detected</h1>
+              <p style="margin:4px 0 0;color:#fecaca;font-size:13px;">INKOTA SUB Security Alert</p>
             </td>
           </tr>
-          <!-- Body -->
           <tr>
             <td style="padding:32px;">
               <p style="margin:0 0 16px;font-size:15px;color:#18181b;line-height:1.6;">
                 Hello <strong>${userName}</strong>,
               </p>
               <p style="margin:0 0 24px;font-size:15px;color:#3f3f46;line-height:1.6;">
-                We detected a login to your INKOTA SUB account from a new device. Here are the details:
+                We detected a login to your INKOTA SUB account from a new device:
               </p>
-
-              <!-- Device Details Card -->
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#fafafa;border:1px solid #e4e4e7;border-radius:8px;margin-bottom:24px;">
                 <tr>
                   <td style="padding:20px;">
@@ -177,29 +158,25 @@ serve(async (req) => {
                   </td>
                 </tr>
               </table>
-
-              <!-- Warning -->
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:24px;">
                 <tr>
                   <td style="padding:16px 20px;">
                     <p style="margin:0;font-size:14px;color:#991b1b;line-height:1.5;font-weight:600;">
-                      🔒 If this was not you, please take immediate action:
+                      🔒 If this was not you:
                     </p>
                     <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;color:#b91c1c;line-height:1.8;">
                       <li>Change your password immediately</li>
                       <li>Change your transaction PIN</li>
-                      <li>Contact support if your account has been compromised</li>
+                      <li>Contact support</li>
                     </ul>
                   </td>
                 </tr>
               </table>
-
               <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.5;">
-                If this was you, you can safely ignore this email. We send these alerts to help protect your account.
+                If this was you, you can safely ignore this email.
               </p>
             </td>
           </tr>
-          <!-- Footer -->
           <tr>
             <td style="padding:20px 32px;background-color:#fafafa;border-top:1px solid #e4e4e7;">
               <p style="margin:0;font-size:12px;color:#a1a1aa;text-align:center;">
@@ -214,38 +191,16 @@ serve(async (req) => {
 </body>
 </html>`;
 
-    // Send via Resend
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-
-    if (!LOVABLE_API_KEY || !RESEND_API_KEY) {
-      console.error("Missing LOVABLE_API_KEY or RESEND_API_KEY");
-      return new Response(
-        JSON.stringify({ success: true, alerted: false, reason: "email_not_configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const emailRes = await fetch(`${GATEWAY_URL}/emails`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "X-Connection-Api-Key": RESEND_API_KEY,
-      },
-      body: JSON.stringify({
-        from: "INKOTA SUB <noreply@notify.www.inkotasub.com>",
-        to: [email],
-        subject: "⚠️ New Login Detected on Your INKOTA SUB Account",
-        html: htmlContent,
-      }),
+    const result = await sendEmailWithTestMode({
+      to: email,
+      subject: "⚠️ New Login Detected on Your INKOTA SUB Account",
+      html: htmlContent,
     });
 
-    const emailResult = await emailRes.json();
-    console.log("Login alert email result:", JSON.stringify(emailResult));
+    console.log("Login alert email result:", JSON.stringify(result));
 
     return new Response(
-      JSON.stringify({ success: true, alerted: true }),
+      JSON.stringify({ success: true, alerted: true, testMode: result.testMode }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

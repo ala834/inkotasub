@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendEmailWithTestMode } from "../_shared/email-sender.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -83,16 +84,6 @@ serve(async (req) => {
 
     const otpCode = generateOTP();
 
-    // Send email via Resend
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      console.error("RESEND_API_KEY is not configured");
-      return new Response(
-        JSON.stringify({ success: false, error: "Email service not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     // Customize email content based on purpose
     const isPinChange = purpose === "reset_pin";
     const emailSubject = isPinChange
@@ -105,57 +96,54 @@ serve(async (req) => {
       ? `Use the code below to verify your identity before changing your transaction PIN. This code expires in ${expiryMinutes} minutes.`
       : `Use the code below to verify your INKOTA SUB account. This code expires in ${expiryMinutes} minutes.`;
 
-    const resendResponse = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${resendApiKey}`,
-      },
-      body: JSON.stringify({
-        from: "INKOTA SUB <noreply@notify.www.inkotasub.com>",
-        to: [emailLower],
-        subject: emailSubject,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 30px 20px;">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #1a1a2e; font-size: 24px; margin: 0;">
-                INKOTA<span style="color: #6366f1;">SUB</span>
-              </h1>
-            </div>
-            <div style="background: #f8f9fa; border-radius: 12px; padding: 30px; text-align: center;">
-              <h2 style="color: #333; font-size: 18px; margin: 0 0 10px;">${emailHeading}</h2>
-              <p style="color: #666; font-size: 14px; margin: 0 0 24px;">
-                ${emailBody}
-              </p>
-              <div style="background: #fff; border: 2px solid #e5e7eb; border-radius: 8px; padding: 16px; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1a1a2e; font-family: monospace;">
-                ${otpCode}
-              </div>
-              <p style="color: #999; font-size: 12px; margin: 24px 0 0;">
-                If you didn't request this code, please ignore this email.
-              </p>
-            </div>
-            <p style="color: #bbb; font-size: 11px; text-align: center; margin-top: 20px;">
-              &copy; ${new Date().getFullYear()} INKOTA SUB LTD. All rights reserved.
-            </p>
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 30px 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #1a1a2e; font-size: 24px; margin: 0;">
+            INKOTA<span style="color: #6366f1;">SUB</span>
+          </h1>
+        </div>
+        <div style="background: #f8f9fa; border-radius: 12px; padding: 30px; text-align: center;">
+          <h2 style="color: #333; font-size: 18px; margin: 0 0 10px;">${emailHeading}</h2>
+          <p style="color: #666; font-size: 14px; margin: 0 0 24px;">
+            ${emailBody}
+          </p>
+          <div style="background: #fff; border: 2px solid #e5e7eb; border-radius: 8px; padding: 16px; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1a1a2e; font-family: monospace;">
+            ${otpCode}
           </div>
-        `,
-      }),
+          <p style="color: #999; font-size: 12px; margin: 24px 0 0;">
+            If you didn't request this code, please ignore this email.
+          </p>
+        </div>
+        <p style="color: #bbb; font-size: 11px; text-align: center; margin-top: 20px;">
+          &copy; ${new Date().getFullYear()} INKOTA SUB LTD. All rights reserved.
+        </p>
+      </div>
+    `;
+
+    // Send email using shared sender (with test mode support)
+    const emailResult = await sendEmailWithTestMode({
+      to: emailLower,
+      subject: emailSubject,
+      html: htmlContent,
     });
 
-    const resendData = await resendResponse.json();
-
-    if (!resendResponse.ok) {
-      console.error("Resend API error:", resendData);
+    if (!emailResult.success) {
+      console.error("Email send failed:", emailResult.error);
       return new Response(
         JSON.stringify({ success: false, error: "Failed to send verification email. Please try again." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    if (emailResult.testMode) {
+      console.log(`[EMAIL OTP - TEST MODE] OTP for ${maskEmail(emailLower)}: ${otpCode}`);
+    }
+
     // Store OTP in database
     const { error: insertError } = await supabaseAdmin.from("otp_codes").insert({
       email: emailLower,
-      phone_number: emailLower, // reuse phone_number as identifier fallback
+      phone_number: emailLower,
       code: otpCode,
       purpose,
       expires_at: expiresAt,
@@ -174,10 +162,10 @@ serve(async (req) => {
       event_type: "email_otp_sent",
       ip_address: req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip"),
       user_agent: req.headers.get("user-agent"),
-      metadata: { email: maskEmail(emailLower), purpose },
+      metadata: { email: maskEmail(emailLower), purpose, test_mode: emailResult.testMode || false },
     });
 
-    console.log(`[EMAIL OTP] Sent to ${maskEmail(emailLower)}, purpose: ${purpose}`);
+    console.log(`[EMAIL OTP] Sent to ${maskEmail(emailLower)}, purpose: ${purpose}, testMode: ${emailResult.testMode || false}`);
 
     return new Response(
       JSON.stringify({
@@ -185,6 +173,7 @@ serve(async (req) => {
         message: `Verification code sent to ${maskEmail(emailLower)}`,
         masked_email: maskEmail(emailLower),
         expires_in: expiryMinutes * 60,
+        test_mode: emailResult.testMode || false,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
