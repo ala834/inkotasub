@@ -234,7 +234,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             if (event === "SIGNED_IN") {
               ensureVirtualAccount(session.user.id, session.access_token);
               processEmailReferral(session.user.id, session.access_token);
-              registerCurrentDevice(session.user.id);
+              registerCurrentDevice(session.user.id, session.access_token);
             }
           }, 0);
         } else {
