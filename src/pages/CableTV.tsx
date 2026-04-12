@@ -107,12 +107,14 @@ const CableTV = () => {
         body: { provider, smartCardNumber },
       });
       if (error) throw error;
-      if (data?.customerName) {
+      if (data?.validated && data?.customerName) {
         setCustomerName(data.customerName);
         setIsValidated(true);
         toast.success("Smart card validated successfully!");
       } else {
-        throw new Error("Invalid smart card number");
+        toast.error(data?.error || "Invalid smart card number");
+        setIsValidated(false);
+        setCustomerName("");
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to validate smart card");
