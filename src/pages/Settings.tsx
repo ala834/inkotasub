@@ -186,6 +186,64 @@ const Settings = () => {
     }
   };
 
+  // Send OTP for PIN change
+  const handleSendPinChangeOtp = async () => {
+    if (!user?.email) {
+      toast.error("No email found on your account");
+      return;
+    }
+    setOtpLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-email-otp", {
+        body: { email: user.email, purpose: "reset_pin" },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Failed to send OTP");
+
+      setMaskedEmail(data.masked_email || user.email);
+      setPinChangeStep("otp");
+      toast.success("OTP sent to your email");
+
+      // Start cooldown
+      setOtpResendCooldown(60);
+      const interval = setInterval(() => {
+        setOtpResendCooldown((prev) => {
+          if (prev <= 1) { clearInterval(interval); return 0; }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send OTP");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Verify OTP
+  const handleVerifyPinOtp = async () => {
+    if (otpCode.length !== 6) {
+      toast.error("Please enter the 6-digit OTP");
+      return;
+    }
+    setOtpLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-email-otp", {
+        body: { email: user?.email, code: otpCode, purpose: "reset_pin" },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Verification failed");
+
+      setVerificationToken(data.verification_token);
+      setPinChangeStep("newpin");
+      toast.success("Email verified successfully");
+    } catch (error: any) {
+      toast.error(error.message || "Invalid or expired OTP");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Change PIN with OTP verification token
   const handleChangePin = async () => {
     if (newPin !== confirmPin) {
       toast.error("PINs do not match");
@@ -199,22 +257,42 @@ const Settings = () => {
     const hasExistingPin = !!profile?.has_transaction_pin;
     
     try {
-      const { data, error } = await supabase.functions.invoke("manage-pin", {
-        body: hasExistingPin
-          ? { action: "change", current_pin: currentPin, new_pin: newPin }
-          : { action: "set", new_pin: newPin },
-      });
+      const body = hasExistingPin
+        ? { action: "change_with_otp", new_pin: newPin, verification_token: verificationToken }
+        : { action: "set", new_pin: newPin };
+
+      const { data, error } = await supabase.functions.invoke("manage-pin", { body });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       
+      setPinChangeStep("success");
       toast.success(data?.message || "Transaction PIN updated successfully");
-      setChangePinOpen(false);
-      setCurrentPin("");
-      setNewPin("");
-      setConfirmPin("");
+      setTimeout(() => {
+        resetPinDialog();
+      }, 1500);
     } catch (error: any) {
       toast.error(error.message || "Failed to update PIN");
     }
+  };
+
+  const resetPinDialog = () => {
+    setChangePinOpen(false);
+    setPinChangeStep("confirm");
+    setCurrentPin("");
+    setNewPin("");
+    setConfirmPin("");
+    setOtpCode("");
+    setVerificationToken("");
+    setMaskedEmail("");
+  };
+
+  const handleOpenChangePinDialog = () => {
+    if (profile?.has_transaction_pin) {
+      setPinChangeStep("confirm");
+    } else {
+      setPinChangeStep("newpin");
+    }
+    setChangePinOpen(true);
   };
 
   const handleLogout = async () => {
