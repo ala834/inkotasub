@@ -39,13 +39,21 @@ const TransactionsList = () => {
     return Wallet;
   };
 
+  const isDepositCharge = (tx: Transaction) => {
+    return (tx.metadata as any)?.type === "deposit_charge" || 
+           tx.description?.toLowerCase().includes("deposit processing fee");
+  };
+
   const getTransactionTitle = (tx: Transaction) => {
+    // Check for deposit charge first
+    if (isDepositCharge(tx)) return "Deposit Charge";
+    
     if (tx.description) {
-      // Extract meaningful title from description
       const desc = tx.description.toLowerCase();
       if (desc.includes("wallet funded") || desc.includes("funding") || desc.includes("credit")) {
         return tx.type === "credit" ? "Wallet Funded" : tx.description;
       }
+      if (desc.includes("referral")) return "Referral Bonus";
       if (desc.includes("data")) return "Data Purchase";
       if (desc.includes("airtime")) return "Airtime Purchase";
       if (desc.includes("electricity")) return "Electricity Payment";
@@ -135,10 +143,12 @@ const TransactionsList = () => {
               >
                 <div className={cn(
                   "w-12 h-12 rounded-2xl flex items-center justify-center",
+                  isDepositCharge(tx) ? "bg-destructive/10" :
                   tx.type === "credit" ? "bg-success/10" : "bg-primary/10"
                 )}>
                   <Icon className={cn(
                     "h-5 w-5",
+                    isDepositCharge(tx) ? "text-destructive" :
                     tx.type === "credit" ? "text-success" : "text-primary"
                   )} />
                 </div>
@@ -155,6 +165,7 @@ const TransactionsList = () => {
                 <div className="text-right">
                   <p className={cn(
                     "font-semibold",
+                    isDepositCharge(tx) ? "text-destructive" :
                     tx.type === "credit" ? "text-success" : "text-foreground"
                   )}>
                     {tx.type === "credit" ? "+" : "-"}₦{formatCurrency(tx.amount)}
