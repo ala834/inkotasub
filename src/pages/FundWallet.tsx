@@ -208,6 +208,11 @@ const FundWallet = () => {
           </Button>
 
           <p className="text-center text-xs text-muted-foreground">
+            {parseFloat(amount || "0") > 0 && depositCharge > 0 && (
+              <span className="block mb-1 text-destructive font-medium">
+                A processing fee of ₦{depositCharge.toLocaleString()} will be deducted. You'll receive ₦{Math.max(0, parseFloat(amount || "0") - depositCharge).toLocaleString()}.
+              </span>
+            )}
             Powered by Paystack. Your payment is secure.
           </p>
         </motion.div>
