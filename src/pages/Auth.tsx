@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Mail, Lock, User, Phone, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Phone, Loader2, AtSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,12 +16,14 @@ import inkotaLogo from "@/assets/inkota-logo.png";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
+const usernameSchema = z.string().min(4, "Username must be at least 4 characters").regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores");
 
 const Auth = () => {
   const navigate = useNavigate();
   const { user, signIn, signUp, isLoading, isAdmin, profile } = useAuth();
   const { loginReady, biometricLogin, locked } = useBiometric();
   const [isLogin, setIsLogin] = useState(true);
+  const [loginWithEmail, setLoginWithEmail] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -35,6 +37,7 @@ const Auth = () => {
     fullName: "",
     phoneNumber: "",
     referralCode: "",
+    username: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -55,13 +58,24 @@ const Auth = () => {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    try { emailSchema.parse(formData.email); } catch (e) {
-      if (e instanceof z.ZodError) newErrors.email = e.errors[0].message;
-    }
-    try { passwordSchema.parse(formData.password); } catch (e) {
-      if (e instanceof z.ZodError) newErrors.password = e.errors[0].message;
-    }
-    if (!isLogin) {
+
+    if (isLogin) {
+      if (loginWithEmail) {
+        try { emailSchema.parse(formData.email); } catch (e) {
+          if (e instanceof z.ZodError) newErrors.email = e.errors[0].message;
+        }
+      } else {
+        try { usernameSchema.parse(formData.username); } catch (e) {
+          if (e instanceof z.ZodError) newErrors.username = e.errors[0].message;
+        }
+      }
+    } else {
+      try { emailSchema.parse(formData.email); } catch (e) {
+        if (e instanceof z.ZodError) newErrors.email = e.errors[0].message;
+      }
+      try { usernameSchema.parse(formData.username); } catch (e) {
+        if (e instanceof z.ZodError) newErrors.username = e.errors[0].message;
+      }
       if (!formData.fullName.trim()) newErrors.fullName = "Full name is required";
       if (!formData.phoneNumber.trim() || formData.phoneNumber.replace(/\D/g, "").length < 10) {
         newErrors.phoneNumber = "Please enter a valid phone number";
@@ -70,6 +84,11 @@ const Auth = () => {
         newErrors.confirmPassword = "Passwords do not match";
       }
     }
+
+    try { passwordSchema.parse(formData.password); } catch (e) {
+      if (e instanceof z.ZodError) newErrors.password = e.errors[0].message;
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -81,10 +100,26 @@ const Auth = () => {
     setLoading(true);
     try {
       if (isLogin) {
-        const { error } = await signIn(formData.email, formData.password);
+        let emailToUse = formData.email;
+
+        // If logging in with username, look up email first
+        if (!loginWithEmail) {
+          const { data, error: lookupError } = await supabase.functions.invoke("lookup-username", {
+            body: { username: formData.username },
+          });
+
+          if (lookupError || !data?.success) {
+            toast.error("Username not found");
+            setLoading(false);
+            return;
+          }
+          emailToUse = data.email;
+        }
+
+        const { error } = await signIn(emailToUse, formData.password);
         if (error) {
           if (error.message.includes("Invalid login credentials")) {
-            toast.error("Invalid email or password");
+            toast.error("Invalid credentials");
           } else if (error.message.includes("Email not confirmed")) {
             toast.error("Please verify your email address first");
           } else if (error.message === "Failed to fetch" || error.message.includes("NetworkError")) {
@@ -94,10 +129,10 @@ const Auth = () => {
           }
           return;
         }
-        toast.success(`Welcome back, ${profile?.full_name?.split(" ")[0] || ""}! 👋`);
-        await storeCredentials(formData.email, formData.password);
+        toast.success(`Welcome back! 👋`);
+        await storeCredentials(emailToUse, formData.password);
       } else {
-        // Check for duplicate phone number before signup
+        // Check for duplicate phone number
         if (formData.phoneNumber) {
           const { data: existingPhone } = await supabase
             .from("profiles")
@@ -105,13 +140,29 @@ const Auth = () => {
             .eq("phone_number", formData.phoneNumber.replace(/\D/g, "").replace(/^(\d{10})$/, "0$1"))
             .maybeSingle();
           if (existingPhone) {
-            toast.error("This phone number is already in use. Please use a different number.");
+            toast.error("This phone number is already in use.");
             setLoading(false);
             return;
           }
         }
 
-        const { error } = await signUp(formData.email, formData.password, formData.fullName);
+        // Check for duplicate username
+        const normalizedUsername = formData.username.trim().toLowerCase();
+        const { data: existingUsername } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("username", normalizedUsername)
+          .maybeSingle();
+        if (existingUsername) {
+          toast.error("This username is already taken. Please choose another.");
+          setLoading(false);
+          return;
+        }
+
+        // Store username in localStorage for profile update after email verification
+        localStorage.setItem("pendingUsername", normalizedUsername);
+
+        const { error } = await signUp(formData.email, formData.password, formData.fullName, normalizedUsername);
         if (error) {
           if (error.message.includes("already registered") || error.message.includes("already been registered")) {
             toast.error("This email is already registered. Please login instead.");
@@ -126,12 +177,10 @@ const Auth = () => {
         if (formData.phoneNumber) {
           localStorage.setItem("pendingPhoneNumber", formData.phoneNumber);
         }
-
         if (formData.referralCode) {
           localStorage.setItem("pendingReferralCode", formData.referralCode.toUpperCase());
         }
 
-        // Send welcome email (fire and forget)
         supabase.functions.invoke("send-welcome-email", {
           body: { email: formData.email, fullName: formData.fullName },
         }).catch(err => console.error("Welcome email error:", err));
@@ -205,6 +254,22 @@ const Auth = () => {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="username">Username</Label>
+                  <div className="relative">
+                    <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input
+                      id="username"
+                      type="text"
+                      placeholder="alamin018"
+                      value={formData.username}
+                      onChange={(e) => setFormData({ ...formData, username: e.target.value.replace(/\s/g, "").toLowerCase() })}
+                      className="pl-10 h-12 rounded-xl lowercase"
+                    />
+                  </div>
+                  {errors.username && <p className="text-sm text-destructive">{errors.username}</p>}
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="phoneNumber">Phone Number</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -220,24 +285,75 @@ const Auth = () => {
                   </div>
                   {errors.phoneNumber && <p className="text-sm text-destructive">{errors.phoneNumber}</p>}
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="pl-10 h-12 rounded-xl"
+                    />
+                  </div>
+                  {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                </div>
               </>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="pl-10 h-12 rounded-xl"
-                />
-              </div>
-              {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
-            </div>
+            {isLogin && (
+              <>
+                {loginWithEmail ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="you@example.com"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="pl-10 h-12 rounded-xl"
+                      />
+                    </div>
+                    {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="loginUsername">Username</Label>
+                    <div className="relative">
+                      <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                      <Input
+                        id="loginUsername"
+                        type="text"
+                        placeholder="alamin018"
+                        value={formData.username}
+                        onChange={(e) => setFormData({ ...formData, username: e.target.value.replace(/\s/g, "").toLowerCase() })}
+                        className="pl-10 h-12 rounded-xl lowercase"
+                      />
+                    </div>
+                    {errors.username && <p className="text-sm text-destructive">{errors.username}</p>}
+                  </div>
+                )}
+
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginWithEmail(!loginWithEmail);
+                      setErrors({});
+                    }}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    {loginWithEmail ? "Login with username" : "Login with email"}
+                  </button>
+                </div>
+              </>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>

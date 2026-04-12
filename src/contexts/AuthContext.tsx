@@ -12,6 +12,7 @@ interface Profile {
   avatar_url: string | null;
   referral_code: string | null;
   has_transaction_pin: boolean;
+  username: string | null;
 }
 
 type AdminRole = 'super_admin' | 'sub_admin' | null;
@@ -24,7 +25,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   adminRole: AdminRole;
-  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName?: string, username?: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -44,7 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("id, user_id, full_name, phone_number, avatar_url, referral_code, has_transaction_pin, is_agent, kyc_level, daily_transaction_limit, suspended_at, created_at, updated_at")
+      .select("id, user_id, full_name, phone_number, avatar_url, referral_code, has_transaction_pin, is_agent, kyc_level, daily_transaction_limit, suspended_at, created_at, updated_at, username")
       .eq("user_id", userId)
       .single();
     
@@ -263,7 +264,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName?: string) => {
+  const signUp = async (email: string, password: string, fullName?: string, username?: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signUp({
@@ -271,7 +272,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       password,
       options: {
         emailRedirectTo: redirectUrl,
-        data: { full_name: fullName },
+        data: { full_name: fullName, username: username?.toLowerCase() },
       },
     });
     
