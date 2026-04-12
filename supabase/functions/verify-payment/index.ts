@@ -6,6 +6,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+async function getDepositSettings(supabase: any) {
+  const { data } = await supabase
+    .from("app_settings")
+    .select("key, value")
+    .in("key", ["deposit_charge_amount", "referral_bonus_amount"]);
+
+  const settings: Record<string, number> = {
+    deposit_charge_amount: 25,
+    referral_bonus_amount: 50,
+  };
+  if (data) {
+    for (const row of data) {
+      const val = parseFloat(row.value);
+      if (!isNaN(val)) settings[row.key] = val;
+    }
+  }
+  return settings;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -69,7 +88,6 @@ serve(async (req) => {
     const amountInNaira = paystackData.data.amount / 100;
     const channel = paystackData.data.channel;
 
-    // Check if transaction was already credited via webhook
     const adminSupabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -81,9 +99,7 @@ serve(async (req) => {
       .eq("reference", reference)
       .single();
 
-    // userId already set on line 36 from authenticated user
-
-    // Validate reference ownership - transaction must belong to requesting user
+    // Validate reference ownership
     if (existingTx && existingTx.user_id !== userId) {
       console.warn("Reference ownership mismatch:", reference, "requested by:", userId);
       return new Response(
@@ -92,7 +108,6 @@ serve(async (req) => {
       );
     }
 
-    // Also validate Paystack metadata user_id matches
     const paystackUserId = paystackData.data?.metadata?.user_id;
     if (paystackUserId && paystackUserId !== userId) {
       console.warn("Paystack metadata user_id mismatch:", paystackUserId, "vs", userId);
@@ -115,15 +130,19 @@ serve(async (req) => {
       );
     }
 
-    // If webhook hasn't processed yet, process now (fallback)
-    // Get balance before credit for transaction record
+    // Apply deposit charge
+    const settings = await getDepositSettings(adminSupabase);
+    const depositCharge = settings.deposit_charge_amount;
+    const netAmount = Math.max(0, amountInNaira - depositCharge);
+
+    // Get balance before credit
     const { data: balanceBefore } = await adminSupabase.rpc("get_wallet_balance", { p_user_id: userId });
     const currentBalance = parseFloat(balanceBefore ?? "0");
 
-    // Atomic credit
+    // Atomic credit with net amount
     const { data: newBal, error: creditError } = await adminSupabase.rpc("atomic_wallet_credit", {
       p_user_id: userId,
-      p_amount: amountInNaira,
+      p_amount: netAmount,
     });
 
     if (creditError) {
@@ -136,28 +155,44 @@ serve(async (req) => {
 
     const newBalance = parseFloat(newBal);
 
-    // Create/update transaction
+    // Create/update deposit transaction
     if (existingTx) {
       await adminSupabase
         .from("transactions")
         .update({
           status: "success",
+          amount: netAmount,
           balance_before: currentBalance,
           balance_after: newBalance,
-          metadata: { channel, verified_at: new Date().toISOString() },
+          metadata: { channel, verified_at: new Date().toISOString(), original_amount: amountInNaira, deposit_charge: depositCharge },
         })
         .eq("reference", reference);
     } else {
       await adminSupabase.from("transactions").insert({
         user_id: userId,
         type: "credit",
-        amount: amountInNaira,
+        amount: netAmount,
         balance_before: currentBalance,
         balance_after: newBalance,
         status: "success",
         reference,
         description: `Wallet funding via ${channel}`,
-        metadata: { channel },
+        metadata: { channel, original_amount: amountInNaira, deposit_charge: depositCharge },
+      });
+    }
+
+    // Record deposit charge transaction
+    if (depositCharge > 0) {
+      await adminSupabase.from("transactions").insert({
+        user_id: userId,
+        type: "debit",
+        amount: depositCharge,
+        balance_before: currentBalance,
+        balance_after: newBalance,
+        status: "success",
+        reference: `CHARGE-${reference}`,
+        description: "Deposit processing fee",
+        metadata: { type: "deposit_charge", original_deposit: amountInNaira },
       });
     }
 
@@ -165,16 +200,18 @@ serve(async (req) => {
     await adminSupabase.from("notifications").insert({
       user_id: userId,
       title: "Payment Received",
-      message: `Your wallet has been credited with ₦${amountInNaira.toLocaleString()}`,
+      message: `Your wallet has been credited with ₦${netAmount.toLocaleString()} (₦${depositCharge} processing fee deducted from ₦${amountInNaira.toLocaleString()})`,
       type: "success",
     });
 
-    console.log("Payment verified and credited:", reference, amountInNaira);
+    console.log("Payment verified and credited:", reference, "net:", netAmount, "charge:", depositCharge);
 
     return new Response(
       JSON.stringify({
         status: "success",
-        amount: amountInNaira,
+        amount: netAmount,
+        originalAmount: amountInNaira,
+        depositCharge,
         channel,
         message: "Payment successful",
       }),

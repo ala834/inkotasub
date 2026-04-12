@@ -20,7 +20,27 @@ async function verifySignature(body: string, signature: string, secret: string):
   return hash === signature;
 }
 
-// Helper function to process wallet credit
+// Get admin-configurable settings
+async function getDepositSettings(supabase: any) {
+  const { data } = await supabase
+    .from("app_settings")
+    .select("key, value")
+    .in("key", ["deposit_charge_amount", "referral_bonus_amount"]);
+
+  const settings: Record<string, number> = {
+    deposit_charge_amount: 25,
+    referral_bonus_amount: 50,
+  };
+  if (data) {
+    for (const row of data) {
+      const val = parseFloat(row.value);
+      if (!isNaN(val)) settings[row.key] = val;
+    }
+  }
+  return settings;
+}
+
+// Helper function to process wallet credit with deposit charge
 async function processWalletCredit(
   supabase: any,
   userId: string,
@@ -28,14 +48,18 @@ async function processWalletCredit(
   reference: string,
   description: string
 ) {
+  const settings = await getDepositSettings(supabase);
+  const depositCharge = settings.deposit_charge_amount;
+  const netAmount = Math.max(0, amountInNaira - depositCharge);
+
   // Get balance before credit for transaction record
   const { data: balanceBefore } = await supabase.rpc("get_wallet_balance", { p_user_id: userId });
   const currentBalance = parseFloat(balanceBefore ?? "0");
 
-  // Atomic credit
+  // Atomic credit with net amount (after charge)
   const { data: newBalance, error: creditError } = await supabase.rpc("atomic_wallet_credit", {
     p_user_id: userId,
-    p_amount: amountInNaira,
+    p_amount: netAmount,
   });
 
   if (creditError) {
@@ -45,7 +69,7 @@ async function processWalletCredit(
 
   const balanceAfter = parseFloat(newBalance);
 
-  // Create or update transaction
+  // Create or update deposit transaction (net amount)
   const { data: existingTx } = await supabase
     .from("transactions")
     .select("id")
@@ -57,20 +81,38 @@ async function processWalletCredit(
       .from("transactions")
       .update({
         status: "success",
+        amount: netAmount,
         balance_before: currentBalance,
         balance_after: balanceAfter,
+        metadata: { original_amount: amountInNaira, deposit_charge: depositCharge },
       })
       .eq("reference", reference);
   } else {
     await supabase.from("transactions").insert({
       user_id: userId,
       type: "credit",
-      amount: amountInNaira,
+      amount: netAmount,
       balance_before: currentBalance,
       balance_after: balanceAfter,
       status: "success",
       reference,
       description,
+      metadata: { original_amount: amountInNaira, deposit_charge: depositCharge },
+    });
+  }
+
+  // Record deposit charge transaction
+  if (depositCharge > 0) {
+    await supabase.from("transactions").insert({
+      user_id: userId,
+      type: "debit",
+      amount: depositCharge,
+      balance_before: currentBalance,
+      balance_after: balanceAfter,
+      status: "success",
+      reference: `CHARGE-${reference}`,
+      description: "Deposit processing fee",
+      metadata: { type: "deposit_charge", original_deposit: amountInNaira },
     });
   }
 
@@ -78,11 +120,13 @@ async function processWalletCredit(
   await supabase.from("notifications").insert({
     user_id: userId,
     title: "Payment Received",
-    message: `Your wallet has been credited with ₦${amountInNaira.toLocaleString()}`,
+    message: `Your wallet has been credited with ₦${netAmount.toLocaleString()} (₦${depositCharge} processing fee deducted from ₦${amountInNaira.toLocaleString()})`,
     type: "success",
   });
 
   // Auto-process referral reward on first deposit
+  const referralBonus = settings.referral_bonus_amount;
+
   const { count: successfulCredits } = await supabase
     .from("transactions")
     .select("*", { count: "exact", head: true })
@@ -98,25 +142,21 @@ async function processWalletCredit(
       .from("referrals")
       .select("*")
       .eq("referred_id", userId)
-      .eq("rewarded", false)
+      .in("status", ["pending", "signup_rewarded"])
       .single();
 
     if (pendingReferral) {
-      console.log("Processing pending referral for user:", userId);
-      
-      const rewardPercentage = pendingReferral.reward_percentage || 5;
-      const rewardAmount = amountInNaira * (rewardPercentage / 100);
+      console.log("Processing referral bonus for user:", userId, "amount:", referralBonus);
 
-      // Get referrer balance before credit
+      // Get referrer balance
       const { data: referrerBalanceBefore } = await supabase.rpc("get_wallet_balance", { p_user_id: pendingReferral.referrer_id });
 
       if (referrerBalanceBefore !== null) {
         const refBalBefore = parseFloat(referrerBalanceBefore);
 
-        // Atomic credit for referral reward
         const { data: referrerNewBal, error: refCreditErr } = await supabase.rpc("atomic_wallet_credit", {
           p_user_id: pendingReferral.referrer_id,
-          p_amount: rewardAmount,
+          p_amount: referralBonus,
         });
 
         if (!refCreditErr) {
@@ -125,28 +165,28 @@ async function processWalletCredit(
           await supabase.from("transactions").insert({
             user_id: pendingReferral.referrer_id,
             type: "credit",
-            amount: rewardAmount,
+            amount: referralBonus,
             balance_before: refBalBefore,
             balance_after: refBalAfter,
             status: "success",
-            reference: `REF-${Date.now()}`,
-            description: "Referral bonus",
-            metadata: { referred_user_id: userId, deposit_amount: amountInNaira }
+            reference: `REF-BONUS-${Date.now()}`,
+            description: "Referral reward",
+            metadata: { type: "referral_bonus", referred_user: userId },
           });
 
           await supabase
             .from("referrals")
-            .update({ rewarded: true, reward_amount: rewardAmount })
+            .update({ rewarded: true, reward_amount: referralBonus, status: "fully_rewarded" })
             .eq("id", pendingReferral.id);
 
           await supabase.from("notifications").insert({
             user_id: pendingReferral.referrer_id,
-            title: "Referral Bonus!",
-            message: `You earned ₦${rewardAmount.toLocaleString()} from your referral's first deposit!`,
-            type: "success"
+            title: "Referral Bonus! 🎉",
+            message: `You earned ₦${referralBonus} because your referred user funded their wallet!`,
+            type: "success",
           });
 
-          console.log(`Referral reward processed: ${pendingReferral.referrer_id} earned ₦${rewardAmount}`);
+          console.log(`Referral bonus processed: ${pendingReferral.referrer_id} earned ₦${referralBonus}`);
         }
       }
     }
@@ -158,7 +198,7 @@ async function processWalletCredit(
     .update({ processed: true })
     .eq("payload->data->reference", reference);
 
-  console.log("Payment processed successfully:", reference, amountInNaira);
+  console.log("Payment processed successfully:", reference, "net:", netAmount, "charge:", depositCharge);
 }
 
 serve(async (req) => {
@@ -234,7 +274,6 @@ serve(async (req) => {
         
         console.log("DVA transfer received:", { reference, amountInNaira, customerEmail, accountNumber });
 
-        // Find user by virtual account number
         if (accountNumber) {
           const { data: virtualAccount } = await supabase
             .from("virtual_accounts")
@@ -247,36 +286,25 @@ serve(async (req) => {
           }
         }
 
-        // Fallback to email lookup
         if (!userId && customerEmail) {
           const { data: users } = await supabase.auth.admin.listUsers();
           const user = users.users.find((u: any) => u.email === customerEmail);
-          if (user) {
-            userId = user.id;
-          }
+          if (user) userId = user.id;
         }
 
         description = "Bank transfer funding (DVA)";
       } else if (channel === "bank_transfer" || channel === "bank") {
-        // Standard Paystack bank transfer checkout
         userId = metadata?.user_id;
         description = "Bank transfer funding";
-        console.log("Bank transfer checkout:", { reference, amountInNaira, channel });
       } else if (channel === "ussd") {
-        // USSD payment
         userId = metadata?.user_id;
         description = "USSD funding";
-        console.log("USSD payment:", { reference, amountInNaira, channel });
       } else if (channel === "card") {
-        // Card payment
         userId = metadata?.user_id;
         description = "Card funding";
-        console.log("Card payment:", { reference, amountInNaira, channel });
       } else {
-        // Fallback for other channels
         userId = metadata?.user_id;
         description = `Wallet funding via ${channel}`;
-        console.log("Other payment channel:", { reference, amountInNaira, channel });
       }
 
       if (!userId) {
@@ -294,10 +322,8 @@ serve(async (req) => {
     if (event.event === "transfer.success") {
       const { reference, amount, recipient } = event.data;
       const amountInNaira = amount / 100;
-      
       console.log("Transfer success:", { reference, amountInNaira, recipient: recipient?.name });
 
-      // Update transaction status if exists
       const { data: existingTx } = await supabase
         .from("transactions")
         .select("id, status")
@@ -309,8 +335,6 @@ serve(async (req) => {
           .from("transactions")
           .update({ status: "success" })
           .eq("reference", reference);
-        
-        console.log("Transfer transaction marked as success:", reference);
       }
     }
 
@@ -318,10 +342,8 @@ serve(async (req) => {
     if (event.event === "transfer.failed" || event.event === "transfer.reversed") {
       const { reference, amount, reason } = event.data;
       const amountInNaira = amount / 100;
-      
       console.log("Transfer failed/reversed:", { reference, amountInNaira, reason });
 
-      // Find the transaction and refund if needed
       const { data: tx } = await supabase
         .from("transactions")
         .select("*")
@@ -329,7 +351,6 @@ serve(async (req) => {
         .single();
 
       if (tx && tx.status !== "failed") {
-        // Refund the user
         const { data: wallet } = await supabase
           .from("wallets")
           .select("balance")
@@ -353,15 +374,12 @@ serve(async (req) => {
             })
             .eq("reference", reference);
 
-          // Notify user
           await supabase.from("notifications").insert({
             user_id: tx.user_id,
             title: "Transfer Failed",
             message: `Your transfer of ₦${amountInNaira.toLocaleString()} failed. Amount has been refunded.`,
             type: "error",
           });
-
-          console.log("Transfer refunded:", reference);
         }
       }
     }
