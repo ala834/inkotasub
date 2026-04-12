@@ -131,6 +131,11 @@ const Auth = () => {
           localStorage.setItem("pendingReferralCode", formData.referralCode.toUpperCase());
         }
 
+        // Send welcome email (fire and forget)
+        supabase.functions.invoke("send-welcome-email", {
+          body: { email: formData.email, fullName: formData.fullName },
+        }).catch(err => console.error("Welcome email error:", err));
+
         toast.success("Account created! Please check your email to verify your address, then login.");
         setIsLogin(true);
         setFormData(prev => ({ ...prev, password: "", confirmPassword: "" }));
