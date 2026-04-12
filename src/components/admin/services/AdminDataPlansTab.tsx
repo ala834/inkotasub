@@ -48,6 +48,7 @@ const PLAN_TYPE_COLORS: Record<string, string> = {
 
 const AdminDataPlansTab = () => {
   const { user } = useAuth();
+  const [isFetchingSubpadi, setIsFetchingSubpadi] = useState(false);
   const [plans, setPlans] = useState<ProviderPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
