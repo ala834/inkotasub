@@ -63,7 +63,7 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: false, error: "OTP expired or not found. Please request a new one." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -71,7 +71,7 @@ serve(async (req) => {
     if (otpRecord.attempts >= maxAttempts) {
       return new Response(
         JSON.stringify({ success: false, error: "Too many failed attempts. Please request a new OTP." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -96,7 +96,7 @@ serve(async (req) => {
           success: false,
           error: `Invalid OTP. ${remainingAttempts} attempt${remainingAttempts !== 1 ? "s" : ""} remaining.`,
         }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
