@@ -118,7 +118,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const registerCurrentDevice = async (userId: string) => {
+  const sendLoginAlert = async (userId: string, accessToken: string, deviceInfo: { deviceId: string; deviceName: string; deviceModel: string; osVersion: string; platform: string }) => {
+    try {
+      await supabase.functions.invoke("send-login-alert", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: deviceInfo,
+      });
+    } catch (error) {
+      console.error("Login alert error:", error);
+    }
+  };
+
+  const registerCurrentDevice = async (userId: string, accessToken: string) => {
     try {
       let deviceId: string, deviceName: string, deviceModel: string, osVersion: string, platform: string;
       
