@@ -135,6 +135,33 @@ const AdminDataPlansTab = () => {
     setIsFetching(false);
   };
 
+  const fetchSubpadiPlans = async () => {
+    setIsFetchingSubpadi(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-fetch-data-plans", {
+        body: { action: "fetch_subpadi" },
+      });
+
+      if (error) throw error;
+      
+      if (data?.fromApi && data.saved > 0) {
+        toast.success(`Fetched and saved ${data.saved} Subpadi plans from API`);
+        loadPlans();
+      } else if (data?.existingInDb > 0) {
+        toast.info(`Subpadi API did not return plan data. ${data.existingInDb} plans already in database (manually added).`, { duration: 8000 });
+      } else {
+        toast.info(data?.message || "No Subpadi plans found. Add them manually.", { duration: 8000 });
+        if (data?.hint) {
+          toast.info(data.hint, { duration: 10000 });
+        }
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Failed to fetch Subpadi plans");
+    }
+    setIsFetchingSubpadi(false);
+  };
+
   const togglePlan = async (plan: ProviderPlan, field: "is_enabled" | "is_featured") => {
     const newValue = !plan[field];
     setSaving(plan.plan_id + field);
