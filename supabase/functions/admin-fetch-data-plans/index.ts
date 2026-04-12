@@ -123,8 +123,8 @@ async function fetchSubpadiDataPlans(): Promise<{ plans: any[]; message: string;
         return { plans: allPlans, message: `Fetched ${allPlans.length} plans from Subpadi API`, rawResponse: data };
       } else if (rawPlans.length > 0) {
         console.log(`Subpadi /api/data/ returned ${rawPlans.length} items but they look like transaction history, not plans`);
-        // Log first item structure for debugging
         console.log("Sample item keys:", Object.keys(rawPlans[0]).join(", "));
+        console.log("Sample item:", JSON.stringify(rawPlans[0]).substring(0, 500));
       }
     }
   } catch (e) {
