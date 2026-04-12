@@ -31,24 +31,206 @@ function isSubpadiConfigured(): boolean {
   return !!Deno.env.get("SUBPADI_API_TOKEN");
 }
 
-// Note: Subpadi does NOT have a plan catalog/listing API endpoint.
-// GET /api/data/ returns transaction history, NOT available plans.
-// Subpadi plans must be added manually by the admin using plan IDs from the Subpadi dashboard.
-// This function returns an empty array with a log explaining why.
-async function fetchSubpadiDataPlans(): Promise<{ plans: any[]; message: string }> {
-  if (!Deno.env.get("SUBPADI_API_TOKEN")) {
+// Attempt to fetch data plans from Subpadi API
+// Subpadi may return plans from GET /api/data/ or from the user endpoint
+async function fetchSubpadiDataPlans(): Promise<{ plans: any[]; message: string; rawResponse?: any }> {
+  const token = Deno.env.get("SUBPADI_API_TOKEN");
+  if (!token) {
     return { plans: [], message: "SUBPADI_API_TOKEN not configured" };
   }
-  
-  console.log("Subpadi does not provide a plan catalog API. Plans must be added manually from the Subpadi dashboard.");
-  return { 
-    plans: [], 
-    message: "Subpadi does not have a plan listing API. Add plans manually using plan IDs from the Subpadi dashboard." 
+
+  const headers = {
+    "Authorization": `Token ${token}`,
+    "Content-Type": "application/json",
+  };
+
+  const allPlans: any[] = [];
+
+  // Strategy 1: Try GET /api/data/ — some Subpadi versions return plan catalog
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(`${SUBPADI_BASE_URL}/data/`, {
+      method: "GET",
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    const data = await res.json().catch(() => null);
+    console.log(`Subpadi GET /api/data/ status=${res.status}, type=${typeof data}, isArray=${Array.isArray(data)}`);
+    
+    if (data) {
+      // Could be array of plans or object with nested plans
+      let rawPlans: any[] = [];
+      
+      if (Array.isArray(data)) {
+        rawPlans = data;
+      } else if (data.data && Array.isArray(data.data)) {
+        rawPlans = data.data;
+      } else if (data.results && Array.isArray(data.results)) {
+        rawPlans = data.results;
+      } else if (typeof data === "object" && !Array.isArray(data)) {
+        // Check for network-keyed format: { "1": [...], "2": [...] }
+        for (const key of Object.keys(data)) {
+          if (Array.isArray(data[key])) {
+            rawPlans.push(...data[key].map((p: any) => ({ ...p, _network_key: parseInt(key, 10) })));
+          }
+        }
+      }
+
+      console.log(`Subpadi GET /api/data/ found ${rawPlans.length} raw items`);
+
+      // Check if these look like plans (have plan-like fields) vs transaction history
+      for (const p of rawPlans) {
+        // Plan-like: has plan_type, plan_name/dataplan, amount/price, network
+        const isPlanLike = (p.plan_type || p.dataplan || p.plan_name || p.plan) && 
+                          (p.amount || p.price || p.plan_amount) &&
+                          (p.network || p.network_id || p._network_key);
+        
+        // Transaction-like: has created_at/date, status, mobile_number
+        const isTransactionLike = (p.created_at || p.date || p.created) && 
+                                  (p.mobile_number || p.phone_number);
+
+        if (isPlanLike && !isTransactionLike) {
+          const networkId = p.network || p.network_id || p._network_key;
+          const networkName = typeof networkId === "number" || /^\d+$/.test(String(networkId))
+            ? (SUBPADI_NETWORK_MAP[Number(networkId)] || `NETWORK_${networkId}`)
+            : String(p.network_name || networkId || "").toUpperCase();
+
+          const planName = p.plan_name || p.dataplan || p.plan || p.name || `${p.size || p.plan_type || ''} Data`;
+          const price = parseFloat(p.amount || p.price || p.plan_amount || p.cost || 0);
+          const planId = String(p.id || p.plan_id || p.dataplan_id || '');
+          const validity = p.validity || p.month_validate || p.duration || "30 Days";
+          const planType = p.plan_type || '';
+
+          if (planId && price > 0) {
+            allPlans.push({
+              provider: "subpadi",
+              network: networkName,
+              plan_id: planId,
+              plan_name: planName,
+              base_price: price,
+              validity: validity,
+              data_size: extractDataSize(planName),
+              plan_type: categorizePlan(planType || planName),
+            });
+          }
+        }
+      }
+
+      if (allPlans.length > 0) {
+        console.log(`Successfully extracted ${allPlans.length} Subpadi data plans from API`);
+        return { plans: allPlans, message: `Fetched ${allPlans.length} plans from Subpadi API`, rawResponse: data };
+      } else if (rawPlans.length > 0) {
+        console.log(`Subpadi /api/data/ returned ${rawPlans.length} items but they look like transaction history, not plans`);
+        // Log first item structure for debugging
+        console.log("Sample item keys:", Object.keys(rawPlans[0]).join(", "));
+      }
+    }
+  } catch (e) {
+    console.error("Subpadi GET /api/data/ error:", e instanceof Error ? e.message : String(e));
+  }
+
+  // Strategy 2: Try per-network queries — some APIs support ?network=1
+  if (allPlans.length === 0) {
+    for (const [netId, netName] of Object.entries(SUBPADI_NETWORK_MAP)) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch(`${SUBPADI_BASE_URL}/data/?network=${netId}`, {
+          method: "GET",
+          headers,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        const data = await res.json().catch(() => null);
+        
+        if (data && Array.isArray(data)) {
+          for (const p of data) {
+            const isPlanLike = (p.plan_type || p.dataplan || p.plan_name) && (p.amount || p.price);
+            const isTransactionLike = (p.created_at || p.date) && p.mobile_number;
+            if (isPlanLike && !isTransactionLike) {
+              const planName = p.plan_name || p.dataplan || p.plan || p.name || `Data Plan`;
+              const price = parseFloat(p.amount || p.price || p.plan_amount || 0);
+              const planId = String(p.id || p.plan_id || p.dataplan_id || '');
+              if (planId && price > 0) {
+                allPlans.push({
+                  provider: "subpadi",
+                  network: netName,
+                  plan_id: planId,
+                  plan_name: planName,
+                  base_price: price,
+                  validity: p.validity || p.month_validate || "30 Days",
+                  data_size: extractDataSize(planName),
+                  plan_type: categorizePlan(p.plan_type || planName),
+                });
+              }
+            }
+          }
+        }
+      } catch {
+        // ignore per-network errors
+      }
+    }
+    
+    if (allPlans.length > 0) {
+      console.log(`Fetched ${allPlans.length} Subpadi plans via per-network queries`);
+      return { plans: allPlans, message: `Fetched ${allPlans.length} plans from Subpadi API (per-network)` };
+    }
+  }
+
+  // Strategy 3: Try the user endpoint for plan data embedded in user info
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`${SUBPADI_BASE_URL}/user/`, {
+      method: "GET",
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    const data = await res.json().catch(() => null);
+    
+    if (data) {
+      // Some versions embed plan lists in the user response
+      const planSources = [data.data_plans, data.plans, data.dataPlans, data.available_plans];
+      for (const source of planSources) {
+        if (Array.isArray(source) && source.length > 0) {
+          for (const p of source) {
+            const networkId = p.network || p.network_id;
+            const networkName = typeof networkId === "number"
+              ? (SUBPADI_NETWORK_MAP[networkId] || "UNKNOWN")
+              : String(p.network_name || networkId || "").toUpperCase();
+            const planName = p.plan_name || p.dataplan || p.name || "Data Plan";
+            const price = parseFloat(p.amount || p.price || 0);
+            const planId = String(p.id || p.plan_id || '');
+            if (planId && price > 0) {
+              allPlans.push({
+                provider: "subpadi",
+                network: networkName,
+                plan_id: planId,
+                plan_name: planName,
+                base_price: price,
+                validity: p.validity || "30 Days",
+                data_size: extractDataSize(planName),
+                plan_type: categorizePlan(p.plan_type || planName),
+              });
+            }
+          }
+          console.log(`Found ${allPlans.length} Subpadi plans from user endpoint`);
+          return { plans: allPlans, message: `Fetched ${allPlans.length} plans from Subpadi user endpoint` };
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Subpadi user endpoint error:", e instanceof Error ? e.message : String(e));
+  }
+
+  return {
+    plans: [],
+    message: "Subpadi API did not return plan catalog data. Add plans manually using plan IDs from the Subpadi dashboard.",
   };
 }
-
-
-
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -161,9 +343,26 @@ serve(async (req) => {
         }
       }
 
-      // 2. Subpadi does NOT have a plan catalog API — always load from DB
-      // Plans must be added manually by admin using plan IDs from Subpadi dashboard
+      // 2. Try fetching Subpadi plans from API
       let subpadiFromApi = false;
+      if (isSubpadiConfigured()) {
+        try {
+          const subpadiResult = await fetchSubpadiDataPlans();
+          console.log(`Subpadi fetch result: ${subpadiResult.plans.length} plans - ${subpadiResult.message}`);
+          
+          if (subpadiResult.plans.length > 0) {
+            subpadiFromApi = true;
+            for (const plan of subpadiResult.plans) {
+              allPlans.push(plan);
+            }
+          } else {
+            fetchErrors.push(subpadiResult.message);
+          }
+        } catch (e) {
+          console.error("Subpadi fetch error:", e);
+          fetchErrors.push(`Subpadi: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
 
       // Fallback: load Subpadi plans from DB if API returned nothing
       if (!subpadiFromApi) {
@@ -258,6 +457,68 @@ serve(async (req) => {
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    if (action === "fetch_subpadi") {
+      // Dedicated action to fetch & save Subpadi plans
+      if (!isSubpadiConfigured()) {
+        return new Response(JSON.stringify({ success: false, message: "SUBPADI_API_TOKEN not configured" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const subpadiResult = await fetchSubpadiDataPlans();
+      console.log(`Subpadi dedicated fetch: ${subpadiResult.plans.length} plans`);
+
+      if (subpadiResult.plans.length === 0) {
+        // Return existing DB plans count as context
+        const { data: dbPlans } = await adminSupabase
+          .from("service_plans")
+          .select("id")
+          .eq("service_type", "data")
+          .eq("provider", "subpadi");
+
+        return new Response(JSON.stringify({
+          success: true,
+          fromApi: false,
+          saved: 0,
+          existingInDb: dbPlans?.length || 0,
+          message: subpadiResult.message,
+          hint: "Add Subpadi plans manually using the 'Add Manual Plan' button with plan IDs from the Subpadi dashboard.",
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Save fetched plans to DB
+      let saved = 0;
+      for (const plan of subpadiResult.plans) {
+        const { error } = await adminSupabase
+          .from("service_plans")
+          .upsert({
+            service_type: "data",
+            provider: "subpadi",
+            network: plan.network,
+            plan_id: plan.plan_id,
+            plan_name: plan.plan_name,
+            base_price: plan.base_price,
+            validity: plan.validity || "30 Days",
+            is_enabled: true,
+            is_featured: false,
+            plan_type: plan.plan_type || categorizePlan(plan.plan_name),
+            last_synced_at: new Date().toISOString(),
+          }, { onConflict: "service_type,network,plan_id" });
+        if (!error) saved++;
+      }
+
+      console.log(`Saved ${saved}/${subpadiResult.plans.length} Subpadi plans to DB`);
+
+      return new Response(JSON.stringify({
+        success: true,
+        fromApi: true,
+        saved,
+        total: subpadiResult.plans.length,
+        message: `Fetched and saved ${saved} Subpadi plans from API`,
+        plans: subpadiResult.plans,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (action === "save_plan") {
@@ -398,19 +659,48 @@ serve(async (req) => {
         }
       }
 
-      // Subpadi: no plan catalog API — plans are managed manually by admin
-      // Count existing Subpadi plans in DB for reporting
+      // Sync Subpadi
       let subpadiSaved = 0;
-      const { data: existingSubpadi } = await adminSupabase
-        .from("service_plans")
-        .select("id")
-        .eq("service_type", "data")
-        .eq("provider", "subpadi");
-      const subpadiInDb = existingSubpadi?.length || 0;
-      if (subpadiInDb === 0) {
-        syncErrors.push("No Subpadi plans in database. Subpadi does not provide a plan catalog API — add plans manually using plan IDs from the Subpadi dashboard.");
-      } else {
-        console.log(`${subpadiInDb} Subpadi plans already in DB (manually managed)`);
+      if (isSubpadiConfigured()) {
+        try {
+          const subpadiResult = await fetchSubpadiDataPlans();
+          if (subpadiResult.plans.length > 0) {
+            for (const plan of subpadiResult.plans) {
+              const { error } = await adminSupabase
+                .from("service_plans")
+                .upsert({
+                  service_type: "data",
+                  provider: "subpadi",
+                  network: plan.network,
+                  plan_id: plan.plan_id,
+                  plan_name: plan.plan_name,
+                  base_price: plan.base_price,
+                  validity: plan.validity || "30 Days",
+                  is_enabled: true,
+                  is_featured: false,
+                  plan_type: plan.plan_type || categorizePlan(plan.plan_name),
+                  last_synced_at: new Date().toISOString(),
+                }, { onConflict: "service_type,network,plan_id" });
+              if (!error) subpadiSaved++;
+            }
+            console.log(`Subpadi sync: saved ${subpadiSaved} plans`);
+          } else {
+            // Check existing DB plans
+            const { data: existingSubpadi } = await adminSupabase
+              .from("service_plans")
+              .select("id")
+              .eq("service_type", "data")
+              .eq("provider", "subpadi");
+            const subpadiInDb = existingSubpadi?.length || 0;
+            if (subpadiInDb === 0) {
+              syncErrors.push("Subpadi: " + subpadiResult.message);
+            } else {
+              console.log(`${subpadiInDb} Subpadi plans already in DB (manually managed)`);
+            }
+          }
+        } catch (e) {
+          syncErrors.push(`Subpadi: ${e instanceof Error ? e.message : String(e)}`);
+        }
       }
 
       return new Response(
