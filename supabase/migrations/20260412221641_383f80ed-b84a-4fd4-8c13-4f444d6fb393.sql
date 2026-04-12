@@ -1,0 +1,1 @@
+UPDATE public.app_settings SET value = 'true' WHERE key = 'EMAIL_TEST_MODE';
