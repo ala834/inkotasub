@@ -18,6 +18,8 @@ const FundWallet = () => {
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"card" | "bank" | "ussd">("card");
   const [isLoading, setIsLoading] = useState(false);
+  const { settings } = useAppSettings();
+  const depositCharge = parseFloat(settings.deposit_charge_amount || "25") || 0;
 
   const quickAmounts = [1000, 2000, 5000, 10000, 20000, 50000];
 
