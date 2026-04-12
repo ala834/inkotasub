@@ -206,6 +206,30 @@ serve(async (req) => {
 
     console.log("Payment verified and credited:", reference, "net:", netAmount, "charge:", depositCharge);
 
+    // Send receipt email (fire-and-forget)
+    try {
+      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-receipt-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          userId,
+          type: "wallet_funding",
+          amount: netAmount,
+          reference,
+          description: `Wallet funding via ${channel}`,
+          balanceAfter: newBalance,
+          originalAmount: amountInNaira,
+          depositCharge,
+          channel,
+        }),
+      });
+    } catch (e) {
+      console.error("Receipt email fire-and-forget error:", e);
+    }
+
     return new Response(
       JSON.stringify({
         status: "success",
