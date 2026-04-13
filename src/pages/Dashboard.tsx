@@ -66,7 +66,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Green Header with Wallet */}
-      <div className="bg-gradient-to-br from-green-600 via-green-500 to-emerald-500 px-4 pt-4 pb-16 relative overflow-hidden">
+      <div className="bg-gradient-to-br from-green-600 via-green-500 to-emerald-500 px-4 pt-4 pb-16 relative" style={{ overflow: 'visible' }}>
         {/* Decorative circles */}
         <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/5" />
         <div className="absolute -left-6 top-20 w-28 h-28 rounded-full bg-white/5" />
