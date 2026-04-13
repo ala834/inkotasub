@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Loader2, Phone, Contact, RefreshCw, Check, Wifi, ChevronRight } from "lucide-react";
+import { ArrowLeft, Loader2, Phone, Contact, RefreshCw, Check, Wifi, ChevronRight, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
@@ -11,6 +11,8 @@ import { useNetworkDetection, normalizePhoneNumber, detectNetwork } from "@/hook
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
+import { useBeneficiaries } from "@/hooks/useBeneficiaries";
+import BeneficiariesDialog from "@/components/common/BeneficiariesDialog";
 import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 
 interface DataPlan {
@@ -48,10 +50,12 @@ const Data = () => {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [contactName, setContactName] = useState<string | undefined>();
   const [showResult, setShowResult] = useState(false);
+  const [showBeneficiaries, setShowBeneficiaries] = useState(false);
   const [resultSuccess, setResultSuccess] = useState(false);
   const [resultError, setResultError] = useState("");
   const [resultTransactionId, setResultTransactionId] = useState<string | undefined>();
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("data");
+  const { beneficiaries, addBeneficiary, removeBeneficiary } = useBeneficiaries("data");
 
   // Auto-detect network from phone input
   useEffect(() => {
@@ -194,6 +198,7 @@ const Data = () => {
         throw new Error(message);
       }
       addRecentNumber(phoneNumber, contactName);
+      addBeneficiary(phoneNumber, contactName, selectedNetwork || undefined);
       setResultSuccess(true);
       setResultError("");
       setResultTransactionId(data?.reference || data?.transactionId);
@@ -310,14 +315,15 @@ const Data = () => {
             )}
           </div>
 
-          {/* Recent / Beneficiaries */}
-          {recentNumbers.length > 0 && (
-            <button className="flex items-center gap-2 w-full px-3 py-2.5 bg-green-50 rounded-xl text-green-700 text-sm font-medium active:bg-green-100 transition-colors">
-              <Phone className="h-4 w-4" />
-              <span>View Beneficiaries</span>
-              <ChevronRight className="h-4 w-4 ml-auto" />
-            </button>
-          )}
+          {/* Beneficiaries */}
+          <button
+            onClick={() => setShowBeneficiaries(true)}
+            className="flex items-center gap-2 w-full px-3 py-2.5 bg-green-50 rounded-xl text-green-700 text-sm font-medium active:bg-green-100 transition-colors"
+          >
+            <Users className="h-4 w-4" />
+            <span>View Beneficiaries ({beneficiaries.length})</span>
+            <ChevronRight className="h-4 w-4 ml-auto" />
+          </button>
         </motion.div>
 
         {/* Plan Type Toggles */}
@@ -481,6 +487,20 @@ const Data = () => {
         ]}
         transactionId={resultTransactionId}
         errorMessage={resultError}
+      />
+
+      <BeneficiariesDialog
+        open={showBeneficiaries}
+        onClose={() => setShowBeneficiaries(false)}
+        beneficiaries={beneficiaries}
+        onSelect={(identifier, label, network) => {
+          setPhoneNumber(identifier);
+          setContactName(label);
+          if (network) setSelectedNetwork(network);
+        }}
+        onRemove={removeBeneficiary}
+        title="Saved Beneficiaries"
+        identifierLabel="Phone Number"
       />
     </div>
   );

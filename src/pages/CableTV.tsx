@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Loader2, Check, CreditCard, ChevronRight, RefreshCw, CheckCircle } from "lucide-react";
+import { ArrowLeft, Loader2, Check, CreditCard, ChevronRight, RefreshCw, CheckCircle, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
@@ -11,6 +11,8 @@ import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
+import { useBeneficiaries } from "@/hooks/useBeneficiaries";
+import BeneficiariesDialog from "@/components/common/BeneficiariesDialog";
 
 import dstvLogo from "@/assets/providers/dstv.png";
 import gotvLogo from "@/assets/providers/gotv.png";
@@ -46,7 +48,9 @@ const CableTV = () => {
   const [resultSuccess, setResultSuccess] = useState(false);
   const [resultTransactionId, setResultTransactionId] = useState("");
   const [resultError, setResultError] = useState("");
+  const [showBeneficiaries, setShowBeneficiaries] = useState(false);
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("cable");
+  const { beneficiaries, addBeneficiary, removeBeneficiary } = useBeneficiaries("cable");
 
   useEffect(() => {
     if (provider) fetchPlans();
@@ -170,6 +174,7 @@ const CableTV = () => {
         throw new Error(message);
       }
       addRecentNumber(smartCardNumber, customerName || undefined);
+      addBeneficiary(smartCardNumber, customerName || undefined);
       setResultSuccess(true);
       setResultTransactionId(data.reference || data.transactionId || "");
       setResultError("");
@@ -273,22 +278,15 @@ const CableTV = () => {
               />
             </div>
 
-            {/* Recent numbers */}
-            {recentNumbers.length > 0 && (
-              <button
-                onClick={() => {
-                  if (recentNumbers[0]) {
-                    setSmartCardNumber(recentNumbers[0].number);
-                    setIsValidated(false);
-                  }
-                }}
-                className="flex items-center gap-2 w-full px-3 py-2.5 bg-green-50 rounded-xl text-green-700 text-sm font-medium active:bg-green-100 transition-colors"
-              >
-                <CreditCard className="h-4 w-4" />
-                <span>View Beneficiaries</span>
-                <ChevronRight className="h-4 w-4 ml-auto" />
-              </button>
-            )}
+            {/* Beneficiaries */}
+            <button
+              onClick={() => setShowBeneficiaries(true)}
+              className="flex items-center gap-2 w-full px-3 py-2.5 bg-green-50 rounded-xl text-green-700 text-sm font-medium active:bg-green-100 transition-colors"
+            >
+              <Users className="h-4 w-4" />
+              <span>View Beneficiaries ({beneficiaries.length})</span>
+              <ChevronRight className="h-4 w-4 ml-auto" />
+            </button>
 
             {/* Validate Button */}
             <button
@@ -449,6 +447,20 @@ const CableTV = () => {
         ]}
         transactionId={resultTransactionId}
         errorMessage={resultError}
+      />
+
+      <BeneficiariesDialog
+        open={showBeneficiaries}
+        onClose={() => setShowBeneficiaries(false)}
+        beneficiaries={beneficiaries}
+        onSelect={(identifier, label) => {
+          setSmartCardNumber(identifier);
+          if (label) setCustomerName(label);
+          setIsValidated(false);
+        }}
+        onRemove={removeBeneficiary}
+        title="Saved Smart Cards"
+        identifierLabel="Smart Card Number"
       />
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Zap, Loader2, CheckCircle, ChevronDown, CreditCard, ChevronRight } from "lucide-react";
+import { ArrowLeft, Zap, Loader2, CheckCircle, ChevronDown, CreditCard, ChevronRight, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
@@ -11,6 +11,8 @@ import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
+import { useBeneficiaries } from "@/hooks/useBeneficiaries";
+import BeneficiariesDialog from "@/components/common/BeneficiariesDialog";
 
 const DISCOS = [
   { id: "ikeja", name: "Ikeja Electric", code: "IE" },
@@ -46,7 +48,9 @@ const Electricity = () => {
   const [resultTransactionId, setResultTransactionId] = useState("");
   const [resultError, setResultError] = useState("");
   const [resultToken, setResultToken] = useState("");
+  const [showBeneficiaries, setShowBeneficiaries] = useState(false);
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("electricity");
+  const { beneficiaries, addBeneficiary, removeBeneficiary } = useBeneficiaries("electricity");
 
   const amountNum = parseFloat(amount || "0");
   const selectedDisco = DISCOS.find(d => d.id === disco);
@@ -127,6 +131,7 @@ const Electricity = () => {
         throw new Error(message);
       }
       addRecentNumber(meterNumber, customerName || undefined);
+      addBeneficiary(meterNumber, customerName || undefined);
       setResultSuccess(true);
       setResultTransactionId(data.reference || data.transactionId || "");
       setResultToken(data.token || "");
@@ -271,21 +276,14 @@ const Electricity = () => {
               />
             </div>
 
-            {recentNumbers.length > 0 && (
-              <button
-                onClick={() => {
-                  if (recentNumbers[0]) {
-                    setMeterNumber(recentNumbers[0].number);
-                    setIsValidated(false);
-                  }
-                }}
-                className="flex items-center gap-2 w-full px-3 py-2.5 bg-green-50 rounded-xl text-green-700 text-sm font-medium active:bg-green-100 transition-colors"
-              >
-                <CreditCard className="h-4 w-4" />
-                <span>View Saved Meters</span>
-                <ChevronRight className="h-4 w-4 ml-auto" />
-              </button>
-            )}
+            <button
+              onClick={() => setShowBeneficiaries(true)}
+              className="flex items-center gap-2 w-full px-3 py-2.5 bg-green-50 rounded-xl text-green-700 text-sm font-medium active:bg-green-100 transition-colors"
+            >
+              <Users className="h-4 w-4" />
+              <span>View Saved Meters ({beneficiaries.length})</span>
+              <ChevronRight className="h-4 w-4 ml-auto" />
+            </button>
 
             {/* Validate Button */}
             <button
@@ -418,6 +416,20 @@ const Electricity = () => {
         ]}
         transactionId={resultTransactionId}
         errorMessage={resultError}
+      />
+
+      <BeneficiariesDialog
+        open={showBeneficiaries}
+        onClose={() => setShowBeneficiaries(false)}
+        beneficiaries={beneficiaries}
+        onSelect={(identifier, label) => {
+          setMeterNumber(identifier);
+          if (label) setCustomerName(label);
+          setIsValidated(false);
+        }}
+        onRemove={removeBeneficiary}
+        title="Saved Meters"
+        identifierLabel="Meter Number"
       />
     </div>
   );
