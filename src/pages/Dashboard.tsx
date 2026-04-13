@@ -25,6 +25,23 @@ const Dashboard = () => {
     if (profile && !profile.has_transaction_pin) setShowPinSetup(true);
   }, [profile]);
 
+  // Close profile menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    if (showProfileMenu) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showProfileMenu]);
+
+  const handleSignOut = async () => {
+    setShowProfileMenu(false);
+    await signOut();
+    navigate("/auth");
+  };
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Good morning";
