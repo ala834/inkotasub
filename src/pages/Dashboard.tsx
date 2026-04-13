@@ -8,6 +8,7 @@ import ServicesGrid from "@/components/services/ServicesGrid";
 import PinSetupDialog from "@/components/common/PinSetupDialog";
 import NotificationsDropdown from "@/components/notifications/NotificationsDropdown";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 import { useWallet } from "@/hooks/useWallet";
 import PromoBanner from "@/components/common/PromoBanner";
 
