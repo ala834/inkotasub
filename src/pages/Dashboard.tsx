@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Bell, User, Eye, EyeOff, Plus, ArrowUpRight, ChevronRight } from "lucide-react";
+import { Bell, User, Eye, EyeOff, Plus, ArrowUpRight, ChevronRight, Shield, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import BottomNav from "@/components/layout/BottomNav";
 import ServicesGrid from "@/components/services/ServicesGrid";
