@@ -1,25 +1,11 @@
-import { 
-  Smartphone, 
-  Wifi, 
-  Zap, 
-  Tv, 
-  Gift,
-  Headphones,
-  GraduationCap,
-  ArrowLeftRight,
-  Send,
-  Globe,
-  Calculator,
-  MessageCircle,
-  Layers,
-  Radio,
-  CreditCard
+import {
+  Smartphone, Wifi, Zap, Tv, Gift, Headphones, GraduationCap,
+  ArrowLeftRight, Send, Globe, Calculator, MessageCircle, Layers, Radio, CreditCard
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import ServiceCard from "./ServiceCard";
 import { useEnabledServices } from "@/hooks/useEnabledServices";
-import { Skeleton } from "@/components/ui/skeleton";
 
 const mainServices = [
   { icon: Smartphone, label: "Airtime", color: "#10B981", path: "/airtime", serviceKey: "airtime" as const },
@@ -46,38 +32,42 @@ const ServicesGrid = () => {
   const navigate = useNavigate();
   const { enabledServices, isLoading } = useEnabledServices();
 
-  const filteredMain = mainServices.filter((s) => !s.serviceKey || enabledServices[s.serviceKey]);
-  const filteredMore = moreServices.filter((s) => !s.serviceKey || enabledServices[s.serviceKey]);
+  const filteredMain = mainServices.filter(s => !s.serviceKey || enabledServices[s.serviceKey]);
+  const filteredMore = moreServices.filter(s => !s.serviceKey || enabledServices[s.serviceKey]);
 
   if (isLoading) {
     return (
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-        <Skeleton className="h-6 w-32" />
-        <div className="grid grid-cols-3 gap-3">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="flex flex-col items-center gap-3 p-4">
-              <Skeleton className="w-[52px] h-[52px] rounded-2xl" />
-              <Skeleton className="h-3 w-14" />
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
+        <div className="h-5 w-28 bg-gray-100 rounded animate-pulse" />
+        <div className="grid grid-cols-4 gap-3">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+            <div key={i} className="flex flex-col items-center gap-2 py-3">
+              <div className="w-12 h-12 rounded-2xl bg-gray-100 animate-pulse" />
+              <div className="h-3 w-12 bg-gray-100 rounded animate-pulse" />
             </div>
           ))}
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Main Services */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">Quick Services</h2>
-        <div className="grid grid-cols-3 gap-2">
+    <div className="space-y-4">
+      {/* Quick Services */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+      >
+        <h2 className="text-sm font-semibold text-gray-700 mb-2">Quick Services</h2>
+        <div className="grid grid-cols-4 gap-1">
           {filteredMain.map((service, index) => (
             <ServiceCard
               key={service.label}
               icon={service.icon}
               label={service.label}
               color={service.color}
-              delay={0.04 + index * 0.03}
+              delay={0.02 + index * 0.02}
               onClick={() => service.path !== "#" && navigate(service.path)}
               disabled={service.path === "#"}
             />
@@ -86,16 +76,21 @@ const ServicesGrid = () => {
       </motion.div>
 
       {/* More Services */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">More Services</h2>
-        <div className="grid grid-cols-4 gap-2">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+      >
+        <h2 className="text-sm font-semibold text-gray-700 mb-2">More Services</h2>
+        <div className="grid grid-cols-4 gap-1">
           {filteredMore.map((service, index) => (
             <ServiceCard
               key={service.label}
               icon={service.icon}
               label={service.label}
               color={service.color}
-              delay={0.1 + index * 0.03}
+              delay={0.06 + index * 0.02}
               onClick={() => service.path !== "#" && navigate(service.path)}
               disabled={service.path === "#"}
             />
