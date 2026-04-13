@@ -14,10 +14,12 @@ import PromoBanner from "@/components/common/PromoBanner";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { profile, user, refreshProfile } = useAuth();
+  const { profile, user, refreshProfile, isAdmin, signOut } = useAuth();
   const { wallet } = useWallet();
   const [showPinSetup, setShowPinSetup] = useState(false);
   const [showBalance, setShowBalance] = useState(true);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (profile && !profile.has_transaction_pin) setShowPinSetup(true);
