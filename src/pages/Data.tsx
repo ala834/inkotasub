@@ -51,9 +51,11 @@ const Data = () => {
   const [contactName, setContactName] = useState<string | undefined>();
   const [showResult, setShowResult] = useState(false);
   const [showBeneficiaries, setShowBeneficiaries] = useState(false);
+  const [resultSuccess, setResultSuccess] = useState(false);
   const [resultError, setResultError] = useState("");
   const [resultTransactionId, setResultTransactionId] = useState<string | undefined>();
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("data");
+  const { beneficiaries, addBeneficiary, removeBeneficiary } = useBeneficiaries("data");
 
   // Auto-detect network from phone input
   useEffect(() => {
