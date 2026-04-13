@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Loader2, GraduationCap, BookOpen, Award, Minus, Plus, Copy, Check, Eye, EyeOff, ShieldCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { ArrowLeft, Loader2, GraduationCap, BookOpen, Award, Minus, Plus, Copy, Check, Eye, EyeOff, ShieldCheck, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
@@ -28,27 +26,15 @@ const EXAM_TYPES: ExamType[] = [
 ];
 
 const examIcons: Record<string, React.ReactNode> = {
-  waec: <GraduationCap className="h-6 w-6" />,
-  neco: <BookOpen className="h-6 w-6" />,
-  nabteb: <Award className="h-6 w-6" />,
+  waec: <GraduationCap className="h-7 w-7" />,
+  neco: <BookOpen className="h-7 w-7" />,
+  nabteb: <Award className="h-7 w-7" />,
 };
 
-const examGradients: Record<string, string> = {
-  waec: "from-emerald-500/20 to-teal-600/20 dark:from-emerald-500/10 dark:to-teal-600/10",
-  neco: "from-blue-500/20 to-indigo-600/20 dark:from-blue-500/10 dark:to-indigo-600/10",
-  nabteb: "from-amber-500/20 to-orange-600/20 dark:from-amber-500/10 dark:to-orange-600/10",
-};
-
-const examAccents: Record<string, string> = {
-  waec: "text-emerald-600 dark:text-emerald-400",
-  neco: "text-blue-600 dark:text-blue-400",
-  nabteb: "text-amber-600 dark:text-amber-400",
-};
-
-const examBorderAccents: Record<string, string> = {
-  waec: "border-emerald-500/40",
-  neco: "border-blue-500/40",
-  nabteb: "border-amber-500/40",
+const examColors: Record<string, { bg: string; text: string; border: string }> = {
+  waec: { bg: "bg-emerald-50", text: "text-emerald-600", border: "border-emerald-400" },
+  neco: { bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-400" },
+  nabteb: { bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-400" },
 };
 
 const ExamCards = () => {
@@ -65,56 +51,34 @@ const ExamCards = () => {
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [examPrices, setExamPrices] = useState<ExamType[]>(EXAM_TYPES);
 
-  // PIN display state
   const [showPinResult, setShowPinResult] = useState(false);
   const [purchasedPins, setPurchasedPins] = useState<string[]>([]);
   const [purchaseRef, setPurchaseRef] = useState("");
   const [revealedPins, setRevealedPins] = useState<Set<number>>(new Set());
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
-  useEffect(() => {
-    fetchExamPrices();
-  }, []);
+  useEffect(() => { fetchExamPrices(); }, []);
 
   const fetchExamPrices = async () => {
     setLoadingPrices(true);
     try {
       const { data, error } = await supabase.functions.invoke("get-exam-plans");
-      if (error) {
-        console.error("Error fetching exam prices:", error);
-        return;
-      }
-      if (data?.plans && data.plans.length > 0) {
-        setExamPrices(data.plans);
-      }
-    } catch (error) {
-      console.error("Error fetching exam prices:", error);
-    } finally {
-      setLoadingPrices(false);
-    }
+      if (error) { console.error("Error fetching exam prices:", error); return; }
+      if (data?.plans && data.plans.length > 0) setExamPrices(data.plans);
+    } catch (error) { console.error("Error fetching exam prices:", error); }
+    finally { setLoadingPrices(false); }
   };
 
   const totalAmount = (selectedExam?.amount || 0) * quantity;
 
   const validateForm = () => {
-    if (!selectedExam) {
-      toast.error("Please select an exam type");
-      return false;
-    }
-    if (quantity < 1 || quantity > 10) {
-      toast.error(quantity < 1 ? "Quantity must be at least 1" : "Maximum 10 PINs per transaction");
-      return false;
-    }
-    if (wallet && totalAmount > wallet.balance) {
-      toast.error("Insufficient wallet balance");
-      return false;
-    }
+    if (!selectedExam) { toast.error("Please select an exam type"); return false; }
+    if (quantity < 1 || quantity > 10) { toast.error(quantity < 1 ? "Quantity must be at least 1" : "Maximum 10 PINs per transaction"); return false; }
+    if (wallet && totalAmount > wallet.balance) { toast.error("Insufficient wallet balance"); return false; }
     return true;
   };
 
-  const handlePurchaseClick = () => {
-    if (validateForm()) setShowPinDialog(true);
-  };
+  const handlePurchaseClick = () => { if (validateForm()) setShowPinDialog(true); };
 
   const handleCopyPin = (pin: string, index: number) => {
     navigator.clipboard.writeText(pin);
@@ -126,8 +90,7 @@ const ExamCards = () => {
   const toggleRevealPin = (index: number) => {
     setRevealedPins(prev => {
       const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
+      if (next.has(index)) next.delete(index); else next.add(index);
       return next;
     });
   };
@@ -167,161 +130,169 @@ const ExamCards = () => {
   };
 
   return (
-    <div className="min-h-screen gradient-hero pb-6">
-      <header className="sticky top-0 z-50 glass-card border-b border-border/50 px-4 py-3">
-        <div className="container mx-auto flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-lg font-display font-bold">Result Checker</h1>
-            <p className="text-xs text-muted-foreground">Purchase exam result checker PINs</p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gray-50 pb-24">
+      {/* Green Header */}
+      <header className="bg-gradient-to-r from-green-600 to-green-500 px-4 py-4 flex items-center justify-between sticky top-0 z-50 shadow-md">
+        <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 active:bg-white/30 transition-colors">
+          <ArrowLeft className="h-5 w-5 text-white" />
+        </button>
+        <h1 className="text-lg font-bold text-white">Result Checker</h1>
+        <button onClick={fetchExamPrices} disabled={loadingPrices} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 active:bg-white/30 transition-colors">
+          <RefreshCw className={cn("h-5 w-5 text-white", loadingPrices && "animate-spin")} />
+        </button>
       </header>
 
-      <main className="container mx-auto px-4 py-6 max-w-lg">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-          {/* Wallet Balance */}
-          <div className="relative overflow-hidden rounded-2xl gradient-primary p-5 text-primary-foreground">
-            <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/5 -translate-y-1/2 translate-x-1/2" />
-            <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full bg-white/5 translate-y-1/2 -translate-x-1/2" />
-            <div className="relative flex items-center justify-between">
-              <div>
-                <p className="text-sm opacity-80">Wallet Balance</p>
-                <p className="text-2xl font-bold mt-0.5">₦{wallet?.balance.toLocaleString() || "0.00"}</p>
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => navigate("/fund-wallet")}
-                className="rounded-xl bg-white/20 hover:bg-white/30 text-primary-foreground border-0"
-              >
-                Fund Wallet
-              </Button>
-            </div>
-          </div>
-
-          {/* Exam Type Selection */}
+      <main className="px-4 py-5 max-w-lg mx-auto space-y-5">
+        {/* Wallet Balance */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
           <div>
-            <Label className="text-muted-foreground mb-3 block text-sm font-medium">Select Exam Body</Label>
-            {loadingPrices ? (
-              <div className="grid grid-cols-3 gap-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-32 rounded-2xl bg-muted animate-pulse" />
-                ))}
-              </div>
-            ) : examPrices.length === 0 ? (
-              <div className="glass-card rounded-2xl p-6 text-center space-y-2">
-                <GraduationCap className="h-10 w-10 mx-auto text-muted-foreground" />
-                <p className="text-sm font-medium text-foreground">Result Checker service is currently unavailable.</p>
-                <p className="text-xs text-muted-foreground">Please try again later.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-3">
-                {examPrices.map((exam, index) => (
+            <p className="text-xs text-gray-500 font-medium">Wallet Balance</p>
+            <p className="text-xl font-bold text-gray-900">₦{wallet?.balance.toLocaleString() || "0.00"}</p>
+          </div>
+          <button onClick={() => navigate("/fund-wallet")} className="px-4 py-2 bg-green-50 text-green-600 font-semibold text-sm rounded-xl border border-green-200 active:bg-green-100 transition-colors">
+            Fund Wallet
+          </button>
+        </motion.div>
+
+        {/* Exam Body Selection */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <p className="text-sm font-semibold text-gray-700 mb-3">Select Exam Body</p>
+          {loadingPrices ? (
+            <div className="grid grid-cols-3 gap-3">
+              {[1, 2, 3].map(i => <div key={i} className="h-28 rounded-2xl bg-gray-100 animate-pulse" />)}
+            </div>
+          ) : examPrices.length === 0 ? (
+            <div className="py-8 text-center space-y-2">
+              <GraduationCap className="h-10 w-10 mx-auto text-gray-300" />
+              <p className="text-sm font-medium text-gray-500">Service unavailable</p>
+              <p className="text-xs text-gray-400">Please try again later</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              {examPrices.map((exam, index) => {
+                const colors = examColors[exam.id] || examColors.waec;
+                const isSelected = selectedExam?.id === exam.id;
+                return (
                   <motion.button
                     key={exam.id}
-                    initial={{ opacity: 0, y: 15 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.08 }}
+                    transition={{ delay: index * 0.06 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => setSelectedExam(exam)}
                     className={cn(
-                      "relative overflow-hidden p-4 rounded-2xl border-2 transition-all text-left group",
-                      "bg-gradient-to-br backdrop-blur-sm",
-                      examGradients[exam.id] || examGradients.waec,
-                      selectedExam?.id === exam.id
-                        ? cn("ring-2 ring-primary ring-offset-2 ring-offset-background shadow-lg", examBorderAccents[exam.id])
-                        : "border-border/50 hover:border-primary/30 hover:shadow-md"
+                      "relative flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 transition-all",
+                      isSelected
+                        ? cn(colors.border, colors.bg, "shadow-lg")
+                        : "border-gray-100 bg-white hover:border-gray-200"
                     )}
                   >
-                    <div className="absolute top-0 right-0 w-16 h-16 rounded-full bg-white/5 -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-500" />
-                    <div className={cn("mb-2", examAccents[exam.id] || "text-primary")}>
-                      {examIcons[exam.id] || <GraduationCap className="h-6 w-6" />}
+                    <div className={cn(
+                      "w-12 h-12 rounded-2xl flex items-center justify-center",
+                      isSelected ? colors.bg : "bg-gray-50"
+                    )}>
+                      <span className={isSelected ? colors.text : "text-gray-400"}>
+                        {examIcons[exam.id] || <GraduationCap className="h-7 w-7" />}
+                      </span>
                     </div>
-                    <span className="font-bold text-base text-foreground block">{exam.name}</span>
-                    <p className="text-lg font-bold text-primary mt-1">₦{exam.amount.toLocaleString()}</p>
-                    {exam.description && (
-                      <p className="text-[10px] text-muted-foreground line-clamp-2 mt-1 leading-tight">{exam.description}</p>
-                    )}
-                    {selectedExam?.id === exam.id && (
+                    <span className={cn("text-xs font-bold", isSelected ? colors.text : "text-gray-700")}>{exam.name}</span>
+                    <span className="text-xs font-bold text-green-600">₦{exam.amount.toLocaleString()}</span>
+                    {isSelected && (
                       <motion.div
                         layoutId="exam-check"
-                        className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center"
+                        className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center shadow-md"
                       >
-                        <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       </motion.div>
                     )}
                   </motion.button>
-                ))}
-              </div>
-            )}
-          </div>
+                );
+              })}
+            </div>
+          )}
+        </motion.div>
 
-          {/* Quantity & Summary */}
-          <AnimatePresence>
-            {selectedExam && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="glass-card rounded-2xl p-5 space-y-4">
-                  <Label className="text-muted-foreground text-sm font-medium">Number of PINs</Label>
-                  <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" onClick={() => setQuantity(Math.max(1, quantity - 1))} disabled={quantity <= 1} className="rounded-xl h-11 w-11">
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    <div className="flex-1 text-center">
-                      <span className="text-3xl font-bold text-foreground">{quantity}</span>
-                    </div>
-                    <Button variant="outline" size="icon" onClick={() => setQuantity(Math.min(10, quantity + 1))} disabled={quantity >= 10} className="rounded-xl h-11 w-11">
-                      <Plus className="h-4 w-4" />
-                    </Button>
+        {/* Quantity & Summary */}
+        <AnimatePresence>
+          {selectedExam && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
+                <p className="text-sm font-semibold text-gray-700">Number of PINs</p>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    disabled={quantity <= 1}
+                    className="w-11 h-11 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center text-gray-600 active:bg-gray-100 disabled:opacity-40 transition-colors"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <div className="flex-1 text-center">
+                    <span className="text-3xl font-bold text-gray-900">{quantity}</span>
                   </div>
+                  <button
+                    onClick={() => setQuantity(Math.min(10, quantity + 1))}
+                    disabled={quantity >= 10}
+                    className="w-11 h-11 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center text-gray-600 active:bg-gray-100 disabled:opacity-40 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
 
-                  <div className="border-t border-border/50 pt-4 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Exam Body</span>
-                      <span className="font-medium text-foreground">{selectedExam.name}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Price per PIN</span>
-                      <span className="font-medium text-foreground">₦{selectedExam.amount.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Quantity</span>
-                      <span className="font-medium text-foreground">×{quantity}</span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t border-border/50">
-                      <span className="font-semibold text-foreground">Total</span>
-                      <span className="text-xl font-bold text-primary">₦{totalAmount.toLocaleString()}</span>
-                    </div>
+                <div className="border-t border-gray-100 pt-3 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Exam Body</span>
+                    <span className="font-medium text-gray-900">{selectedExam.name}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Price per PIN</span>
+                    <span className="font-medium text-gray-900">₦{selectedExam.amount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Quantity</span>
+                    <span className="font-medium text-gray-900">×{quantity}</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-gray-100">
+                    <span className="font-semibold text-gray-900">Total</span>
+                    <span className="text-xl font-bold text-green-600">₦{totalAmount.toLocaleString()}</span>
                   </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
 
-          {/* Submit */}
-          <Button
+      {/* Sticky Bottom Button */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] z-40">
+        <div className="max-w-lg mx-auto">
+          <motion.button
+            whileTap={{ scale: 0.98 }}
             onClick={handlePurchaseClick}
             disabled={isLoading || !selectedExam}
-            className="w-full h-14 rounded-xl gradient-primary text-primary-foreground font-semibold text-lg shadow-lg hover:shadow-xl transition-shadow"
+            className={cn(
+              "w-full h-14 rounded-2xl font-bold text-lg transition-all shadow-lg",
+              selectedExam
+                ? "bg-gradient-to-r from-green-600 to-green-500 text-white active:from-green-700 active:to-green-600 shadow-green-500/25"
+                : "bg-gray-200 text-gray-400"
+            )}
           >
             {isLoading ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Loader2 className="h-6 w-6 animate-spin mx-auto" />
             ) : selectedExam ? (
-              `Buy ${quantity} ${selectedExam.name} PIN${quantity > 1 ? "s" : ""}`
+              `Buy ${quantity} ${selectedExam.name} PIN${quantity > 1 ? "s" : ""} for ₦${totalAmount.toLocaleString()}`
             ) : (
               "Select an exam type"
             )}
-          </Button>
-        </motion.div>
-      </main>
+          </motion.button>
+        </div>
+      </div>
 
       <PinEntryDialog
         open={showPinDialog}
@@ -333,54 +304,49 @@ const ExamCards = () => {
         serviceName={`${selectedExam?.name || ""} Result Checker${quantity > 1 ? ` x${quantity}` : ""}`}
       />
 
-      {/* Purchased PIN Display Dialog */}
+      {/* Purchased PIN Display */}
       <Dialog open={showPinResult} onOpenChange={setShowPinResult}>
-        <DialogContent className="max-w-sm mx-auto">
+        <DialogContent className="max-w-sm mx-auto rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg">
-              <ShieldCheck className="h-5 w-5 text-primary" />
+              <ShieldCheck className="h-5 w-5 text-green-500" />
               Purchase Successful
             </DialogTitle>
             <DialogDescription>
-              Your {selectedExam?.name} result checker PIN{purchasedPins.length > 1 ? "s" : ""} {purchasedPins.length > 1 ? "are" : "is"} ready. Keep {purchasedPins.length > 1 ? "them" : "it"} safe!
+              Your {selectedExam?.name} result checker PIN{purchasedPins.length > 1 ? "s are" : " is"} ready.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 mt-2">
             {purchasedPins.map((pin, index) => (
-              <div key={index} className="rounded-xl border border-border bg-muted/50 p-4 space-y-2">
+              <div key={index} className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2">
                 {purchasedPins.length > 1 && (
-                  <p className="text-xs text-muted-foreground font-medium">PIN {index + 1}</p>
+                  <p className="text-xs text-gray-500 font-medium">PIN {index + 1}</p>
                 )}
                 <div className="flex items-center justify-between gap-2">
-                  <code className="flex-1 text-base font-mono font-bold text-foreground break-all">
+                  <code className="flex-1 text-base font-mono font-bold text-gray-900 break-all">
                     {revealedPins.has(index) ? pin : "••••••••••••"}
                   </code>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleRevealPin(index)}>
-                      {revealedPins.has(index) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleCopyPin(pin, index)}>
-                      {copiedIndex === index ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
-                    </Button>
+                    <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-200 transition-colors" onClick={() => toggleRevealPin(index)}>
+                      {revealedPins.has(index) ? <EyeOff className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-gray-500" />}
+                    </button>
+                    <button className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-200 transition-colors" onClick={() => handleCopyPin(pin, index)}>
+                      {copiedIndex === index ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4 text-gray-500" />}
+                    </button>
                   </div>
                 </div>
               </div>
             ))}
 
-            {purchaseRef && (
-              <p className="text-xs text-muted-foreground text-center">Ref: {purchaseRef}</p>
-            )}
+            {purchaseRef && <p className="text-xs text-gray-400 text-center">Ref: {purchaseRef}</p>}
 
-            <Button
-              className="w-full mt-2"
-              onClick={() => {
-                setShowPinResult(false);
-                navigate("/history");
-              }}
+            <button
+              className="w-full h-12 rounded-2xl bg-gradient-to-r from-green-600 to-green-500 text-white font-semibold active:from-green-700 active:to-green-600 transition-colors"
+              onClick={() => { setShowPinResult(false); navigate("/history"); }}
             >
               View Transaction History
-            </Button>
+            </button>
           </div>
         </DialogContent>
       </Dialog>
