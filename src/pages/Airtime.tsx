@@ -185,12 +185,11 @@ const Airtime = () => {
                     : "border-gray-100 bg-white hover:border-gray-200"
                 )}
               >
-                <div
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xs shadow-sm"
-                  style={{ backgroundColor: net.bg, color: net.text }}
-                >
-                  {net.name}
-                </div>
+                <img
+                  src={net.logo}
+                  alt={net.name}
+                  className="w-12 h-12 rounded-2xl object-contain shadow-sm"
+                />
                 <span className={cn(
                   "text-xs font-medium",
                   selectedNetwork === net.id ? "text-green-600" : "text-gray-500"
