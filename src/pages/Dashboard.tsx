@@ -75,14 +75,64 @@ const Dashboard = () => {
         {/* Top bar */}
         <div className="flex items-center justify-between mb-6 relative z-10">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate("/profile")} className="active:scale-95 transition-transform">
-              <Avatar className="w-10 h-10 border-2 border-white/30">
-                <AvatarImage src={profile?.avatar_url || undefined} />
-                <AvatarFallback className="bg-white/20 text-white text-sm font-bold">
-                  {getInitials()}
-                </AvatarFallback>
-              </Avatar>
-            </button>
+            <div className="relative" ref={profileMenuRef}>
+              <button
+                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                className="active:scale-95 transition-transform"
+              >
+                <Avatar className="w-10 h-10 border-2 border-white/30">
+                  <AvatarImage src={profile?.avatar_url || undefined} />
+                  <AvatarFallback className="bg-white/20 text-white text-sm font-bold">
+                    {getInitials()}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+
+              <AnimatePresence>
+                {showProfileMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-0 top-full mt-2 w-52 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden"
+                    style={{ zIndex: 9999 }}
+                  >
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <p className="font-semibold text-sm text-gray-900 truncate">{profile?.full_name || "User"}</p>
+                      <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                    </div>
+                    <div className="py-1">
+                      <button
+                        onClick={() => { setShowProfileMenu(false); navigate("/profile"); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                      >
+                        <User className="h-4 w-4 text-green-600" />
+                        Profile
+                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => { setShowProfileMenu(false); navigate("/admin"); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                        >
+                          <Shield className="h-4 w-4 text-blue-600" />
+                          Admin Dashboard
+                        </button>
+                      )}
+                    </div>
+                    <div className="border-t border-gray-100 py-1">
+                      <button
+                        onClick={handleSignOut}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             <div>
               <p className="text-white/70 text-xs font-medium">{getGreeting()}</p>
               <h1 className="text-white font-bold text-base leading-tight">{getFirstName()}</h1>
