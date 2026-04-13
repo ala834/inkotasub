@@ -24,12 +24,7 @@ interface DataPlan {
   isFeatured?: boolean;
 }
 
-const NETWORKS = [
-  { id: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" },
-  { id: "airtel", name: "Airtel", bg: "#E40000", text: "#FFF" },
-  { id: "glo", name: "Glo", bg: "#00A651", text: "#FFF" },
-  { id: "9mobile", name: "9mobile", bg: "#006B53", text: "#FFF" },
-];
+import { NETWORKS, getNetworkLogo } from "@/components/common/NetworkLogos";
 
 const PLAN_TYPES = [
   { key: "SME", label: "SME" },
@@ -269,12 +264,11 @@ const Data = () => {
                     : "border-gray-100 bg-white hover:border-gray-200"
                 )}
               >
-                <div
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xs shadow-sm"
-                  style={{ backgroundColor: net.bg, color: net.text }}
-                >
-                  {net.name}
-                </div>
+                <img
+                  src={net.logo}
+                  alt={net.name}
+                  className="w-12 h-12 rounded-2xl object-contain shadow-sm"
+                />
                 <span className={cn(
                   "text-xs font-medium",
                   selectedNetwork === net.id ? "text-green-600" : "text-gray-500"
@@ -387,12 +381,11 @@ const Data = () => {
                         )}
                       >
                         {/* Network mini logo */}
-                        <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-[10px] flex-shrink-0 shadow-sm"
-                          style={{ backgroundColor: net?.bg || "#ccc", color: net?.text || "#000" }}
-                        >
-                          {net?.name}
-                        </div>
+                        <img
+                          src={net?.logo}
+                          alt={net?.name}
+                          className="w-10 h-10 rounded-xl object-contain flex-shrink-0 shadow-sm"
+                        />
 
                         {/* Plan details */}
                         <div className="flex-1 min-w-0">
