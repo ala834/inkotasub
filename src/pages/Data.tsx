@@ -1,22 +1,17 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Loader2, Wifi, Search, X, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ArrowLeft, Loader2, Phone, Contact, RefreshCw, Check, Wifi, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
-import PhoneInputWithNetwork from "@/components/common/PhoneInputWithNetwork";
+import { useNetworkDetection, normalizePhoneNumber, detectNetwork } from "@/hooks/useNetworkDetection";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
-import NetworkBadge from "@/components/common/NetworkBadge";
-import RecentNumbers from "@/components/common/RecentNumbers";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 import TransactionResultScreen from "@/components/common/TransactionResultScreen";
-import { Skeleton } from "@/components/ui/skeleton";
 
 interface DataPlan {
   id: string;
@@ -25,23 +20,29 @@ interface DataPlan {
   validity: string;
   category: string;
   provider?: string | null;
+  dataSize?: number;
+  isFeatured?: boolean;
 }
 
-const CATEGORY_ORDER = ["SME", "SME2", "Corporate", "Gifting", "Direct", "General"];
+const NETWORKS = [
+  { id: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" },
+  { id: "airtel", name: "Airtel", bg: "#E40000", text: "#FFF" },
+  { id: "glo", name: "Glo", bg: "#00A651", text: "#FFF" },
+  { id: "9mobile", name: "9mobile", bg: "#006B53", text: "#FFF" },
+];
 
-const CATEGORY_LABELS: Record<string, string> = {
-  SME: "SME Data",
-  SME2: "SME2 Data",
-  Corporate: "Corporate Gifting",
-  Gifting: "Gifting Data",
-  Direct: "Direct Data",
-  General: "Data Plans",
-};
+const PLAN_TYPES = [
+  { key: "SME", label: "SME" },
+  { key: "Gifting", label: "Gifting" },
+  { key: "Corporate", label: "Data Share" },
+  { key: "Direct", label: "Direct" },
+  { key: "General", label: "General" },
+];
 
 const Data = () => {
   const navigate = useNavigate();
   const { wallet } = useWallet();
-  const [detectedNetwork, setDetectedNetwork] = useState<string | null>(null);
+  const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [selectedPlan, setSelectedPlan] = useState<DataPlan | null>(null);
   const [dataPlans, setDataPlans] = useState<DataPlan[]>([]);
@@ -50,7 +51,6 @@ const Data = () => {
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [contactName, setContactName] = useState<string | undefined>();
   const [showResult, setShowResult] = useState(false);
   const [resultSuccess, setResultSuccess] = useState(false);
@@ -58,41 +58,40 @@ const Data = () => {
   const [resultTransactionId, setResultTransactionId] = useState<string | undefined>();
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("data");
 
-  const handleNetworkDetected = useCallback((network: string | null) => {
-    if (network !== detectedNetwork) {
-      setDetectedNetwork(network);
-      setSelectedPlan(null);
-      setActiveCategory(null);
-      setSearchQuery("");
-    }
-  }, [detectedNetwork]);
-
-  const handleContactSelected = useCallback((name: string | undefined) => {
-    setContactName(name);
-  }, []);
-
+  // Auto-detect network from phone input
   useEffect(() => {
-    if (detectedNetwork) {
+    if (phoneNumber.length >= 4) {
+      const detected = detectNetwork(phoneNumber);
+      if (detected && detected !== selectedNetwork) {
+        setSelectedNetwork(detected);
+        setSelectedPlan(null);
+      }
+    }
+  }, [phoneNumber]);
+
+  // Fetch plans when network changes
+  useEffect(() => {
+    if (selectedNetwork) {
       fetchDataPlans();
     } else {
       setDataPlans([]);
       setSelectedPlan(null);
     }
-  }, [detectedNetwork]);
+  }, [selectedNetwork]);
 
   const fetchDataPlans = async (forceRefresh = false) => {
-    if (!detectedNetwork) return;
+    if (!selectedNetwork) return;
     setLoadingPlans(true);
     try {
       const { data, error } = await supabase.functions.invoke("get-data-plans", {
-        body: { network: detectedNetwork, forceRefresh },
+        body: { network: selectedNetwork, forceRefresh },
       });
       if (error) throw error;
       if (data?.plans && data.plans.length > 0) {
         setDataPlans(data.plans);
         const categories = [...new Set(data.plans.map((p: DataPlan) => p.category))];
-        const sorted = CATEGORY_ORDER.filter(c => categories.includes(c));
-        if (sorted.length > 0) setActiveCategory(sorted[0]);
+        const available = PLAN_TYPES.filter(t => categories.includes(t.key));
+        if (available.length > 0) setActiveCategory(available[0].key);
       } else {
         toast.error("No data plans available for this network");
         setDataPlans([]);
@@ -106,44 +105,57 @@ const Data = () => {
     }
   };
 
-  const categories = useMemo(() => {
-    const cats = [...new Set(dataPlans.map(p => p.category))];
-    return CATEGORY_ORDER.filter(c => cats.includes(c));
+  const availableCategories = useMemo(() => {
+    const cats = new Set(dataPlans.map(p => p.category));
+    return PLAN_TYPES.filter(t => cats.has(t.key));
   }, [dataPlans]);
 
   const filteredPlans = useMemo(() => {
     let plans = dataPlans;
     if (activeCategory) plans = plans.filter(p => p.category === activeCategory);
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      plans = plans.filter(p =>
-        p.name.toLowerCase().includes(q) || p.amount.toString().includes(q) || p.validity.toLowerCase().includes(q)
-      );
-    }
-    // Sort: featured first, then by dataSize (small→large), then cheapest
-    plans = [...plans].sort((a, b) => {
-      const featA = (a as any).isFeatured ? 1 : 0;
-      const featB = (b as any).isFeatured ? 1 : 0;
+    return [...plans].sort((a, b) => {
+      const featA = a.isFeatured ? 1 : 0;
+      const featB = b.isFeatured ? 1 : 0;
       if (featA !== featB) return featB - featA;
-      const sizeA = (a as any).dataSize || 99999;
-      const sizeB = (b as any).dataSize || 99999;
+      const sizeA = a.dataSize || 99999;
+      const sizeB = b.dataSize || 99999;
       if (sizeA !== sizeB) return sizeA - sizeB;
       return a.amount - b.amount;
     });
-    return plans;
-  }, [dataPlans, activeCategory, searchQuery]);
+  }, [dataPlans, activeCategory]);
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const cleaned = e.target.value.replace(/[^\d+]/g, "");
+    if (cleaned.length <= 14) setPhoneNumber(cleaned);
+  };
+
+  const handlePickContact = async () => {
+    try {
+      const contacts = await (navigator as any).contacts.select(["name", "tel"], { multiple: false });
+      if (contacts?.[0]) {
+        let num = contacts[0].tel?.[0]?.replace(/[\s\-()]/g, "") || "";
+        if (num.startsWith("+234")) num = "0" + num.slice(4);
+        setPhoneNumber(num);
+        setContactName(contacts[0].name?.[0]);
+      }
+    } catch {
+      // User cancelled
+    }
+  };
+
+  const handleNetworkSelect = (networkId: string) => {
+    setSelectedNetwork(networkId);
+    setSelectedPlan(null);
+    setActiveCategory(null);
+  };
 
   const validateForm = () => {
-    if (!detectedNetwork || !phoneNumber || !selectedPlan) {
+    if (!selectedNetwork || !phoneNumber || !selectedPlan) {
       toast.error("Please fill all fields");
       return false;
     }
     if (phoneNumber.length !== 11 && !phoneNumber.startsWith("+234")) {
       toast.error("Please enter a valid phone number");
-      return false;
-    }
-    if (selectedPlan.amount < 50) {
-      toast.error("Minimum data purchase is ₦50");
       return false;
     }
     if (wallet && selectedPlan.amount > wallet.balance) {
@@ -168,7 +180,7 @@ const Data = () => {
     try {
       const { data, error } = await supabase.functions.invoke("purchase-data", {
         body: {
-          network: detectedNetwork,
+          network: selectedNetwork,
           phoneNumber,
           planId: selectedPlan.id,
           amount: selectedPlan.amount,
@@ -198,161 +210,245 @@ const Data = () => {
     }
   };
 
+  const contactSupported = typeof window !== "undefined" && "contacts" in navigator && "ContactsManager" in window;
+
   return (
-    <div className="min-h-screen gradient-hero pb-6">
-      <header className="sticky top-0 z-50 glass-card border-b border-border/50 px-4 py-3">
-        <div className="container mx-auto flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-lg font-display font-bold">Buy Data</h1>
-        </div>
+    <div className="min-h-screen bg-gray-50 pb-24">
+      {/* Green Header */}
+      <header className="bg-gradient-to-r from-green-600 to-green-500 px-4 py-4 flex items-center justify-between sticky top-0 z-50 shadow-md">
+        <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 active:bg-white/30 transition-colors">
+          <ArrowLeft className="h-5 w-5 text-white" />
+        </button>
+        <h1 className="text-lg font-bold text-white">Buy Data</h1>
+        <button
+          onClick={() => fetchDataPlans(true)}
+          disabled={loadingPlans}
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 active:bg-white/30 transition-colors"
+        >
+          <RefreshCw className={cn("h-5 w-5 text-white", loadingPlans && "animate-spin")} />
+        </button>
       </header>
 
-      <main className="container mx-auto px-4 py-6 max-w-lg">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-          {/* Wallet Balance */}
-          <div className="glass-card rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Wallet Balance</p>
-              <p className="text-xl font-bold text-foreground">₦{wallet?.balance.toLocaleString() || "0.00"}</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => navigate("/fund-wallet")} className="rounded-xl">
-              Fund Wallet
-            </Button>
+      <main className="px-4 py-5 max-w-lg mx-auto space-y-5">
+        {/* Wallet Balance Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between"
+        >
+          <div>
+            <p className="text-xs text-gray-500 font-medium">Wallet Balance</p>
+            <p className="text-xl font-bold text-gray-900">₦{wallet?.balance.toLocaleString() || "0.00"}</p>
           </div>
+          <button
+            onClick={() => navigate("/fund-wallet")}
+            className="px-4 py-2 bg-green-50 text-green-600 font-semibold text-sm rounded-xl border border-green-200 active:bg-green-100 transition-colors"
+          >
+            Fund Wallet
+          </button>
+        </motion.div>
 
-          {/* Phone Number */}
-          <div className="glass-card rounded-2xl p-4 space-y-3">
-            <PhoneInputWithNetwork
-              value={phoneNumber}
-              onChange={setPhoneNumber}
-              onNetworkDetected={handleNetworkDetected}
-              onContactSelected={handleContactSelected}
-            />
-            <RecentNumbers
-              numbers={recentNumbers}
-              onSelect={setPhoneNumber}
-              onClear={clearRecentNumbers}
-            />
-          </div>
-
-          {/* Data Plans Section */}
-          {detectedNetwork && (
-            <div className="glass-card rounded-2xl p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-muted-foreground">{detectedNetwork.toUpperCase()} Data Plans</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{filteredPlans.length} plan{filteredPlans.length !== 1 ? "s" : ""}</span>
-                  <button
-                    onClick={() => fetchDataPlans(true)}
-                    disabled={loadingPlans}
-                    className="p-1 rounded-md hover:bg-muted transition-colors"
-                    title="Refresh plans"
-                  >
-                    <RefreshCw className={cn("h-3.5 w-3.5 text-muted-foreground", loadingPlans && "animate-spin")} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search plans..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 pr-9 rounded-xl h-10 bg-background/50"
-                />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <X className="h-4 w-4 text-muted-foreground" />
-                  </button>
+        {/* Network Selection */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+        >
+          <p className="text-sm font-semibold text-gray-700 mb-3">Select Network</p>
+          <div className="grid grid-cols-4 gap-3">
+            {NETWORKS.map((net) => (
+              <motion.button
+                key={net.id}
+                whileTap={{ scale: 0.93 }}
+                onClick={() => handleNetworkSelect(net.id)}
+                className={cn(
+                  "flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all",
+                  selectedNetwork === net.id
+                    ? "border-green-500 shadow-lg shadow-green-500/20 bg-green-50/50"
+                    : "border-gray-100 bg-white hover:border-gray-200"
                 )}
+              >
+                <div
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xs shadow-sm"
+                  style={{ backgroundColor: net.bg, color: net.text }}
+                >
+                  {net.name}
+                </div>
+                <span className={cn(
+                  "text-xs font-medium",
+                  selectedNetwork === net.id ? "text-green-600" : "text-gray-500"
+                )}>
+                  {net.name}
+                </span>
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Phone Number Input */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3"
+        >
+          <p className="text-sm font-semibold text-gray-700">Phone Number</p>
+          <div className="relative flex gap-2">
+            <div className="relative flex-1">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={phoneNumber}
+                onChange={handlePhoneChange}
+                placeholder="080XXXXXXXX"
+                className="w-full h-12 pl-11 pr-4 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all text-base"
+              />
+            </div>
+            {contactSupported && (
+              <button
+                onClick={handlePickContact}
+                className="flex-shrink-0 w-12 h-12 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-colors active:bg-gray-200"
+              >
+                <Contact className="h-5 w-5 text-green-600" />
+              </button>
+            )}
+          </div>
+
+          {/* Recent / Beneficiaries */}
+          {recentNumbers.length > 0 && (
+            <button className="flex items-center gap-2 w-full px-3 py-2.5 bg-green-50 rounded-xl text-green-700 text-sm font-medium active:bg-green-100 transition-colors">
+              <Phone className="h-4 w-4" />
+              <span>View Beneficiaries</span>
+              <ChevronRight className="h-4 w-4 ml-auto" />
+            </button>
+          )}
+        </motion.div>
+
+        {/* Plan Type Toggles */}
+        {selectedNetwork && availableCategories.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4"
+          >
+            <p className="text-sm font-semibold text-gray-700">Plan Type</p>
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              {availableCategories.map((cat) => (
+                <button
+                  key={cat.key}
+                  onClick={() => { setActiveCategory(cat.key); setSelectedPlan(null); }}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all",
+                    activeCategory === cat.key
+                      ? "bg-green-500 text-white shadow-md shadow-green-500/25"
+                      : "bg-gray-100 text-gray-600 active:bg-gray-200"
+                  )}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Plans List */}
+            {loadingPlans ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-20 rounded-xl bg-gray-100 animate-pulse" />
+                ))}
               </div>
-
-              {categories.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => { setActiveCategory(cat); setSelectedPlan(null); }}
-                      className={cn(
-                        "px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all border",
-                        activeCategory === cat
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-background/50 text-muted-foreground border-border hover:border-primary/50"
-                      )}
-                    >
-                      {CATEGORY_LABELS[cat] || cat}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {loadingPlans ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <Skeleton key={i} className="h-24 rounded-xl" />
-                  ))}
-                </div>
-              ) : filteredPlans.length === 0 ? (
-                <div className="text-center py-8 space-y-2">
-                  <Wifi className="h-8 w-8 mx-auto text-muted-foreground/50" />
-                  <p className="text-muted-foreground text-sm font-medium">
-                    {searchQuery ? "No plans match your search" : "No data plans available"}
-                  </p>
-                  <p className="text-muted-foreground/70 text-xs">
-                    {searchQuery ? "Try a different search term" : "Try refreshing or selecting a different network"}
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-1">
-                  <AnimatePresence mode="popLayout">
-                    {filteredPlans.map((plan) => (
+            ) : filteredPlans.length === 0 ? (
+              <div className="text-center py-10 space-y-2">
+                <Wifi className="h-10 w-10 mx-auto text-gray-300" />
+                <p className="text-gray-500 text-sm font-medium">No plans available</p>
+                <p className="text-gray-400 text-xs">Try selecting a different plan type</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-0.5">
+                <AnimatePresence mode="popLayout">
+                  {filteredPlans.map((plan) => {
+                    const isSelected = selectedPlan?.id === plan.id;
+                    const net = NETWORKS.find(n => n.id === selectedNetwork);
+                    return (
                       <motion.button
                         key={plan.id}
                         layout
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
                         onClick={() => setSelectedPlan(plan)}
                         className={cn(
-                          "p-3 rounded-xl border-2 transition-all text-left",
-                          selectedPlan?.id === plan.id
-                            ? "border-primary bg-primary/10 shadow-md"
-                            : "border-border hover:border-primary/50 bg-background/30"
+                          "w-full flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-left",
+                          isSelected
+                            ? "border-green-500 bg-green-50/70 shadow-md shadow-green-500/10"
+                            : "border-gray-100 bg-white hover:border-gray-200 active:bg-gray-50"
                         )}
                       >
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <Wifi className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                          <span className="font-semibold text-sm leading-tight line-clamp-2">{plan.name}</span>
+                        {/* Network mini logo */}
+                        <div
+                          className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-[10px] flex-shrink-0 shadow-sm"
+                          style={{ backgroundColor: net?.bg || "#ccc", color: net?.text || "#000" }}
+                        >
+                          {net?.name}
                         </div>
-                        <p className="text-lg font-bold text-primary">₦{plan.amount.toLocaleString()}</p>
-                        <p className="text-xs text-muted-foreground">{plan.validity}</p>
-                      </motion.button>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              )}
-            </div>
-          )}
 
-          <Button
+                        {/* Plan details */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{plan.name}</p>
+                          <p className="text-xs text-gray-500">{plan.validity}</p>
+                        </div>
+
+                        {/* Price + Check */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-base font-bold text-gray-900">₦{plan.amount.toLocaleString()}</span>
+                          {isSelected && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center"
+                            >
+                              <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+                            </motion.div>
+                          )}
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </main>
+
+      {/* Sticky Buy Button */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-lg border-t border-gray-200 z-50">
+        <div className="max-w-lg mx-auto">
+          <motion.button
+            whileTap={{ scale: 0.98 }}
             onClick={handlePurchaseClick}
-            disabled={isLoading || !detectedNetwork || !phoneNumber || !selectedPlan}
-            className="w-full h-14 rounded-xl gradient-primary text-primary-foreground font-semibold text-lg"
+            disabled={isLoading || !selectedNetwork || !phoneNumber || !selectedPlan}
+            className={cn(
+              "w-full h-14 rounded-2xl font-bold text-base transition-all shadow-lg flex items-center justify-center gap-2",
+              selectedPlan
+                ? "bg-gradient-to-r from-green-600 to-green-500 text-white shadow-green-500/30 active:from-green-700 active:to-green-600"
+                : "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
+            )}
           >
             {isLoading ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin" />
             ) : selectedPlan ? (
-              `Buy ${selectedPlan.name} — ₦${selectedPlan.amount.toLocaleString()}`
+              `Buy ${selectedPlan.name} for ₦${selectedPlan.amount.toLocaleString()}`
             ) : (
               "Select a plan"
             )}
-          </Button>
-        </motion.div>
-      </main>
+          </motion.button>
+        </div>
+      </div>
 
+      {/* Dialogs */}
       <TransactionConfirmationDialog
         open={showConfirmDialog}
         onOpenChange={setShowConfirmDialog}
@@ -362,7 +458,7 @@ const Data = () => {
         walletBalanceAfter={(wallet?.balance || 0) - (selectedPlan?.amount || 0)}
         details={[
           { label: "Service", value: "Data Bundle" },
-          { label: "Network", value: detectedNetwork?.toUpperCase() || "" },
+          { label: "Network", value: selectedNetwork?.toUpperCase() || "" },
           { label: "Phone Number", value: phoneNumber },
           { label: "Plan", value: selectedPlan?.name || "" },
           { label: "Validity", value: selectedPlan?.validity || "" },
@@ -376,7 +472,7 @@ const Data = () => {
         title="Enter PIN"
         description="Enter your PIN to complete payment"
         amount={selectedPlan?.amount || 0}
-        serviceName={`${detectedNetwork?.toUpperCase()} ${selectedPlan?.name} Data`}
+        serviceName={`${selectedNetwork?.toUpperCase()} ${selectedPlan?.name} Data`}
       />
 
       <TransactionResultScreen
@@ -386,7 +482,7 @@ const Data = () => {
         amount={selectedPlan?.amount || 0}
         details={[
           { label: "Service", value: "Data Bundle" },
-          { label: "Network", value: detectedNetwork?.toUpperCase() || "" },
+          { label: "Network", value: selectedNetwork?.toUpperCase() || "" },
           { label: "Phone Number", value: phoneNumber },
           { label: "Plan", value: selectedPlan?.name || "" },
         ]}
