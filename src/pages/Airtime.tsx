@@ -1,28 +1,31 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ArrowLeft, Loader2, Phone, Contact, Check, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
-import PhoneInputWithNetwork from "@/components/common/PhoneInputWithNetwork";
+import { detectNetwork } from "@/hooks/useNetworkDetection";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import TransactionResultScreen from "@/components/common/TransactionResultScreen";
-import RecentNumbers from "@/components/common/RecentNumbers";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 
-const quickAmounts = [50, 100, 200, 500, 1000, 2000, 5000];
+const NETWORKS = [
+  { id: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" },
+  { id: "airtel", name: "Airtel", bg: "#E40000", text: "#FFF" },
+  { id: "glo", name: "Glo", bg: "#00A651", text: "#FFF" },
+  { id: "9mobile", name: "9mobile", bg: "#006B53", text: "#FFF" },
+];
+
+const QUICK_AMOUNTS = [50, 100, 200, 500, 1000, 2000, 5000];
 
 const Airtime = () => {
   const navigate = useNavigate();
   const { wallet } = useWallet();
-  const [detectedNetwork, setDetectedNetwork] = useState<string | null>(null);
+  const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [amount, setAmount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -35,16 +38,43 @@ const Airtime = () => {
   const [resultTransactionId, setResultTransactionId] = useState<string | undefined>();
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("airtime");
 
-  const handleNetworkDetected = useCallback((network: string | null) => {
-    setDetectedNetwork(network);
-  }, []);
+  // Auto-detect network from phone input
+  useEffect(() => {
+    if (phoneNumber.length >= 4) {
+      const detected = detectNetwork(phoneNumber);
+      if (detected && detected !== selectedNetwork) {
+        setSelectedNetwork(detected);
+      }
+    }
+  }, [phoneNumber]);
 
-  const handleContactSelected = useCallback((name: string | undefined) => {
-    setContactName(name);
-  }, []);
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const cleaned = e.target.value.replace(/[^\d+]/g, "");
+    if (cleaned.length <= 14) setPhoneNumber(cleaned);
+  };
+
+  const handlePickContact = async () => {
+    try {
+      const contacts = await (navigator as any).contacts.select(["name", "tel"], { multiple: false });
+      if (contacts?.[0]) {
+        let num = contacts[0].tel?.[0]?.replace(/[\s\-()]/g, "") || "";
+        if (num.startsWith("+234")) num = "0" + num.slice(4);
+        setPhoneNumber(num);
+        setContactName(contacts[0].name?.[0]);
+      }
+    } catch {
+      // User cancelled
+    }
+  };
+
+  const handleNetworkSelect = (networkId: string) => {
+    setSelectedNetwork(networkId);
+  };
+
+  const amountNum = parseFloat(amount || "0");
 
   const validateForm = () => {
-    if (!detectedNetwork || !phoneNumber || !amount) {
+    if (!selectedNetwork || !phoneNumber || !amount) {
       toast.error("Please fill all fields");
       return false;
     }
@@ -52,7 +82,6 @@ const Airtime = () => {
       toast.error("Please enter a valid phone number");
       return false;
     }
-    const amountNum = parseFloat(amount);
     if (amountNum < 50) {
       toast.error("Minimum airtime top-up is ₦50");
       return false;
@@ -65,9 +94,7 @@ const Airtime = () => {
   };
 
   const handlePurchaseClick = () => {
-    if (validateForm()) {
-      setShowConfirmDialog(true);
-    }
+    if (validateForm()) setShowConfirmDialog(true);
   };
 
   const handleConfirmPay = () => {
@@ -76,12 +103,11 @@ const Airtime = () => {
   };
 
   const handlePurchaseWithPin = async (pin: string) => {
-    const amountNum = parseFloat(amount);
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("purchase-airtime", {
         body: {
-          network: detectedNetwork,
+          network: selectedNetwork,
           phoneNumber,
           amount: amountNum,
           transaction_pin: pin,
@@ -111,101 +137,187 @@ const Airtime = () => {
     }
   };
 
+  const contactSupported = typeof window !== "undefined" && "contacts" in navigator && "ContactsManager" in window;
+
   return (
-    <div className="min-h-screen gradient-hero">
-      <header className="sticky top-0 z-50 glass-card border-b border-border/50 px-4 py-3">
-        <div className="container mx-auto flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-lg font-display font-bold">Buy Airtime</h1>
-        </div>
+    <div className="min-h-screen bg-gray-50 pb-24">
+      {/* Green Header */}
+      <header className="bg-gradient-to-r from-green-600 to-green-500 px-4 py-4 flex items-center justify-between sticky top-0 z-50 shadow-md">
+        <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 active:bg-white/30 transition-colors">
+          <ArrowLeft className="h-5 w-5 text-white" />
+        </button>
+        <h1 className="text-lg font-bold text-white">Buy Airtime</h1>
+        <div className="w-10" />
       </header>
 
-      <main className="container mx-auto px-4 py-6 max-w-lg">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-          {/* Wallet Balance */}
-          <div className="glass-card rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Wallet Balance</p>
-              <p className="text-xl font-bold text-foreground">
-                ₦{wallet?.balance.toLocaleString() || "0.00"}
-              </p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => navigate("/fund-wallet")} className="rounded-xl">
-              Fund Wallet
-            </Button>
+      <main className="px-4 py-5 max-w-lg mx-auto space-y-5">
+        {/* Wallet Balance Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between"
+        >
+          <div>
+            <p className="text-xs text-gray-500 font-medium">Wallet Balance</p>
+            <p className="text-xl font-bold text-gray-900">₦{wallet?.balance.toLocaleString() || "0.00"}</p>
           </div>
-
-          {/* Phone Number with Auto Network Detection */}
-          <div className="glass-card rounded-2xl p-4 space-y-3">
-            <PhoneInputWithNetwork
-              value={phoneNumber}
-              onChange={setPhoneNumber}
-              onNetworkDetected={handleNetworkDetected}
-              onContactSelected={handleContactSelected}
-            />
-            <RecentNumbers
-              numbers={recentNumbers}
-              onSelect={setPhoneNumber}
-              onClear={clearRecentNumbers}
-            />
-          </div>
-
-          {/* Amount */}
-          <div className="glass-card rounded-2xl p-4">
-            <Label htmlFor="amount">Amount (₦)</Label>
-            <Input
-              id="amount"
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="Enter amount"
-              className="h-12 rounded-xl mt-2"
-            />
-            <div className="flex flex-wrap gap-2 mt-3">
-              {quickAmounts.map((amt) => (
-                <Button
-                  key={amt}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setAmount(amt.toString())}
-                  className={cn(
-                    "rounded-xl",
-                    amount === amt.toString() && "border-primary bg-primary/10"
-                  )}
-                >
-                  ₦{amt.toLocaleString()}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {/* Submit */}
-          <Button
-            onClick={handlePurchaseClick}
-            disabled={isLoading || !detectedNetwork || !phoneNumber || !amount}
-            className="w-full h-14 rounded-xl gradient-primary text-primary-foreground font-semibold text-lg"
+          <button
+            onClick={() => navigate("/fund-wallet")}
+            className="px-4 py-2 bg-green-50 text-green-600 font-semibold text-sm rounded-xl border border-green-200 active:bg-green-100 transition-colors"
           >
-            {isLoading ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
-            ) : (
-              `Buy ₦${parseFloat(amount || "0").toLocaleString()} Airtime`
+            Fund Wallet
+          </button>
+        </motion.div>
+
+        {/* Network Selection */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+        >
+          <p className="text-sm font-semibold text-gray-700 mb-3">Select Network</p>
+          <div className="grid grid-cols-4 gap-3">
+            {NETWORKS.map((net) => (
+              <motion.button
+                key={net.id}
+                whileTap={{ scale: 0.93 }}
+                onClick={() => handleNetworkSelect(net.id)}
+                className={cn(
+                  "flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all",
+                  selectedNetwork === net.id
+                    ? "border-green-500 shadow-lg shadow-green-500/20 bg-green-50/50"
+                    : "border-gray-100 bg-white hover:border-gray-200"
+                )}
+              >
+                <div
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xs shadow-sm"
+                  style={{ backgroundColor: net.bg, color: net.text }}
+                >
+                  {net.name}
+                </div>
+                <span className={cn(
+                  "text-xs font-medium",
+                  selectedNetwork === net.id ? "text-green-600" : "text-gray-500"
+                )}>
+                  {net.name}
+                </span>
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Phone Number Input */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3"
+        >
+          <p className="text-sm font-semibold text-gray-700">Phone Number</p>
+          <div className="relative flex gap-2">
+            <div className="relative flex-1">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={phoneNumber}
+                onChange={handlePhoneChange}
+                placeholder="080XXXXXXXX"
+                className="w-full h-12 pl-11 pr-4 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all text-base"
+              />
+            </div>
+            {contactSupported && (
+              <button
+                onClick={handlePickContact}
+                className="flex-shrink-0 w-12 h-12 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-colors active:bg-gray-200"
+              >
+                <Contact className="h-5 w-5 text-green-600" />
+              </button>
             )}
-          </Button>
+          </div>
+
+          {recentNumbers.length > 0 && (
+            <button className="flex items-center gap-2 w-full px-3 py-2.5 bg-green-50 rounded-xl text-green-700 text-sm font-medium active:bg-green-100 transition-colors">
+              <Phone className="h-4 w-4" />
+              <span>View Beneficiaries</span>
+              <ChevronRight className="h-4 w-4 ml-auto" />
+            </button>
+          )}
+        </motion.div>
+
+        {/* Amount Selection */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4"
+        >
+          <p className="text-sm font-semibold text-gray-700">Amount (₦)</p>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="Enter amount"
+            className="w-full h-12 px-4 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all text-base"
+          />
+          <div className="flex flex-wrap gap-2">
+            {QUICK_AMOUNTS.map((amt) => (
+              <motion.button
+                key={amt}
+                whileTap={{ scale: 0.93 }}
+                onClick={() => setAmount(amt.toString())}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-sm font-semibold transition-all border-2",
+                  amount === amt.toString()
+                    ? "border-green-500 bg-green-50 text-green-700 shadow-md shadow-green-500/15"
+                    : "border-gray-100 bg-white text-gray-600 active:bg-gray-50"
+                )}
+              >
+                ₦{amt.toLocaleString()}
+              </motion.button>
+            ))}
+          </div>
         </motion.div>
       </main>
 
+      {/* Sticky Buy Button */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-lg border-t border-gray-200 z-50">
+        <div className="max-w-lg mx-auto">
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={handlePurchaseClick}
+            disabled={isLoading || !selectedNetwork || !phoneNumber || !amount}
+            className={cn(
+              "w-full h-14 rounded-2xl font-bold text-base transition-all shadow-lg flex items-center justify-center gap-2",
+              amountNum > 0 && selectedNetwork && phoneNumber
+                ? "bg-gradient-to-r from-green-600 to-green-500 text-white shadow-green-500/30 active:from-green-700 active:to-green-600"
+                : "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
+            )}
+          >
+            {isLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : amountNum > 0 ? (
+              `Buy ₦${amountNum.toLocaleString()} Airtime`
+            ) : (
+              "Enter amount"
+            )}
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Dialogs */}
       <TransactionConfirmationDialog
         open={showConfirmDialog}
         onOpenChange={setShowConfirmDialog}
         onConfirm={handleConfirmPay}
         title="Confirm Airtime Purchase"
-        amount={parseFloat(amount) || 0}
-        walletBalanceAfter={(wallet?.balance || 0) - (parseFloat(amount) || 0)}
+        amount={amountNum}
+        walletBalanceAfter={(wallet?.balance || 0) - amountNum}
         details={[
           { label: "Service", value: "Airtime" },
-          { label: "Network", value: detectedNetwork?.toUpperCase() || "" },
+          { label: "Network", value: selectedNetwork?.toUpperCase() || "" },
           { label: "Phone Number", value: phoneNumber },
         ]}
       />
@@ -216,18 +328,18 @@ const Airtime = () => {
         onSubmit={handlePurchaseWithPin}
         title="Enter PIN"
         description="Enter your PIN to complete payment"
-        amount={parseFloat(amount) || 0}
-        serviceName={`${detectedNetwork?.toUpperCase()} Airtime`}
+        amount={amountNum}
+        serviceName={`${selectedNetwork?.toUpperCase()} Airtime`}
       />
 
       <TransactionResultScreen
         open={showResult}
         onClose={() => setShowResult(false)}
         success={resultSuccess}
-        amount={parseFloat(amount) || 0}
+        amount={amountNum}
         details={[
           { label: "Service", value: "Airtime" },
-          { label: "Network", value: detectedNetwork?.toUpperCase() || "" },
+          { label: "Network", value: selectedNetwork?.toUpperCase() || "" },
           { label: "Phone Number", value: phoneNumber },
         ]}
         transactionId={resultTransactionId}
