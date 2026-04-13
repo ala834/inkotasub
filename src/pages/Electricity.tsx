@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Zap, Loader2, CheckCircle, ChevronDown, CreditCard, ChevronRight } from "lucide-react";
+import { ArrowLeft, Zap, Loader2, CheckCircle, ChevronDown, CreditCard, ChevronRight, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
@@ -11,6 +11,8 @@ import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
+import { useBeneficiaries } from "@/hooks/useBeneficiaries";
+import BeneficiariesDialog from "@/components/common/BeneficiariesDialog";
 
 const DISCOS = [
   { id: "ikeja", name: "Ikeja Electric", code: "IE" },
@@ -46,7 +48,9 @@ const Electricity = () => {
   const [resultTransactionId, setResultTransactionId] = useState("");
   const [resultError, setResultError] = useState("");
   const [resultToken, setResultToken] = useState("");
+  const [showBeneficiaries, setShowBeneficiaries] = useState(false);
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("electricity");
+  const { beneficiaries, addBeneficiary, removeBeneficiary } = useBeneficiaries("electricity");
 
   const amountNum = parseFloat(amount || "0");
   const selectedDisco = DISCOS.find(d => d.id === disco);
@@ -127,6 +131,7 @@ const Electricity = () => {
         throw new Error(message);
       }
       addRecentNumber(meterNumber, customerName || undefined);
+      addBeneficiary(meterNumber, customerName || undefined);
       setResultSuccess(true);
       setResultTransactionId(data.reference || data.transactionId || "");
       setResultToken(data.token || "");
