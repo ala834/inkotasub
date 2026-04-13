@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Loader2, Check, CreditCard, ChevronRight, RefreshCw, CheckCircle } from "lucide-react";
+import { ArrowLeft, Loader2, Check, CreditCard, ChevronRight, RefreshCw, CheckCircle, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
@@ -11,6 +11,8 @@ import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
+import { useBeneficiaries } from "@/hooks/useBeneficiaries";
+import BeneficiariesDialog from "@/components/common/BeneficiariesDialog";
 
 import dstvLogo from "@/assets/providers/dstv.png";
 import gotvLogo from "@/assets/providers/gotv.png";
@@ -46,7 +48,9 @@ const CableTV = () => {
   const [resultSuccess, setResultSuccess] = useState(false);
   const [resultTransactionId, setResultTransactionId] = useState("");
   const [resultError, setResultError] = useState("");
+  const [showBeneficiaries, setShowBeneficiaries] = useState(false);
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("cable");
+  const { beneficiaries, addBeneficiary, removeBeneficiary } = useBeneficiaries("cable");
 
   useEffect(() => {
     if (provider) fetchPlans();
@@ -170,6 +174,7 @@ const CableTV = () => {
         throw new Error(message);
       }
       addRecentNumber(smartCardNumber, customerName || undefined);
+      addBeneficiary(smartCardNumber, customerName || undefined);
       setResultSuccess(true);
       setResultTransactionId(data.reference || data.transactionId || "");
       setResultError("");
