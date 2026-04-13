@@ -24,12 +24,7 @@ interface DataPlan {
   isFeatured?: boolean;
 }
 
-const NETWORKS = [
-  { id: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" },
-  { id: "airtel", name: "Airtel", bg: "#E40000", text: "#FFF" },
-  { id: "glo", name: "Glo", bg: "#00A651", text: "#FFF" },
-  { id: "9mobile", name: "9mobile", bg: "#006B53", text: "#FFF" },
-];
+import { NETWORKS, getNetworkLogo } from "@/components/common/NetworkLogos";
 
 const PLAN_TYPES = [
   { key: "SME", label: "SME" },

@@ -13,12 +13,7 @@ import TransactionConfirmationDialog from "@/components/common/TransactionConfir
 import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 
-const NETWORKS = [
-  { id: "mtn", name: "MTN", bg: "#FFCC00", text: "#000" },
-  { id: "airtel", name: "Airtel", bg: "#E40000", text: "#FFF" },
-  { id: "glo", name: "Glo", bg: "#00A651", text: "#FFF" },
-  { id: "9mobile", name: "9mobile", bg: "#006B53", text: "#FFF" },
-];
+import { NETWORKS } from "@/components/common/NetworkLogos";
 
 const QUICK_AMOUNTS = [50, 100, 200, 500, 1000, 2000, 5000];
 
