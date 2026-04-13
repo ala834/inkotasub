@@ -1,13 +1,9 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Bell, Check, CheckCheck, Filter, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Bell, CheckCheck, Filter, Check } from "lucide-react";
 import { useNotifications } from "@/hooks/useNotifications";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
 import BottomNav from "@/components/layout/BottomNav";
 
 const Notifications = () => {
@@ -21,161 +17,106 @@ const Notifications = () => {
     return true;
   });
 
-  const getTypeStyles = (type: string) => {
+  const getTypeColor = (type: string) => {
     switch (type) {
-      case "success":
-        return "bg-green-500/10 text-green-600 border-green-500/20";
-      case "error":
-        return "bg-destructive/10 text-destructive border-destructive/20";
-      case "warning":
-        return "bg-yellow-500/10 text-yellow-600 border-yellow-500/20";
-      default:
-        return "bg-primary/10 text-primary border-primary/20";
+      case "success": return "bg-green-500";
+      case "error": return "bg-red-500";
+      case "warning": return "bg-amber-500";
+      default: return "bg-blue-500";
     }
   };
 
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case "success":
-        return "Success";
-      case "error":
-        return "Error";
-      case "warning":
-        return "Warning";
-      default:
-        return "Info";
-    }
-  };
+  const filters = [
+    { key: "all" as const, label: "All" },
+    { key: "unread" as const, label: "Unread", count: unreadCount },
+    { key: "read" as const, label: "Read" },
+  ];
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <div className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground p-6">
-        <div className="flex items-center gap-4 mb-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-primary-foreground hover:bg-primary-foreground/10"
-            onClick={() => navigate(-1)}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-xl font-bold">Notifications</h1>
-            <p className="text-sm opacity-80">
-              {unreadCount > 0 ? `${unreadCount} unread` : "All caught up!"}
-            </p>
+    <div className="min-h-screen bg-gray-50 pb-24">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-green-600 via-green-500 to-emerald-500 px-4 pt-4 pb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center">
+              <ArrowLeft className="h-5 w-5 text-white" />
+            </button>
+            <div>
+              <h1 className="text-lg font-bold text-white">Notifications</h1>
+              <p className="text-xs text-white/70">{unreadCount > 0 ? `${unreadCount} unread` : "All caught up!"}</p>
+            </div>
           </div>
+          {unreadCount > 0 && (
+            <button onClick={markAllAsRead} className="text-xs text-white/90 bg-white/15 px-3 py-1.5 rounded-full flex items-center gap-1">
+              <CheckCheck className="h-3.5 w-3.5" /> Read all
+            </button>
+          )}
+        </div>
+
+        {/* Filter Pills */}
+        <div className="flex gap-2">
+          {filters.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setActiveFilter(f.key)}
+              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
+                activeFilter === f.key
+                  ? "bg-white text-green-700 shadow-sm"
+                  : "bg-white/15 text-white/80"
+              }`}
+            >
+              {f.label}
+              {f.count ? ` (${f.count})` : ""}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
-        {/* Actions */}
-        {unreadCount > 0 && (
-          <div className="flex justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={markAllAsRead}
-              className="gap-2"
-            >
-              <CheckCheck className="h-4 w-4" />
-              Mark all as read
-            </Button>
+      <div className="px-4 -mt-2 space-y-2">
+        {isLoading ? (
+          [1, 2, 3].map(i => (
+            <div key={i} className="bg-white rounded-2xl p-4 animate-pulse">
+              <div className="h-3 bg-gray-200 rounded w-2/3 mb-2" />
+              <div className="h-3 bg-gray-100 rounded w-1/2" />
+            </div>
+          ))
+        ) : filteredNotifications.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <Bell className="h-8 w-8 text-gray-300" />
+            </div>
+            <p className="text-gray-500 text-sm font-medium">
+              {activeFilter === "unread" ? "No unread notifications" : activeFilter === "read" ? "No read notifications" : "No notifications yet"}
+            </p>
           </div>
-        )}
-
-        {/* Filter Tabs */}
-        <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as typeof activeFilter)}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="all" className="gap-2">
-              <Bell className="h-4 w-4" />
-              All
-            </TabsTrigger>
-            <TabsTrigger value="unread" className="gap-2">
-              <Filter className="h-4 w-4" />
-              Unread
-              {unreadCount > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
-                  {unreadCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="read" className="gap-2">
-              <Check className="h-4 w-4" />
-              Read
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value={activeFilter} className="mt-4 space-y-3">
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <Card key={i} className="animate-pulse">
-                    <CardContent className="p-4">
-                      <div className="h-4 bg-muted rounded w-3/4 mb-2" />
-                      <div className="h-3 bg-muted rounded w-1/2" />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : filteredNotifications.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <Bell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    {activeFilter === "unread"
-                      ? "No unread notifications"
-                      : activeFilter === "read"
-                      ? "No read notifications"
-                      : "No notifications yet"}
+        ) : (
+          filteredNotifications.map((notification, i) => (
+            <motion.div
+              key={notification.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.03 }}
+              onClick={() => { if (!notification.read) markAsRead(notification.id); }}
+              className={`bg-white rounded-2xl p-4 shadow-sm cursor-pointer transition-all active:scale-[0.98] ${
+                !notification.read ? "border-l-4 border-l-green-500" : ""
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${!notification.read ? "bg-green-500" : "bg-transparent"}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${getTypeColor(notification.type)}`} />
+                    <h3 className="font-semibold text-sm text-gray-900 truncate">{notification.title}</h3>
+                  </div>
+                  <p className="text-xs text-gray-500 leading-relaxed">{notification.message}</p>
+                  <p className="text-[11px] text-gray-400 mt-1.5">
+                    {format(new Date(notification.created_at), "MMM d, yyyy 'at' h:mm a")}
                   </p>
-                </CardContent>
-              </Card>
-            ) : (
-              filteredNotifications.map((notification) => (
-                <Card
-                  key={notification.id}
-                  className={cn(
-                    "cursor-pointer transition-all hover:shadow-md",
-                    !notification.read && "border-l-4 border-l-primary bg-primary/5"
-                  )}
-                  onClick={() => {
-                    if (!notification.read) {
-                      markAsRead(notification.id);
-                    }
-                  }}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge
-                            variant="outline"
-                            className={cn("text-xs", getTypeStyles(notification.type))}
-                          >
-                            {getTypeLabel(notification.type)}
-                          </Badge>
-                          {!notification.read && (
-                            <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                          )}
-                        </div>
-                        <h3 className="font-semibold text-sm truncate">
-                          {notification.title}
-                        </h3>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {notification.message}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          {format(new Date(notification.created_at), "MMM d, yyyy 'at' h:mm a")}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </TabsContent>
-        </Tabs>
+                </div>
+              </div>
+            </motion.div>
+          ))
+        )}
       </div>
 
       <BottomNav />
