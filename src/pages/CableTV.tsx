@@ -1,10 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { ArrowLeft, Tv, Loader2, CheckCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, Loader2, Check, CreditCard, ChevronRight, RefreshCw, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
@@ -13,13 +10,16 @@ import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import TransactionResultScreen from "@/components/common/TransactionResultScreen";
-import RecentNumbers from "@/components/common/RecentNumbers";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 
-const providers = [
-  { id: "dstv", name: "DSTV", color: "bg-blue-600" },
-  { id: "gotv", name: "GOtv", color: "bg-green-600" },
-  { id: "startimes", name: "StarTimes", color: "bg-yellow-600" },
+import dstvLogo from "@/assets/providers/dstv.png";
+import gotvLogo from "@/assets/providers/gotv.png";
+import startimesLogo from "@/assets/providers/startimes.png";
+
+const PROVIDERS = [
+  { id: "dstv", name: "DSTV", logo: dstvLogo },
+  { id: "gotv", name: "GOtv", logo: gotvLogo },
+  { id: "startimes", name: "StarTimes", logo: startimesLogo },
 ];
 
 interface CablePlan {
@@ -52,15 +52,15 @@ const CableTV = () => {
     if (provider) fetchPlans();
   }, [provider]);
 
-  const fetchPlans = async () => {
+  const fetchPlans = async (forceRefresh = false) => {
     setLoadingPlans(true);
     try {
       const { data, error } = await supabase.functions.invoke("get-cable-plans", {
-        body: { provider },
+        body: { provider, forceRefresh },
       });
       if (error) throw error;
       setPlans(data?.plans || getMockPlans());
-    } catch (error) {
+    } catch {
       setPlans(getMockPlans());
     } finally {
       setLoadingPlans(false);
@@ -130,10 +130,6 @@ const CableTV = () => {
       toast.error("Please validate smart card and select a plan");
       return false;
     }
-    if (selectedPlan.amount < 100) {
-      toast.error("Minimum cable subscription is ₦100");
-      return false;
-    }
     if (wallet && selectedPlan.amount > wallet.balance) {
       toast.error("Insufficient wallet balance");
       return false;
@@ -185,144 +181,234 @@ const CableTV = () => {
     }
   };
 
-  const selectedProvider = providers.find(p => p.id === provider);
+  const selectedProvider = PROVIDERS.find(p => p.id === provider);
 
   return (
-    <div className="min-h-screen gradient-hero pb-6">
-      <header className="sticky top-0 z-50 glass-card border-b border-border/50 px-4 py-3">
-        <div className="container mx-auto flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-lg font-display font-bold">Cable TV Subscription</h1>
-        </div>
+    <div className="min-h-screen bg-gray-50 pb-24">
+      {/* Green Header */}
+      <header className="bg-gradient-to-r from-green-600 to-green-500 px-4 py-4 flex items-center justify-between sticky top-0 z-50 shadow-md">
+        <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 active:bg-white/30 transition-colors">
+          <ArrowLeft className="h-5 w-5 text-white" />
+        </button>
+        <h1 className="text-lg font-bold text-white">Cable TV</h1>
+        <button
+          onClick={() => fetchPlans(true)}
+          disabled={loadingPlans}
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 active:bg-white/30 transition-colors"
+        >
+          <RefreshCw className={cn("h-5 w-5 text-white", loadingPlans && "animate-spin")} />
+        </button>
       </header>
 
-      <main className="container mx-auto px-4 py-6 max-w-lg">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-          {/* Wallet Balance */}
-          <div className="glass-card rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Wallet Balance</p>
-              <p className="text-xl font-bold text-foreground">₦{wallet?.balance.toLocaleString() || "0.00"}</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => navigate("/fund-wallet")} className="rounded-xl">
-              Fund Wallet
-            </Button>
+      <main className="px-4 py-5 max-w-lg mx-auto space-y-5">
+        {/* Wallet Balance */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between"
+        >
+          <div>
+            <p className="text-xs text-gray-500 font-medium">Wallet Balance</p>
+            <p className="text-xl font-bold text-gray-900">₦{wallet?.balance.toLocaleString() || "0.00"}</p>
           </div>
+          <button
+            onClick={() => navigate("/fund-wallet")}
+            className="px-4 py-2 bg-green-50 text-green-600 font-semibold text-sm rounded-xl border border-green-200 active:bg-green-100 transition-colors"
+          >
+            Fund Wallet
+          </button>
+        </motion.div>
 
-          {/* Provider Selection */}
-          <div className="glass-card rounded-2xl p-4">
-            <Label className="text-muted-foreground mb-3 block">Select Provider</Label>
-            <div className="grid grid-cols-3 gap-3">
-              {providers.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => { setProvider(p.id); setSelectedPlan(null); setIsValidated(false); }}
-                  className={cn(
-                    "p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2",
-                    provider === p.id
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:border-primary/50"
-                  )}
-                >
-                  <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white", p.color)}>
-                    <Tv className="h-5 w-5" />
-                  </div>
-                  <span className="text-sm font-medium">{p.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Smart Card Number */}
-          {provider && (
-            <div className="glass-card rounded-2xl p-4 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="smartcard">Smart Card / IUC Number</Label>
-                <Input
-                  id="smartcard"
-                  value={smartCardNumber}
-                  onChange={(e) => { setSmartCardNumber(e.target.value); setIsValidated(false); }}
-                  placeholder="Enter smart card number"
-                  className="h-12 rounded-xl"
-                />
-              </div>
-
-              {/* Recent smartcard numbers */}
-              <RecentNumbers
-                numbers={recentNumbers}
-                onSelect={(num) => { setSmartCardNumber(num); setIsValidated(false); }}
-                onClear={clearRecentNumbers}
-              />
-
-              <Button
-                onClick={handleValidate}
-                disabled={isValidating || !smartCardNumber}
-                variant="outline"
-                className="w-full h-12 rounded-xl"
-              >
-                {isValidating ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : isValidated ? (
-                  <>
-                    <CheckCircle className="h-5 w-5 mr-2 text-green-500" />
-                    {customerName}
-                  </>
-                ) : (
-                  "Validate Smart Card"
+        {/* Provider Selection */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+        >
+          <p className="text-sm font-semibold text-gray-700 mb-3">Select Provider</p>
+          <div className="grid grid-cols-3 gap-3">
+            {PROVIDERS.map((p) => (
+              <motion.button
+                key={p.id}
+                whileTap={{ scale: 0.93 }}
+                onClick={() => { setProvider(p.id); setSelectedPlan(null); setIsValidated(false); setCustomerName(""); }}
+                className={cn(
+                  "flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all",
+                  provider === p.id
+                    ? "border-green-500 shadow-lg shadow-green-500/20 bg-green-50/50"
+                    : "border-gray-100 bg-white hover:border-gray-200"
                 )}
-              </Button>
+              >
+                <img src={p.logo} alt={p.name} className="w-12 h-12 rounded-2xl object-contain shadow-sm" />
+                <span className={cn(
+                  "text-xs font-medium",
+                  provider === p.id ? "text-green-600" : "text-gray-500"
+                )}>
+                  {p.name}
+                </span>
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Smart Card Number */}
+        {provider && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3"
+          >
+            <p className="text-sm font-semibold text-gray-700">Smart Card / IUC Number</p>
+            <div className="relative">
+              <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                inputMode="numeric"
+                value={smartCardNumber}
+                onChange={(e) => { setSmartCardNumber(e.target.value); setIsValidated(false); setCustomerName(""); }}
+                placeholder="Enter smart card number"
+                className="w-full h-12 pl-11 pr-4 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all text-base"
+              />
             </div>
-          )}
 
-          {/* Cable Plans */}
-          {isValidated && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl p-4">
-              <Label className="text-muted-foreground mb-3 block">Select Plan</Label>
-              {loadingPlans ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {plans.map((plan) => (
-                    <button
-                      key={plan.id}
-                      onClick={() => setSelectedPlan(plan)}
-                      className={cn(
-                        "w-full p-4 rounded-xl border-2 transition-all flex justify-between items-center",
-                        selectedPlan?.id === plan.id
-                          ? "border-primary bg-primary/10"
-                          : "border-border hover:border-primary/50"
-                      )}
-                    >
-                      <span className="font-medium">{plan.name}</span>
-                      <span className="font-bold text-primary">₦{plan.amount.toLocaleString()}</span>
-                    </button>
-                  ))}
-                </div>
+            {/* Recent numbers */}
+            {recentNumbers.length > 0 && (
+              <button
+                onClick={() => {
+                  if (recentNumbers[0]) {
+                    setSmartCardNumber(recentNumbers[0].number);
+                    setIsValidated(false);
+                  }
+                }}
+                className="flex items-center gap-2 w-full px-3 py-2.5 bg-green-50 rounded-xl text-green-700 text-sm font-medium active:bg-green-100 transition-colors"
+              >
+                <CreditCard className="h-4 w-4" />
+                <span>View Beneficiaries</span>
+                <ChevronRight className="h-4 w-4 ml-auto" />
+              </button>
+            )}
+
+            {/* Validate Button */}
+            <button
+              onClick={handleValidate}
+              disabled={isValidating || !smartCardNumber}
+              className={cn(
+                "w-full h-12 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2",
+                isValidated
+                  ? "bg-green-50 text-green-700 border border-green-200"
+                  : "bg-gray-100 text-gray-700 active:bg-gray-200 border border-gray-200",
+                (isValidating || !smartCardNumber) && "opacity-50 cursor-not-allowed"
               )}
-            </motion.div>
-          )}
+            >
+              {isValidating ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : isValidated ? (
+                <>
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <span>{customerName}</span>
+                </>
+              ) : (
+                "Validate Smart Card"
+              )}
+            </button>
+          </motion.div>
+        )}
 
-          {/* Submit */}
-          <Button
+        {/* Cable Plans */}
+        {isValidated && plans.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4"
+          >
+            <p className="text-sm font-semibold text-gray-700">Select Plan</p>
+
+            {loadingPlans ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-16 rounded-xl bg-gray-100 animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-0.5">
+                <AnimatePresence mode="popLayout">
+                  {plans.map((plan) => {
+                    const isSelected = selectedPlan?.id === plan.id;
+                    return (
+                      <motion.button
+                        key={plan.id}
+                        layout
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        onClick={() => setSelectedPlan(plan)}
+                        className={cn(
+                          "w-full flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-left",
+                          isSelected
+                            ? "border-green-500 bg-green-50/70 shadow-md shadow-green-500/10"
+                            : "border-gray-100 bg-white hover:border-gray-200 active:bg-gray-50"
+                        )}
+                      >
+                        <img
+                          src={selectedProvider?.logo}
+                          alt={selectedProvider?.name}
+                          className="w-10 h-10 rounded-xl object-contain flex-shrink-0 shadow-sm"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{plan.name}</p>
+                          <p className="text-xs text-gray-500">30 days</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-base font-bold text-gray-900">₦{plan.amount.toLocaleString()}</span>
+                          {isSelected && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center"
+                            >
+                              <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+                            </motion.div>
+                          )}
+                        </div>
+                      </motion.button>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </main>
+
+      {/* Sticky Buy Button */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-lg border-t border-gray-200 z-50">
+        <div className="max-w-lg mx-auto">
+          <motion.button
+            whileTap={{ scale: 0.98 }}
             onClick={handlePurchaseClick}
             disabled={isLoading || !isValidated || !selectedPlan}
-            className="w-full h-14 rounded-xl gradient-primary text-primary-foreground font-semibold text-lg"
+            className={cn(
+              "w-full h-14 rounded-2xl font-bold text-base transition-all shadow-lg flex items-center justify-center gap-2",
+              selectedPlan && isValidated
+                ? "bg-gradient-to-r from-green-600 to-green-500 text-white shadow-green-500/30 active:from-green-700 active:to-green-600"
+                : "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
+            )}
           >
             {isLoading ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin" />
             ) : selectedPlan ? (
               `Pay ₦${selectedPlan.amount.toLocaleString()}`
             ) : (
               "Select a plan"
             )}
-          </Button>
-        </motion.div>
-      </main>
+          </motion.button>
+        </div>
+      </div>
 
+      {/* Dialogs */}
       <TransactionConfirmationDialog
         open={showConfirmDialog}
         onOpenChange={setShowConfirmDialog}
