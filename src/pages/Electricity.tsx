@@ -276,21 +276,14 @@ const Electricity = () => {
               />
             </div>
 
-            {recentNumbers.length > 0 && (
-              <button
-                onClick={() => {
-                  if (recentNumbers[0]) {
-                    setMeterNumber(recentNumbers[0].number);
-                    setIsValidated(false);
-                  }
-                }}
-                className="flex items-center gap-2 w-full px-3 py-2.5 bg-green-50 rounded-xl text-green-700 text-sm font-medium active:bg-green-100 transition-colors"
-              >
-                <CreditCard className="h-4 w-4" />
-                <span>View Saved Meters</span>
-                <ChevronRight className="h-4 w-4 ml-auto" />
-              </button>
-            )}
+            <button
+              onClick={() => setShowBeneficiaries(true)}
+              className="flex items-center gap-2 w-full px-3 py-2.5 bg-green-50 rounded-xl text-green-700 text-sm font-medium active:bg-green-100 transition-colors"
+            >
+              <Users className="h-4 w-4" />
+              <span>View Saved Meters ({beneficiaries.length})</span>
+              <ChevronRight className="h-4 w-4 ml-auto" />
+            </button>
 
             {/* Validate Button */}
             <button
@@ -423,6 +416,20 @@ const Electricity = () => {
         ]}
         transactionId={resultTransactionId}
         errorMessage={resultError}
+      />
+
+      <BeneficiariesDialog
+        open={showBeneficiaries}
+        onClose={() => setShowBeneficiaries(false)}
+        beneficiaries={beneficiaries}
+        onSelect={(identifier, label) => {
+          setMeterNumber(identifier);
+          if (label) setCustomerName(label);
+          setIsValidated(false);
+        }}
+        onRemove={removeBeneficiary}
+        title="Saved Meters"
+        identifierLabel="Meter Number"
       />
     </div>
   );
