@@ -198,6 +198,7 @@ const Data = () => {
         throw new Error(message);
       }
       addRecentNumber(phoneNumber, contactName);
+      addBeneficiary(phoneNumber, contactName, selectedNetwork || undefined);
       setResultSuccess(true);
       setResultError("");
       setResultTransactionId(data?.reference || data?.transactionId);
@@ -314,14 +315,15 @@ const Data = () => {
             )}
           </div>
 
-          {/* Recent / Beneficiaries */}
-          {recentNumbers.length > 0 && (
-            <button className="flex items-center gap-2 w-full px-3 py-2.5 bg-green-50 rounded-xl text-green-700 text-sm font-medium active:bg-green-100 transition-colors">
-              <Phone className="h-4 w-4" />
-              <span>View Beneficiaries</span>
-              <ChevronRight className="h-4 w-4 ml-auto" />
-            </button>
-          )}
+          {/* Beneficiaries */}
+          <button
+            onClick={() => setShowBeneficiaries(true)}
+            className="flex items-center gap-2 w-full px-3 py-2.5 bg-green-50 rounded-xl text-green-700 text-sm font-medium active:bg-green-100 transition-colors"
+          >
+            <Users className="h-4 w-4" />
+            <span>View Beneficiaries ({beneficiaries.length})</span>
+            <ChevronRight className="h-4 w-4 ml-auto" />
+          </button>
         </motion.div>
 
         {/* Plan Type Toggles */}
@@ -485,6 +487,20 @@ const Data = () => {
         ]}
         transactionId={resultTransactionId}
         errorMessage={resultError}
+      />
+
+      <BeneficiariesDialog
+        open={showBeneficiaries}
+        onClose={() => setShowBeneficiaries(false)}
+        beneficiaries={beneficiaries}
+        onSelect={(identifier, label, network) => {
+          setPhoneNumber(identifier);
+          setContactName(label);
+          if (network) setSelectedNetwork(network);
+        }}
+        onRemove={removeBeneficiary}
+        title="Saved Beneficiaries"
+        identifierLabel="Phone Number"
       />
     </div>
   );
