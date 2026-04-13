@@ -345,6 +345,20 @@ const Airtime = () => {
         transactionId={resultTransactionId}
         errorMessage={resultError}
       />
+
+      <BeneficiariesDialog
+        open={showBeneficiaries}
+        onClose={() => setShowBeneficiaries(false)}
+        beneficiaries={beneficiaries}
+        onSelect={(identifier, label, network) => {
+          setPhoneNumber(identifier);
+          setContactName(label);
+          if (network) setSelectedNetwork(network);
+        }}
+        onRemove={removeBeneficiary}
+        title="Saved Beneficiaries"
+        identifierLabel="Phone Number"
+      />
     </div>
   );
 };

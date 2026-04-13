@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Loader2, Phone, Contact, RefreshCw, Check, Wifi, ChevronRight } from "lucide-react";
+import { ArrowLeft, Loader2, Phone, Contact, RefreshCw, Check, Wifi, ChevronRight, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
@@ -11,6 +11,8 @@ import { useNetworkDetection, normalizePhoneNumber, detectNetwork } from "@/hook
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
+import { useBeneficiaries } from "@/hooks/useBeneficiaries";
+import BeneficiariesDialog from "@/components/common/BeneficiariesDialog";
 import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 
 interface DataPlan {
@@ -48,7 +50,7 @@ const Data = () => {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [contactName, setContactName] = useState<string | undefined>();
   const [showResult, setShowResult] = useState(false);
-  const [resultSuccess, setResultSuccess] = useState(false);
+  const [showBeneficiaries, setShowBeneficiaries] = useState(false);
   const [resultError, setResultError] = useState("");
   const [resultTransactionId, setResultTransactionId] = useState<string | undefined>();
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("data");
