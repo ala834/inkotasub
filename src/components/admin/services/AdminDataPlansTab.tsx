@@ -606,6 +606,60 @@ const AdminDataPlansTab = () => {
         </Card>
       )}
 
+      {/* Validate & Cleanup */}
+      <Card className="border-border">
+        <CardContent className="py-3 px-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="text-sm font-medium">Plan Validation & Cleanup</p>
+              <p className="text-xs text-muted-foreground">
+                Validate plans against provider APIs and auto-disable stale/invalid ones.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={validatePlans} disabled={isValidating} className="gap-1">
+                <Shield className={`h-3 w-3 ${isValidating ? "animate-spin" : ""}`} />
+                {isValidating ? "Validating..." : "Validate Plans"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={cleanupInvalidPlans} disabled={isValidating} className="gap-1 text-destructive border-destructive/30">
+                <Trash2 className="h-3 w-3" />
+                Cleanup Invalid
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setShowLogs(!showLogs)} className="gap-1">
+                <Clock className="h-3 w-3" />
+                {showLogs ? "Hide Logs" : "Show Logs"} {syncLogs.length > 0 && `(${syncLogs.length})`}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Sync Logs Panel */}
+      {showLogs && syncLogs.length > 0 && (
+        <Card className="border-border">
+          <CardHeader className="py-2 px-4">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>Sync & Validation Logs</span>
+              <Button variant="ghost" size="sm" onClick={() => setSyncLogs([])} className="text-xs h-6">Clear</Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3 max-h-48 overflow-y-auto">
+            <div className="space-y-1">
+              {syncLogs.map((log, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs py-1 border-b border-border/50 last:border-0">
+                  {log.status === "success" ? <CheckCircle className="h-3 w-3 text-green-500 mt-0.5 shrink-0" /> :
+                   log.status === "error" ? <XCircle className="h-3 w-3 text-destructive mt-0.5 shrink-0" /> :
+                   <Clock className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />}
+                  <span className="text-muted-foreground shrink-0">{log.timestamp}</span>
+                  <Badge variant="outline" className="text-[9px] shrink-0">{log.action}</Badge>
+                  <span className="text-foreground">{log.message}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
