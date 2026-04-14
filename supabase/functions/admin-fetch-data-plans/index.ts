@@ -501,7 +501,7 @@ serve(async (req) => {
             is_featured: false,
             plan_type: plan.plan_type || categorizePlan(plan.plan_name),
             last_synced_at: new Date().toISOString(),
-          }, { onConflict: "service_type,network,plan_id" });
+          }, { onConflict: "service_type,provider,network,plan_id" });
         if (!error) saved++;
       }
 
@@ -551,7 +551,7 @@ serve(async (req) => {
       } else {
         const { data, error } = await adminSupabase
           .from("service_plans")
-          .upsert(upsertData, { onConflict: "service_type,network,plan_id" })
+          .upsert(upsertData, { onConflict: "service_type,provider,network,plan_id" })
           .select()
           .single();
         if (error) throw error;
@@ -589,7 +589,7 @@ serve(async (req) => {
 
         const { error } = await adminSupabase
           .from("service_plans")
-          .upsert(upsertData, { onConflict: "service_type,network,plan_id" });
+          .upsert(upsertData, { onConflict: "service_type,provider,network,plan_id" });
 
         if (!error) saved++;
       }
@@ -643,7 +643,7 @@ serve(async (req) => {
                   is_featured: false,
                   plan_type: categorizePlan(planName),
                   last_synced_at: new Date().toISOString(),
-                }, { onConflict: "service_type,network,plan_id" });
+                }, { onConflict: "service_type,provider,network,plan_id" });
               if (!error) totalSaved++;
             }
             console.log(`SMEPlug sync: saved ${totalSaved} plans`);
@@ -676,7 +676,7 @@ serve(async (req) => {
                   is_featured: false,
                   plan_type: plan.plan_type || categorizePlan(plan.plan_name),
                   last_synced_at: new Date().toISOString(),
-                }, { onConflict: "service_type,network,plan_id" });
+                }, { onConflict: "service_type,provider,network,plan_id" });
               if (!error) subpadiSaved++;
             }
             console.log(`Subpadi sync: saved ${subpadiSaved} plans`);
