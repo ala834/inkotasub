@@ -46,12 +46,20 @@ const PLAN_TYPE_COLORS: Record<string, string> = {
   GENERAL: "bg-muted text-muted-foreground border-border",
 };
 
+interface SyncLogEntry {
+  timestamp: string;
+  action: string;
+  status: "success" | "error" | "info";
+  message: string;
+}
+
 const AdminDataPlansTab = () => {
   const { user } = useAuth();
   const [isFetchingSubpadi, setIsFetchingSubpadi] = useState(false);
   const [plans, setPlans] = useState<ProviderPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const [isSaving, setSaving] = useState<string | null>(null);
   const [selectedNetwork, setSelectedNetwork] = useState("all");
   const [selectedProvider, setSelectedProvider] = useState("all");
@@ -59,6 +67,8 @@ const AdminDataPlansTab = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showEnabledOnly, setShowEnabledOnly] = useState(false);
   const [groupByType, setGroupByType] = useState(true);
+  const [syncLogs, setSyncLogs] = useState<SyncLogEntry[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
 
   // Edit selling price dialog
   const [editPlan, setEditPlan] = useState<ProviderPlan | null>(null);
@@ -70,6 +80,10 @@ const AdminDataPlansTab = () => {
   const [manualForm, setManualForm] = useState({
     provider: "subpadi", network: "MTN", plan_id: "", plan_name: "", base_price: "", validity: "", selling_price: "", plan_type: "GENERAL",
   });
+
+  const addLog = useCallback((action: string, status: SyncLogEntry["status"], message: string) => {
+    setSyncLogs(prev => [{ timestamp: new Date().toLocaleTimeString(), action, status, message }, ...prev].slice(0, 50));
+  }, []);
 
   useEffect(() => { loadPlans(); }, []);
 
