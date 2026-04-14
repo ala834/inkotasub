@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { RefreshCw, Plus, Edit2, Search, Star, Download, Loader2, Trash2, AlertTriangle } from "lucide-react";
+import { RefreshCw, Plus, Edit2, Search, Star, Download, Loader2, Trash2, AlertTriangle, CheckCircle, XCircle, Clock, Shield } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,12 +46,20 @@ const PLAN_TYPE_COLORS: Record<string, string> = {
   GENERAL: "bg-muted text-muted-foreground border-border",
 };
 
+interface SyncLogEntry {
+  timestamp: string;
+  action: string;
+  status: "success" | "error" | "info";
+  message: string;
+}
+
 const AdminDataPlansTab = () => {
   const { user } = useAuth();
   const [isFetchingSubpadi, setIsFetchingSubpadi] = useState(false);
   const [plans, setPlans] = useState<ProviderPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const [isSaving, setSaving] = useState<string | null>(null);
   const [selectedNetwork, setSelectedNetwork] = useState("all");
   const [selectedProvider, setSelectedProvider] = useState("all");
@@ -59,6 +67,8 @@ const AdminDataPlansTab = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showEnabledOnly, setShowEnabledOnly] = useState(false);
   const [groupByType, setGroupByType] = useState(true);
+  const [syncLogs, setSyncLogs] = useState<SyncLogEntry[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
 
   // Edit selling price dialog
   const [editPlan, setEditPlan] = useState<ProviderPlan | null>(null);
@@ -70,6 +80,10 @@ const AdminDataPlansTab = () => {
   const [manualForm, setManualForm] = useState({
     provider: "subpadi", network: "MTN", plan_id: "", plan_name: "", base_price: "", validity: "", selling_price: "", plan_type: "GENERAL",
   });
+
+  const addLog = useCallback((action: string, status: SyncLogEntry["status"], message: string) => {
+    setSyncLogs(prev => [{ timestamp: new Date().toLocaleTimeString(), action, status, message }, ...prev].slice(0, 50));
+  }, []);
 
   useEffect(() => { loadPlans(); }, []);
 
@@ -108,6 +122,7 @@ const AdminDataPlansTab = () => {
 
   const fetchFromProviders = async () => {
     setIsFetching(true);
+    addLog("Sync", "info", "Starting full sync from SMEPlug & Subpadi APIs...");
     try {
       const { data, error } = await supabase.functions.invoke("admin-fetch-data-plans", {
         body: { action: "fetch" },
@@ -121,15 +136,21 @@ const AdminDataPlansTab = () => {
         })));
         const smeplugCount = data.smeplugCount || data.plans.filter((p: any) => p.provider === "smeplug").length;
         const subpadiCount = data.subpadiCount || data.plans.filter((p: any) => p.provider === "subpadi").length;
+        addLog("Sync", "success", `Loaded ${data.total} plans (SMEPlug: ${smeplugCount}, Subpadi: ${subpadiCount})`);
         toast.success(`Loaded ${data.total} plans (SMEPlug: ${smeplugCount}, Subpadi: ${subpadiCount})`);
         if (data.errors?.length) {
-          data.errors.forEach((e: string) => toast.info(e, { duration: 8000 }));
+          data.errors.forEach((e: string) => {
+            addLog("Sync", "error", e);
+            toast.info(e, { duration: 8000 });
+          });
         }
       } else {
+        addLog("Sync", "error", "No plans returned from APIs");
         toast.error("No plans returned");
       }
     } catch (e: any) {
       console.error(e);
+      addLog("Sync", "error", `Failed: ${e.message || "Unknown error"}`);
       toast.error("Failed to fetch from providers");
     }
     setIsFetching(false);
@@ -137,6 +158,7 @@ const AdminDataPlansTab = () => {
 
   const fetchSubpadiPlans = async () => {
     setIsFetchingSubpadi(true);
+    addLog("Subpadi", "info", "Fetching Subpadi plans from API...");
     try {
       const { data, error } = await supabase.functions.invoke("admin-fetch-data-plans", {
         body: { action: "fetch_subpadi" },
@@ -145,21 +167,73 @@ const AdminDataPlansTab = () => {
       if (error) throw error;
       
       if (data?.fromApi && data.saved > 0) {
+        addLog("Subpadi", "success", `Fetched and saved ${data.saved} plans from API`);
         toast.success(`Fetched and saved ${data.saved} Subpadi plans from API`);
         loadPlans();
       } else if (data?.existingInDb > 0) {
-        toast.info(`Subpadi API did not return plan data. ${data.existingInDb} plans already in database (manually added).`, { duration: 8000 });
+        addLog("Subpadi", "info", `API returned no plan data. ${data.existingInDb} plans in database.`);
+        toast.info(`Subpadi API did not return plan data. ${data.existingInDb} plans already in database.`, { duration: 8000 });
       } else {
+        addLog("Subpadi", "error", data?.message || "No Subpadi plans found");
         toast.info(data?.message || "No Subpadi plans found. Add them manually.", { duration: 8000 });
-        if (data?.hint) {
-          toast.info(data.hint, { duration: 10000 });
-        }
       }
     } catch (e: any) {
       console.error(e);
+      addLog("Subpadi", "error", `Failed: ${e.message || "Unknown error"}`);
       toast.error("Failed to fetch Subpadi plans");
     }
     setIsFetchingSubpadi(false);
+  };
+
+  const validatePlans = async () => {
+    setIsValidating(true);
+    addLog("Validate", "info", "Validating plans against Subpadi API...");
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-data-plans", {
+        body: { action: "validate", limit: 50 },
+      });
+
+      if (error) throw error;
+      
+      addLog("Validate", "success", data?.message || "Validation complete");
+      if (data?.invalidCount > 0) {
+        addLog("Validate", "error", `${data.invalidCount} invalid plans found: ${data.invalidPlans?.map((p: any) => `${p.network} ${p.plan_name}`).join(", ")}`);
+        toast.warning(`${data.invalidCount} invalid plans found. Use "Cleanup" to disable them.`);
+      } else {
+        toast.success(`All ${data?.validCount || 0} plans are valid`);
+      }
+      if (data?.errors?.length) {
+        data.errors.forEach((e: any) => addLog("Validate", "error", `${e.network} plan ${e.plan_id}: ${e.error}`));
+      }
+    } catch (e: any) {
+      addLog("Validate", "error", `Failed: ${e.message || "Unknown error"}`);
+      toast.error("Failed to validate plans");
+    }
+    setIsValidating(false);
+  };
+
+  const cleanupInvalidPlans = async () => {
+    setIsValidating(true);
+    addLog("Cleanup", "info", "Running cleanup — disabling invalid plans...");
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-data-plans", {
+        body: { action: "cleanup", limit: 100 },
+      });
+
+      if (error) throw error;
+      
+      addLog("Cleanup", "success", data?.message || "Cleanup complete");
+      if (data?.invalidCount > 0) {
+        toast.success(`Disabled ${data.invalidCount} invalid plans`);
+        loadPlans();
+      } else {
+        toast.info("No invalid plans found");
+      }
+    } catch (e: any) {
+      addLog("Cleanup", "error", `Failed: ${e.message || "Unknown error"}`);
+      toast.error("Failed to cleanup plans");
+    }
+    setIsValidating(false);
   };
 
   const togglePlan = async (plan: ProviderPlan, field: "is_enabled" | "is_featured") => {
@@ -528,6 +602,60 @@ const AdminDataPlansTab = () => {
             <Button variant="outline" size="sm" onClick={() => bulkAction("disable_expensive")} disabled={!!isSaving}>
               <Trash2 className="h-3 w-3 mr-1" /> Disable Expensive Duplicates
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Validate & Cleanup */}
+      <Card className="border-border">
+        <CardContent className="py-3 px-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="text-sm font-medium">Plan Validation & Cleanup</p>
+              <p className="text-xs text-muted-foreground">
+                Validate plans against provider APIs and auto-disable stale/invalid ones.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={validatePlans} disabled={isValidating} className="gap-1">
+                <Shield className={`h-3 w-3 ${isValidating ? "animate-spin" : ""}`} />
+                {isValidating ? "Validating..." : "Validate Plans"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={cleanupInvalidPlans} disabled={isValidating} className="gap-1 text-destructive border-destructive/30">
+                <Trash2 className="h-3 w-3" />
+                Cleanup Invalid
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setShowLogs(!showLogs)} className="gap-1">
+                <Clock className="h-3 w-3" />
+                {showLogs ? "Hide Logs" : "Show Logs"} {syncLogs.length > 0 && `(${syncLogs.length})`}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Sync Logs Panel */}
+      {showLogs && syncLogs.length > 0 && (
+        <Card className="border-border">
+          <CardHeader className="py-2 px-4">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>Sync & Validation Logs</span>
+              <Button variant="ghost" size="sm" onClick={() => setSyncLogs([])} className="text-xs h-6">Clear</Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3 max-h-48 overflow-y-auto">
+            <div className="space-y-1">
+              {syncLogs.map((log, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs py-1 border-b border-border/50 last:border-0">
+                  {log.status === "success" ? <CheckCircle className="h-3 w-3 text-green-500 mt-0.5 shrink-0" /> :
+                   log.status === "error" ? <XCircle className="h-3 w-3 text-destructive mt-0.5 shrink-0" /> :
+                   <Clock className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />}
+                  <span className="text-muted-foreground shrink-0">{log.timestamp}</span>
+                  <Badge variant="outline" className="text-[9px] shrink-0">{log.action}</Badge>
+                  <span className="text-foreground">{log.message}</span>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
