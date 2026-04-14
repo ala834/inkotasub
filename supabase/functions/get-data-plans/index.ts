@@ -216,7 +216,7 @@ serve(async (req) => {
       // Deduplicate by plan ID
       const seen = new Set<string>();
       basePlans = basePlans.filter((p: any) => {
-        const key = p.id;
+        const key = `${p.provider || 'unknown'}:${p.id}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
