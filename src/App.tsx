@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AppSettingsProvider } from "@/contexts/AppSettingsContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -11,7 +11,7 @@ import SplashScreen from "@/components/SplashScreen";
 import PWAInstallPrompt from "@/components/common/PWAInstallPrompt";
 import OfflineFallback from "@/components/common/OfflineFallback";
 import PushNotificationInit from "@/components/common/PushNotificationInit";
-import Index from "./pages/Index";
+import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 
@@ -69,7 +69,11 @@ const App = () => {
           <PushNotificationInit />
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<Index />} />
+              <Route path="/" element={
+                localStorage.getItem("inkota_onboarded") 
+                  ? <Navigate to="/auth" replace /> 
+                  : <Onboarding />
+              } />
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
