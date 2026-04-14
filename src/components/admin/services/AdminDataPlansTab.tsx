@@ -122,6 +122,7 @@ const AdminDataPlansTab = () => {
 
   const fetchFromProviders = async () => {
     setIsFetching(true);
+    addLog("Sync", "info", "Starting full sync from SMEPlug & Subpadi APIs...");
     try {
       const { data, error } = await supabase.functions.invoke("admin-fetch-data-plans", {
         body: { action: "fetch" },
@@ -135,15 +136,21 @@ const AdminDataPlansTab = () => {
         })));
         const smeplugCount = data.smeplugCount || data.plans.filter((p: any) => p.provider === "smeplug").length;
         const subpadiCount = data.subpadiCount || data.plans.filter((p: any) => p.provider === "subpadi").length;
+        addLog("Sync", "success", `Loaded ${data.total} plans (SMEPlug: ${smeplugCount}, Subpadi: ${subpadiCount})`);
         toast.success(`Loaded ${data.total} plans (SMEPlug: ${smeplugCount}, Subpadi: ${subpadiCount})`);
         if (data.errors?.length) {
-          data.errors.forEach((e: string) => toast.info(e, { duration: 8000 }));
+          data.errors.forEach((e: string) => {
+            addLog("Sync", "error", e);
+            toast.info(e, { duration: 8000 });
+          });
         }
       } else {
+        addLog("Sync", "error", "No plans returned from APIs");
         toast.error("No plans returned");
       }
     } catch (e: any) {
       console.error(e);
+      addLog("Sync", "error", `Failed: ${e.message || "Unknown error"}`);
       toast.error("Failed to fetch from providers");
     }
     setIsFetching(false);
@@ -151,6 +158,7 @@ const AdminDataPlansTab = () => {
 
   const fetchSubpadiPlans = async () => {
     setIsFetchingSubpadi(true);
+    addLog("Subpadi", "info", "Fetching Subpadi plans from API...");
     try {
       const { data, error } = await supabase.functions.invoke("admin-fetch-data-plans", {
         body: { action: "fetch_subpadi" },
@@ -159,21 +167,73 @@ const AdminDataPlansTab = () => {
       if (error) throw error;
       
       if (data?.fromApi && data.saved > 0) {
+        addLog("Subpadi", "success", `Fetched and saved ${data.saved} plans from API`);
         toast.success(`Fetched and saved ${data.saved} Subpadi plans from API`);
         loadPlans();
       } else if (data?.existingInDb > 0) {
-        toast.info(`Subpadi API did not return plan data. ${data.existingInDb} plans already in database (manually added).`, { duration: 8000 });
+        addLog("Subpadi", "info", `API returned no plan data. ${data.existingInDb} plans in database.`);
+        toast.info(`Subpadi API did not return plan data. ${data.existingInDb} plans already in database.`, { duration: 8000 });
       } else {
+        addLog("Subpadi", "error", data?.message || "No Subpadi plans found");
         toast.info(data?.message || "No Subpadi plans found. Add them manually.", { duration: 8000 });
-        if (data?.hint) {
-          toast.info(data.hint, { duration: 10000 });
-        }
       }
     } catch (e: any) {
       console.error(e);
+      addLog("Subpadi", "error", `Failed: ${e.message || "Unknown error"}`);
       toast.error("Failed to fetch Subpadi plans");
     }
     setIsFetchingSubpadi(false);
+  };
+
+  const validatePlans = async () => {
+    setIsValidating(true);
+    addLog("Validate", "info", "Validating plans against Subpadi API...");
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-data-plans", {
+        body: { action: "validate", limit: 50 },
+      });
+
+      if (error) throw error;
+      
+      addLog("Validate", "success", data?.message || "Validation complete");
+      if (data?.invalidCount > 0) {
+        addLog("Validate", "error", `${data.invalidCount} invalid plans found: ${data.invalidPlans?.map((p: any) => `${p.network} ${p.plan_name}`).join(", ")}`);
+        toast.warning(`${data.invalidCount} invalid plans found. Use "Cleanup" to disable them.`);
+      } else {
+        toast.success(`All ${data?.validCount || 0} plans are valid`);
+      }
+      if (data?.errors?.length) {
+        data.errors.forEach((e: any) => addLog("Validate", "error", `${e.network} plan ${e.plan_id}: ${e.error}`));
+      }
+    } catch (e: any) {
+      addLog("Validate", "error", `Failed: ${e.message || "Unknown error"}`);
+      toast.error("Failed to validate plans");
+    }
+    setIsValidating(false);
+  };
+
+  const cleanupInvalidPlans = async () => {
+    setIsValidating(true);
+    addLog("Cleanup", "info", "Running cleanup — disabling invalid plans...");
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-data-plans", {
+        body: { action: "cleanup", limit: 100 },
+      });
+
+      if (error) throw error;
+      
+      addLog("Cleanup", "success", data?.message || "Cleanup complete");
+      if (data?.invalidCount > 0) {
+        toast.success(`Disabled ${data.invalidCount} invalid plans`);
+        loadPlans();
+      } else {
+        toast.info("No invalid plans found");
+      }
+    } catch (e: any) {
+      addLog("Cleanup", "error", `Failed: ${e.message || "Unknown error"}`);
+      toast.error("Failed to cleanup plans");
+    }
+    setIsValidating(false);
   };
 
   const togglePlan = async (plan: ProviderPlan, field: "is_enabled" | "is_featured") => {
