@@ -91,21 +91,22 @@ const Dashboard = () => {
               <AnimatePresence>
                 {showProfileMenu && (
                   <motion.div
-                    initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                    initial={{ opacity: 0, y: -4, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute left-0 top-full mt-2 w-52 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden"
-                    style={{ zIndex: 9999 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute left-0 top-full mt-2 w-56 bg-white rounded-2xl border border-gray-200/80 overflow-hidden"
+                    style={{ zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}
                   >
-                    <div className="px-4 py-3 border-b border-gray-100">
+                    <div className="px-4 py-3.5">
                       <p className="font-semibold text-sm text-gray-900 truncate">{profile?.full_name || "User"}</p>
-                      <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                      <p className="text-xs text-gray-400 truncate mt-0.5">{user?.email}</p>
                     </div>
-                    <div className="py-1">
+                    <div className="h-px bg-gray-100 mx-3" />
+                    <div className="py-1.5 px-1.5">
                       <button
                         onClick={() => { setShowProfileMenu(false); navigate("/profile"); }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 rounded-lg transition-colors"
                       >
                         <User className="h-4 w-4 text-green-600" />
                         Profile
@@ -113,17 +114,18 @@ const Dashboard = () => {
                       {isAdmin && (
                         <button
                           onClick={() => { setShowProfileMenu(false); navigate("/admin"); }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 rounded-lg transition-colors"
                         >
                           <Shield className="h-4 w-4 text-blue-600" />
                           Admin Dashboard
                         </button>
                       )}
                     </div>
-                    <div className="border-t border-gray-100 py-1">
+                    <div className="h-px bg-gray-100 mx-3" />
+                    <div className="py-1.5 px-1.5">
                       <button
                         onClick={handleSignOut}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-500 hover:bg-red-50 active:bg-red-100 rounded-lg transition-colors"
                       >
                         <LogOut className="h-4 w-4" />
                         Sign Out
