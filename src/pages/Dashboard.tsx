@@ -66,7 +66,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Green Header with Wallet */}
-      <div className="bg-gradient-to-br from-green-600 via-green-500 to-emerald-500 px-4 pt-4 pb-16 relative" style={{ overflow: 'visible' }}>
+      <div className="bg-gradient-to-br from-green-600 via-green-500 to-emerald-500 px-4 pt-4 pb-16 relative" style={{ overflow: 'visible', isolation: 'isolate' }}>
         {/* Decorative circles */}
         <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/5" />
         <div className="absolute -left-6 top-20 w-28 h-28 rounded-full bg-white/5" />
@@ -160,11 +160,11 @@ const Dashboard = () => {
             </button>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 relative z-0">
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate("/fund-wallet")}
-              className="flex-1 h-11 rounded-xl bg-white text-green-600 font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-green-900/20 active:bg-gray-50 transition-colors"
+              className="flex-1 h-11 rounded-xl bg-white text-green-600 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm active:bg-gray-50 transition-colors"
             >
               <Plus className="h-4 w-4" /> Fund Wallet
             </motion.button>
