@@ -4,6 +4,7 @@ import { generateReference } from "../_shared/inkota-service-layer.ts";
 import { subpadiPurchaseData } from "../_shared/subpadi-provider.ts";
 import { smeplugPurchaseData } from "../_shared/smeplug-provider.ts";
 import { clubkonnectPurchaseData } from "../_shared/clubkonnect-provider.ts";
+import { renderPurchaseData } from "../_shared/render-provider.ts";
 import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { checkFraud, fraudBlockResponse } from "../_shared/fraud-detection.ts";
@@ -113,6 +114,7 @@ serve(async (req) => {
       networkUpper,
       selectedPlanProvider ? { preferredProvider: selectedPlanProvider } : undefined,
       () => clubkonnectPurchaseData(networkUpper, phoneNumber, planId),
+      () => renderPurchaseData(networkUpper, phoneNumber, planId, sellingPrice),
     );
 
     // Map provider-specific errors to user-friendly messages
