@@ -146,7 +146,7 @@ const Dashboard = () => {
         </div>
 
         {/* Wallet Balance */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="relative z-10">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="relative z-0">
           <p className="text-white/70 text-xs font-medium mb-1">Wallet Balance</p>
           <div className="flex items-center gap-3 mb-5">
             <span className="text-3xl font-bold text-white">
