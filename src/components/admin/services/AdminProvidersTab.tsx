@@ -27,7 +27,7 @@ interface ProviderStatus {
   checking: boolean;
 }
 
-const PROVIDERS = ["subpadi", "smeplug", "clubkonnect"];
+const PROVIDERS = ["subpadi", "smeplug", "clubkonnect", "render"];
 
 const AdminProvidersTab = () => {
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
@@ -37,6 +37,7 @@ const AdminProvidersTab = () => {
     subpadi: { name: "Subpadi", connected: false, balance: null, message: "Not checked", checking: false },
     smeplug: { name: "SMEPlug", connected: false, balance: null, message: "Not checked", checking: false },
     clubkonnect: { name: "ClubKonnect", connected: false, balance: null, message: "Not checked", checking: false },
+    render: { name: "Render Backend", connected: false, balance: null, message: "Not checked", checking: false },
   });
 
   const fetchConfigs = async () => {
@@ -263,7 +264,7 @@ const AdminProvidersTab = () => {
                         <SelectContent>
                           {PROVIDERS.map((p) => (
                             <SelectItem key={p} value={p} className="capitalize">
-                              {p === "subpadi" ? "Subpadi" : p === "smeplug" ? "SMEPlug" : p === "clubkonnect" ? "ClubKonnect" : p}
+                              {p === "subpadi" ? "Subpadi" : p === "smeplug" ? "SMEPlug" : p === "clubkonnect" ? "ClubKonnect" : p === "render" ? "Render Backend" : p}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -284,7 +285,7 @@ const AdminProvidersTab = () => {
                           <SelectItem value="none">None</SelectItem>
                           {PROVIDERS.filter((p) => p !== config.primary_provider).map((p) => (
                             <SelectItem key={p} value={p} className="capitalize">
-                              {p === "subpadi" ? "Subpadi" : p === "smeplug" ? "SMEPlug" : p === "clubkonnect" ? "ClubKonnect" : p}
+                              {p === "subpadi" ? "Subpadi" : p === "smeplug" ? "SMEPlug" : p === "clubkonnect" ? "ClubKonnect" : p === "render" ? "Render Backend" : p}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -354,6 +355,14 @@ const AdminProvidersTab = () => {
               <li>Supports airtime, data, recharge card printing (EPIN)</li>
               <li>HTTPS GET API with UserID + APIKey authentication</li>
               <li>15-second timeout with automatic retry (2 retries)</li>
+            </ul>
+          </div>
+          <div className="p-4 rounded-lg bg-muted/50 space-y-1">
+            <h4 className="font-medium">Render Backend</h4>
+            <ul className="list-disc list-inside space-y-0.5 text-sm text-muted-foreground">
+              <li>Base URL: https://inkotasub-backend.onrender.com</li>
+              <li>Supports airtime (/buy-airtime), data (/buy-data)</li>
+              <li>15-second timeout, no API key required</li>
             </ul>
           </div>
         </CardContent>
