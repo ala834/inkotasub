@@ -121,6 +121,7 @@ serve(async (req) => {
       resolvedNetwork,
       { preferredProvider: 'smeplug' },
       () => clubkonnectPurchaseAirtime(resolvedNetwork, phoneNumber, sellingPrice),
+      () => renderPurchaseAirtime(resolvedNetwork, phoneNumber, sellingPrice),
     );
 
     const providerResult: ProviderResult = {

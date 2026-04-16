@@ -114,6 +114,7 @@ serve(async (req) => {
       networkUpper,
       selectedPlanProvider ? { preferredProvider: selectedPlanProvider } : undefined,
       () => clubkonnectPurchaseData(networkUpper, phoneNumber, planId),
+      () => renderPurchaseData(networkUpper, phoneNumber, planId, sellingPrice),
     );
 
     // Map provider-specific errors to user-friendly messages
