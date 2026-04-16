@@ -4,6 +4,7 @@ import { generateReference } from "../_shared/inkota-service-layer.ts";
 import { subpadiPurchaseAirtime } from "../_shared/subpadi-provider.ts";
 import { smeplugPurchaseAirtime } from "../_shared/smeplug-provider.ts";
 import { clubkonnectPurchaseAirtime } from "../_shared/clubkonnect-provider.ts";
+import { renderPurchaseAirtime } from "../_shared/render-provider.ts";
 import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { checkFraud, fraudBlockResponse } from "../_shared/fraud-detection.ts";
