@@ -96,12 +96,19 @@ const AdminProvidersTab = () => {
         for (const key of PROVIDERS) {
           const p = providers[key];
           if (p) {
+            const isRender = key === "render";
+            const latency = isRender ? (p.details?.latency_ms ?? null) : null;
             updated[key] = {
               ...updated[key],
               connected: p.connected,
               balance: p.balance != null ? `₦${Number(p.balance).toLocaleString()}` : null,
+              latency,
               message: p.configured
-                ? (p.connected ? "Connected" : "Connection failed")
+                ? (p.connected
+                    ? (isRender
+                        ? `Online${latency != null ? ` · ${latency}ms` : ""}`
+                        : "Connected")
+                    : (isRender ? "Offline / unreachable" : "Connection failed"))
                 : "Not configured",
               checking: false,
             };
