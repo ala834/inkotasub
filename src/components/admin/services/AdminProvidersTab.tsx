@@ -25,6 +25,7 @@ interface ProviderStatus {
   balance: string | null;
   message: string;
   checking: boolean;
+  latency?: number | null;
 }
 
 const PROVIDERS = ["subpadi", "smeplug", "clubkonnect", "render"];
