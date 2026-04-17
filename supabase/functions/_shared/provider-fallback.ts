@@ -5,6 +5,7 @@ import { isSubpadiConfigured, type SubpadiResponse } from "./subpadi-provider.ts
 import { isSmeplugConfigured, type SmeplugResponse } from "./smeplug-provider.ts";
 import { isClubkonnectConfigured, type ClubkonnectResponse } from "./clubkonnect-provider.ts";
 import { isRenderConfigured, type RenderResponse } from "./render-provider.ts";
+import { isFlowpayConfigured, type FlowpayResponse } from "./flowpay-provider.ts";
 import { withMetrics } from "./provider-metrics.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -19,7 +20,7 @@ export interface FallbackResult {
   token?: string;
 }
 
-type ProviderResponse = SubpadiResponse | SmeplugResponse | ClubkonnectResponse | RenderResponse;
+type ProviderResponse = SubpadiResponse | SmeplugResponse | ClubkonnectResponse | RenderResponse | FlowpayResponse;
 
 interface ProviderConfig {
   primaryProvider: string;
@@ -84,6 +85,7 @@ function isProviderConfigured(provider: string): boolean {
     case 'smeplug': return isSmeplugConfigured();
     case 'clubkonnect': return isClubkonnectConfigured();
     case 'render': return isRenderConfigured();
+    case 'flowpay': return isFlowpayConfigured();
     default: return false;
   }
 }
@@ -97,6 +99,7 @@ export async function executeWithFallback(
   options: ExecuteWithFallbackOptions = {},
   clubkonnectFn?: () => Promise<ProviderResponse>,
   renderFn?: () => Promise<ProviderResponse>,
+  flowpayFn?: () => Promise<ProviderResponse>,
 ): Promise<FallbackResult> {
   let config = await getProviderConfig(serviceType, network);
 
@@ -105,6 +108,7 @@ export async function executeWithFallback(
     smeplug: smeplugFn,
     clubkonnect: clubkonnectFn,
     render: renderFn,
+    flowpay: flowpayFn,
   };
 
   const preferredProvider = options.preferredProvider?.toLowerCase();

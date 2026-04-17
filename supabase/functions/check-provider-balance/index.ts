@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { subpadiGetUserBalance, isSubpadiConfigured } from "../_shared/subpadi-provider.ts";
 import { smeplugGetBalance, isSmeplugConfigured } from "../_shared/smeplug-provider.ts";
 import { clubkonnectGetBalance, isClubkonnectConfigured } from "../_shared/clubkonnect-provider.ts";
+import { flowpayGetBalance, isFlowpayConfigured } from "../_shared/flowpay-provider.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -87,6 +88,20 @@ serve(async (req) => {
         balance: null,
         details: { error: e instanceof Error ? e.message : String(e) },
       };
+    }
+
+    // Check Flowpay
+    if (isFlowpayConfigured()) {
+      const fp = await flowpayGetBalance();
+      const fpRaw = fp.rawResponse as any;
+      providers.flowpay = {
+        configured: true,
+        connected: fp.success,
+        balance: fp.success ? (fpRaw?.balance ?? fpRaw?.wallet_balance ?? fpRaw?.data?.balance ?? null) : null,
+        details: fp.rawResponse,
+      };
+    } else {
+      providers.flowpay = { configured: false, connected: false, balance: null };
     }
 
     // Check ClubKonnect
