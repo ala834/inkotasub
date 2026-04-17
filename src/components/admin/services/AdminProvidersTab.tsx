@@ -28,7 +28,15 @@ interface ProviderStatus {
   latency?: number | null;
 }
 
-const PROVIDERS = ["subpadi", "smeplug", "clubkonnect", "render"];
+const PROVIDERS = ["subpadi", "smeplug", "clubkonnect", "render", "flowpay"];
+
+const providerLabel = (p: string) =>
+  p === "subpadi" ? "Subpadi"
+  : p === "smeplug" ? "SMEPlug"
+  : p === "clubkonnect" ? "ClubKonnect"
+  : p === "render" ? "Render Backend"
+  : p === "flowpay" ? "Flowpay"
+  : p;
 
 const AdminProvidersTab = () => {
   const [configs, setConfigs] = useState<ProviderConfig[]>([]);
@@ -39,6 +47,7 @@ const AdminProvidersTab = () => {
     smeplug: { name: "SMEPlug", connected: false, balance: null, message: "Not checked", checking: false },
     clubkonnect: { name: "ClubKonnect", connected: false, balance: null, message: "Not checked", checking: false },
     render: { name: "Render Backend", connected: false, balance: null, message: "Not checked", checking: false },
+    flowpay: { name: "Flowpay", connected: false, balance: null, message: "Not checked", checking: false },
   });
 
   const fetchConfigs = async () => {
@@ -272,7 +281,7 @@ const AdminProvidersTab = () => {
                         <SelectContent>
                           {PROVIDERS.map((p) => (
                             <SelectItem key={p} value={p} className="capitalize">
-                              {p === "subpadi" ? "Subpadi" : p === "smeplug" ? "SMEPlug" : p === "clubkonnect" ? "ClubKonnect" : p === "render" ? "Render Backend" : p}
+                              {providerLabel(p)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -293,7 +302,7 @@ const AdminProvidersTab = () => {
                           <SelectItem value="none">None</SelectItem>
                           {PROVIDERS.filter((p) => p !== config.primary_provider).map((p) => (
                             <SelectItem key={p} value={p} className="capitalize">
-                              {p === "subpadi" ? "Subpadi" : p === "smeplug" ? "SMEPlug" : p === "clubkonnect" ? "ClubKonnect" : p === "render" ? "Render Backend" : p}
+                              {providerLabel(p)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -371,6 +380,15 @@ const AdminProvidersTab = () => {
               <li>Base URL: https://inkotasub-backend.onrender.com</li>
               <li>Supports airtime (/buy-airtime), data (/buy-data)</li>
               <li>15-second timeout, no API key required</li>
+            </ul>
+          </div>
+          <div className="p-4 rounded-lg bg-muted/50 space-y-1">
+            <h4 className="font-medium">Flowpay</h4>
+            <ul className="list-disc list-inside space-y-0.5 text-sm text-muted-foreground">
+              <li>Base URL: https://api.flowpay.ng</li>
+              <li>Supports data (POST /api/data) — primary data provider</li>
+              <li>Bearer token auth · 20-second timeout · numeric network codes (MTN=1, Airtel=2, Glo=3, 9mobile=4)</li>
+              <li>Plan IDs are strings (e.g. SME_1GB) — manage in Services → Data Plans</li>
             </ul>
           </div>
         </CardContent>
