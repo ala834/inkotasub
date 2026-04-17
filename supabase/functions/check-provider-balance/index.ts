@@ -62,6 +62,33 @@ serve(async (req) => {
       providers.smeplug = { configured: false, connected: false, balance: null };
     }
 
+    // Check Render Backend (health check ping)
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const startedAt = Date.now();
+      const renderResp = await fetch("https://inkotasub-backend.onrender.com/", {
+        method: "GET",
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      const elapsed = Date.now() - startedAt;
+      const text = await renderResp.text().catch(() => "");
+      providers.render = {
+        configured: true,
+        connected: renderResp.ok,
+        balance: null,
+        details: { status: renderResp.status, latency_ms: elapsed, body: text.slice(0, 200) },
+      };
+    } catch (e) {
+      providers.render = {
+        configured: true,
+        connected: false,
+        balance: null,
+        details: { error: e instanceof Error ? e.message : String(e) },
+      };
+    }
+
     // Check ClubKonnect
     if (isClubkonnectConfigured()) {
       const ck = await clubkonnectGetBalance();
