@@ -1,10 +1,11 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Smartphone, Signal, Tv, Zap, Settings2 } from "lucide-react";
+import { Smartphone, Signal, Tv, Zap, Settings2, Database } from "lucide-react";
 import AdminDataPlansTab from "./services/AdminDataPlansTab";
 import AdminAirtimePricingTab from "./services/AdminAirtimePricingTab";
 import AdminCableTVTab from "./services/AdminCableTVTab";
 import AdminElectricityTab from "./services/AdminElectricityTab";
 import AdminProvidersTab from "./services/AdminProvidersTab";
+import AdminFlowpayPlansTab from "./services/AdminFlowpayPlansTab";
 
 const AdminServicesTab = () => {
   return (
@@ -17,7 +18,7 @@ const AdminServicesTab = () => {
       </div>
 
       <Tabs defaultValue="providers" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
           <TabsTrigger value="providers" className="gap-2">
             <Settings2 className="h-4 w-4" />
             <span className="hidden sm:inline">Providers</span>
@@ -25,6 +26,10 @@ const AdminServicesTab = () => {
           <TabsTrigger value="data" className="gap-2">
             <Signal className="h-4 w-4" />
             <span className="hidden sm:inline">Data</span>
+          </TabsTrigger>
+          <TabsTrigger value="flowpay" className="gap-2">
+            <Database className="h-4 w-4" />
+            <span className="hidden sm:inline">Flowpay</span>
           </TabsTrigger>
           <TabsTrigger value="airtime" className="gap-2">
             <Smartphone className="h-4 w-4" />
@@ -46,6 +51,10 @@ const AdminServicesTab = () => {
 
         <TabsContent value="data">
           <AdminDataPlansTab />
+        </TabsContent>
+
+        <TabsContent value="flowpay">
+          <AdminFlowpayPlansTab />
         </TabsContent>
 
         <TabsContent value="airtime">

@@ -3,7 +3,7 @@
 // Auth: Authorization: Bearer {FLOWPAY_API_KEY}
 // Docs: https://app.flowpay.ng/developer
 
-const FLOWPAY_BASE_URL = "https://api.flowpay.ng";
+const FLOWPAY_BASE_URL = "https://app.flowpay.ng/api";
 const FLOWPAY_TIMEOUT_MS = 20000;
 const FLOWPAY_MAX_RETRIES = 1;
 
@@ -82,7 +82,7 @@ export async function flowpayPurchaseData(
 
     console.log(`Flowpay data purchase:`, body);
 
-    const response = await fetchWithRetry(`${FLOWPAY_BASE_URL}/api/data`, {
+    const response = await fetchWithRetry(`${FLOWPAY_BASE_URL}/data`, {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify(body),
@@ -114,19 +114,19 @@ export async function flowpayGetBalance(): Promise<FlowpayResponse> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
     const startedAt = Date.now();
-    const response = await fetch(`${FLOWPAY_BASE_URL}/api/user`, {
+    // Flowpay has no documented balance endpoint — ping the base host to verify reachability.
+    // Any 2xx/3xx/4xx response (i.e. server reachable) counts as "connected".
+    const response = await fetch("https://app.flowpay.ng/", {
       method: "GET",
-      headers: getHeaders(),
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
     const elapsed = Date.now() - startedAt;
-    const text = await response.text().catch(() => "");
-    const data = parseJson(text);
+    const reachable = response.status > 0 && response.status < 500;
     return {
-      success: response.ok,
-      message: response.ok ? "Connected" : `HTTP ${response.status}`,
-      rawResponse: { ...data, latency_ms: elapsed, status: response.status },
+      success: reachable,
+      message: reachable ? "Connected" : `HTTP ${response.status}`,
+      rawResponse: { latency_ms: elapsed, status: response.status, host: "app.flowpay.ng" },
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Flowpay unreachable";

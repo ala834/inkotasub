@@ -385,10 +385,10 @@ const AdminProvidersTab = () => {
           <div className="p-4 rounded-lg bg-muted/50 space-y-1">
             <h4 className="font-medium">Flowpay</h4>
             <ul className="list-disc list-inside space-y-0.5 text-sm text-muted-foreground">
-              <li>Base URL: https://api.flowpay.ng</li>
-              <li>Supports data (POST /api/data) — primary data provider</li>
+              <li>Base URL: https://app.flowpay.ng/api</li>
+              <li>Supports data (POST /data) — primary data provider</li>
               <li>Bearer token auth · 20-second timeout · numeric network codes (MTN=1, Airtel=2, Glo=3, 9mobile=4)</li>
-              <li>Plan IDs are strings (e.g. SME_1GB) — manage in Services → Data Plans</li>
+              <li>Plans are managed manually in Services → Flowpay (used as automatic fallback if API plans fail)</li>
             </ul>
           </div>
         </CardContent>

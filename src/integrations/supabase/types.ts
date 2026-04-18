@@ -263,6 +263,48 @@ export type Database = {
         }
         Relationships: []
       }
+      flowpay_manual_plans: {
+        Row: {
+          api_plan_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_enabled: boolean
+          network: string
+          plan_name: string
+          plan_type: string
+          price: number
+          updated_at: string
+          validity: string | null
+        }
+        Insert: {
+          api_plan_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_enabled?: boolean
+          network: string
+          plan_name: string
+          plan_type?: string
+          price: number
+          updated_at?: string
+          validity?: string | null
+        }
+        Update: {
+          api_plan_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_enabled?: boolean
+          network?: string
+          plan_name?: string
+          plan_type?: string
+          price?: number
+          updated_at?: string
+          validity?: string | null
+        }
+        Relationships: []
+      }
       fraud_flags: {
         Row: {
           created_at: string
