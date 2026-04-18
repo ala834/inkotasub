@@ -36,7 +36,7 @@ interface ProviderPlan {
 }
 
 const NETWORKS = ["MTN", "AIRTEL", "GLO", "9MOBILE"];
-const PROVIDERS = ["smeplug", "subpadi"];
+const PROVIDERS = ["smeplug", "subpadi", "flowpay"];
 const PLAN_TYPES = ["SME", "GIFTING", "CORPORATE", "GENERAL"];
 
 const PLAN_TYPE_COLORS: Record<string, string> = {
@@ -56,6 +56,7 @@ interface SyncLogEntry {
 const AdminDataPlansTab = () => {
   const { user } = useAuth();
   const [isFetchingSubpadi, setIsFetchingSubpadi] = useState(false);
+  const [isFetchingFlowpay, setIsFetchingFlowpay] = useState(false);
   const [plans, setPlans] = useState<ProviderPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
@@ -183,6 +184,34 @@ const AdminDataPlansTab = () => {
       toast.error("Failed to fetch Subpadi plans");
     }
     setIsFetchingSubpadi(false);
+  };
+
+  const fetchFlowpayPlans = async () => {
+    setIsFetchingFlowpay(true);
+    addLog("Flowpay", "info", "Syncing Flowpay plan catalog...");
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-flowpay-plans", { body: {} });
+      if (error) throw error;
+      if (data?.success || data?.synced > 0) {
+        const summary = data.summary
+          ? ` (SME: ${data.summary.by_type?.SME || 0}, GIFTING: ${data.summary.by_type?.GIFTING || 0}, CORPORATE: ${data.summary.by_type?.CORPORATE || 0})`
+          : "";
+        addLog("Flowpay", "success", `Synced ${data.synced}/${data.total} plans${summary}`);
+        toast.success(`Synced ${data.synced} Flowpay plans${summary}`);
+        if (data.errorMessages?.length) {
+          data.errorMessages.forEach((msg: string) => addLog("Flowpay", "error", msg));
+        }
+        loadPlans();
+      } else {
+        addLog("Flowpay", "error", data?.message || "Sync returned no plans");
+        toast.error(data?.message || "Flowpay sync failed");
+      }
+    } catch (e: any) {
+      console.error(e);
+      addLog("Flowpay", "error", `Failed: ${e.message || "Unknown error"}`);
+      toast.error("Failed to sync Flowpay plans");
+    }
+    setIsFetchingFlowpay(false);
   };
 
   const validatePlans = async () => {
@@ -718,6 +747,11 @@ const AdminDataPlansTab = () => {
           <Button variant="outline" size="sm" onClick={fetchFromProviders} disabled={isFetching} className="gap-2">
             <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
             {isFetching ? "Syncing..." : "Sync from APIs"}
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={fetchFlowpayPlans} disabled={isFetchingFlowpay} className="gap-2">
+            <Download className={`h-4 w-4 ${isFetchingFlowpay ? "animate-spin" : ""}`} />
+            {isFetchingFlowpay ? "Syncing Flowpay..." : "Sync Flowpay"}
           </Button>
 
           <Dialog open={isManualDialogOpen} onOpenChange={setIsManualDialogOpen}>
