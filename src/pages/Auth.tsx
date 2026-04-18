@@ -16,6 +16,53 @@ const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 const usernameSchema = z.string().min(4, "Username must be at least 4 characters").regex(/^[a-zA-Z0-9_]+$/, "Only letters, numbers, and underscores");
 
+// IMPORTANT: Define these OUTSIDE the Auth component.
+// Defining them inside causes React to create a new component type on every
+// render, which unmounts/remounts the <input>, dropping focus and closing
+// the mobile keyboard after every keystroke.
+const InputField = ({ icon: Icon, id, label, error, className, ...props }: any) => (
+  <div className="space-y-1.5">
+    <label htmlFor={id} className="text-xs font-medium text-gray-500">{label}</label>
+    <div className="relative">
+      <Icon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+      <input
+        id={id}
+        {...props}
+        className={cn(
+          "w-full h-12 pl-11 pr-4 bg-gray-50 border rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all text-sm",
+          error ? "border-red-300 focus:ring-red-500" : "border-gray-200",
+          className
+        )}
+      />
+    </div>
+    {error && <p className="text-xs text-red-500">{error}</p>}
+  </div>
+);
+
+const PasswordField = ({ id, label, value, onChange, show, onToggle, error, placeholder = "••••••••" }: any) => (
+  <div className="space-y-1.5">
+    <label htmlFor={id} className="text-xs font-medium text-gray-500">{label}</label>
+    <div className="relative">
+      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+      <input
+        id={id}
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className={cn(
+          "w-full h-12 pl-11 pr-12 bg-gray-50 border rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all text-sm",
+          error ? "border-red-300 focus:ring-red-500" : "border-gray-200"
+        )}
+      />
+      <button type="button" onClick={onToggle} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 active:text-gray-600">
+        {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+      </button>
+    </div>
+    {error && <p className="text-xs text-red-500">{error}</p>}
+  </div>
+);
+
 const Auth = () => {
   const navigate = useNavigate();
   const { user, signIn, signUp, isLoading, isAdmin, profile } = useAuth();
