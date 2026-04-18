@@ -186,6 +186,34 @@ const AdminDataPlansTab = () => {
     setIsFetchingSubpadi(false);
   };
 
+  const fetchFlowpayPlans = async () => {
+    setIsFetchingFlowpay(true);
+    addLog("Flowpay", "info", "Syncing Flowpay plan catalog...");
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-flowpay-plans", { body: {} });
+      if (error) throw error;
+      if (data?.success || data?.synced > 0) {
+        const summary = data.summary
+          ? ` (SME: ${data.summary.by_type?.SME || 0}, GIFTING: ${data.summary.by_type?.GIFTING || 0}, CORPORATE: ${data.summary.by_type?.CORPORATE || 0})`
+          : "";
+        addLog("Flowpay", "success", `Synced ${data.synced}/${data.total} plans${summary}`);
+        toast.success(`Synced ${data.synced} Flowpay plans${summary}`);
+        if (data.errorMessages?.length) {
+          data.errorMessages.forEach((msg: string) => addLog("Flowpay", "error", msg));
+        }
+        loadPlans();
+      } else {
+        addLog("Flowpay", "error", data?.message || "Sync returned no plans");
+        toast.error(data?.message || "Flowpay sync failed");
+      }
+    } catch (e: any) {
+      console.error(e);
+      addLog("Flowpay", "error", `Failed: ${e.message || "Unknown error"}`);
+      toast.error("Failed to sync Flowpay plans");
+    }
+    setIsFetchingFlowpay(false);
+  };
+
   const validatePlans = async () => {
     setIsValidating(true);
     addLog("Validate", "info", "Validating plans against Subpadi API...");
