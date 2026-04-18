@@ -90,11 +90,48 @@ export async function flowpayPurchaseData(
 
     const text = await response.text();
     const data = parseJson(text);
-    console.log(`Flowpay response (${response.status}):`, data);
+    console.log(`Flowpay response (HTTP ${response.status}):`, JSON.stringify(data));
 
-    const success = response.ok && (data?.status === true || data?.status === "success" || data?.success === true);
-    const message = data?.message || (success ? "Data purchase successful" : `Flowpay error (${response.status})`);
-    const reference = data?.reference || data?.transaction_id || data?.data?.reference;
+    // Robust success detection — Flowpay may use different shapes:
+    //   { status: true, message: "...", reference: "..." }
+    //   { status: "success" | "successful" | "completed", ... }
+    //   { success: true, ... }
+    //   { data: { status: true | "success", ... } }
+    //   { code: 200 | "00", ... }
+    const inner = (data && typeof data === "object" && data.data && typeof data.data === "object") ? data.data : null;
+    const statusCandidates: unknown[] = [
+      data?.status, data?.success, data?.code, data?.Status,
+      inner?.status, inner?.success, inner?.code,
+    ];
+    const isTruthyStatus = (v: unknown): boolean => {
+      if (v === true) return true;
+      if (typeof v === "number") return v === 200 || v === 1;
+      if (typeof v === "string") {
+        const s = v.toLowerCase().trim();
+        return ["success", "successful", "completed", "delivered", "true", "ok", "00", "200"].includes(s);
+      }
+      return false;
+    };
+    const isFailureStatus = (v: unknown): boolean => {
+      if (v === false) return true;
+      if (typeof v === "string") {
+        const s = v.toLowerCase().trim();
+        return ["failed", "failure", "error", "rejected", "declined", "false"].includes(s);
+      }
+      return false;
+    };
+
+    const explicitSuccess = statusCandidates.some(isTruthyStatus);
+    const explicitFailure = statusCandidates.some(isFailureStatus);
+    // If HTTP 200 and no explicit failure marker but a reference exists, treat as success.
+    const reference = data?.reference || data?.transaction_id || data?.trans_id || data?.txn_id
+      || inner?.reference || inner?.transaction_id || inner?.trans_id;
+    const success = explicitSuccess || (response.ok && !explicitFailure && !!reference);
+
+    const message = data?.message || inner?.message
+      || (success ? "Data purchase successful" : `Flowpay error (HTTP ${response.status})`);
+
+    console.log(`Flowpay decision: success=${success} explicitSuccess=${explicitSuccess} explicitFailure=${explicitFailure} reference=${reference || "none"} httpOk=${response.ok}`);
 
     return { success, message, rawResponse: data, reference };
   } catch (error) {
