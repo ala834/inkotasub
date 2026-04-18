@@ -56,6 +56,7 @@ interface SyncLogEntry {
 const AdminDataPlansTab = () => {
   const { user } = useAuth();
   const [isFetchingSubpadi, setIsFetchingSubpadi] = useState(false);
+  const [isFetchingFlowpay, setIsFetchingFlowpay] = useState(false);
   const [plans, setPlans] = useState<ProviderPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
