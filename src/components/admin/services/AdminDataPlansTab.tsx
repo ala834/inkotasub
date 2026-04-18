@@ -36,7 +36,7 @@ interface ProviderPlan {
 }
 
 const NETWORKS = ["MTN", "AIRTEL", "GLO", "9MOBILE"];
-const PROVIDERS = ["smeplug", "subpadi"];
+const PROVIDERS = ["smeplug", "subpadi", "flowpay"];
 const PLAN_TYPES = ["SME", "GIFTING", "CORPORATE", "GENERAL"];
 
 const PLAN_TYPE_COLORS: Record<string, string> = {
