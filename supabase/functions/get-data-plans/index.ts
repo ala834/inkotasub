@@ -109,14 +109,16 @@ serve(async (req) => {
 
       const adminSupabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-      // 1. Try database first (only enabled plans)
+      // 1. Try database first (only enabled, non-permanently-disabled, stable plans)
       try {
         const { data: dbPlans } = await adminSupabase
           .from("service_plans")
           .select("*")
           .eq("service_type", "data")
           .eq("network", networkUpper)
-          .eq("is_enabled", true);
+          .eq("is_enabled", true)
+          .eq("permanently_disabled", false)
+          .lt("failure_count", 2);
 
         if (dbPlans && dbPlans.length > 0) {
           basePlans = dbPlans.map((plan: any) => ({
@@ -132,7 +134,7 @@ serve(async (req) => {
             provider: plan.provider || "subpadi",
           }));
           source = "database";
-          console.log(`Loaded ${basePlans.length} data plans for ${network} from database`);
+          console.log(`Loaded ${basePlans.length} stable data plans for ${network} from database`);
         }
       } catch (dbError) {
         console.error("DB plans error:", dbError);
@@ -207,13 +209,15 @@ serve(async (req) => {
         }
       }
 
-      // 3. Merge enabled Flowpay manual plans (admin-managed, always available)
+      // 3. Merge enabled Flowpay manual plans (admin-managed, always available; skip unstable)
       try {
         const { data: flowpayPlans } = await adminSupabase
           .from("flowpay_manual_plans")
           .select("*")
           .eq("network", networkUpper)
-          .eq("is_enabled", true);
+          .eq("is_enabled", true)
+          .eq("permanently_disabled", false)
+          .lt("failure_count", 2);
         if (flowpayPlans && flowpayPlans.length > 0) {
           const mapped = flowpayPlans.map((p: any) => ({
             id: p.id, // DB id; purchase-data resolves to api_plan_id server-side
@@ -229,7 +233,7 @@ serve(async (req) => {
           }));
           basePlans = [...basePlans, ...mapped];
           if (source === "fallback") source = "flowpay";
-          console.log(`Merged ${mapped.length} Flowpay manual plans for ${networkUpper}`);
+          console.log(`Merged ${mapped.length} stable Flowpay manual plans for ${networkUpper}`);
         }
       } catch (fpError) {
         console.error("Flowpay manual plans merge error:", fpError);
