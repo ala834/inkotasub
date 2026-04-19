@@ -185,8 +185,9 @@ export async function flowpayPurchaseData(
       || inner?.reference || inner?.transaction_id || inner?.trans_id;
     const success = explicitSuccess || (response.ok && !explicitFailure && !!reference);
 
-    const message = data?.message || inner?.message
-      || (success ? "Data purchase successful" : `Flowpay error (HTTP ${response.status})`);
+    const message = success
+      ? (data?.message || inner?.message || "Data purchase successful")
+      : `Flowpay: ${extractFlowpayError(data, response.status)}`;
 
     console.log(`Flowpay decision: success=${success} explicitSuccess=${explicitSuccess} explicitFailure=${explicitFailure} reference=${reference || "none"} httpOk=${response.ok}`);
 
