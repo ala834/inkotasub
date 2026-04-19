@@ -207,7 +207,35 @@ serve(async (req) => {
         }
       }
 
-      // 3. Final fallback to hardcoded plans
+      // 3. Merge enabled Flowpay manual plans (admin-managed, always available)
+      try {
+        const { data: flowpayPlans } = await adminSupabase
+          .from("flowpay_manual_plans")
+          .select("*")
+          .eq("network", networkUpper)
+          .eq("is_enabled", true);
+        if (flowpayPlans && flowpayPlans.length > 0) {
+          const mapped = flowpayPlans.map((p: any) => ({
+            id: p.id, // DB id; purchase-data resolves to api_plan_id server-side
+            name: p.plan_name,
+            amount: parseFloat(p.price),
+            baseAmount: parseFloat(p.price),
+            sellingPrice: parseFloat(p.price),
+            validity: p.validity || "30 Days",
+            dataSize: extractDataSize(p.plan_name),
+            category: mapPlanTypeToCategory(p.plan_type || '') || categorizePlan(p.plan_name),
+            isFeatured: false,
+            provider: "flowpay",
+          }));
+          basePlans = [...basePlans, ...mapped];
+          if (source === "fallback") source = "flowpay";
+          console.log(`Merged ${mapped.length} Flowpay manual plans for ${networkUpper}`);
+        }
+      } catch (fpError) {
+        console.error("Flowpay manual plans merge error:", fpError);
+      }
+
+      // 4. Final fallback to hardcoded plans
       if (basePlans.length === 0) {
         basePlans = getFallbackPlans(network);
         source = "fallback";
