@@ -17,6 +17,7 @@ import {
   type TransactionContext,
   type ProviderResult,
 } from "../_shared/transaction-handler.ts";
+import { trackPlanOutcome } from "../_shared/plan-reliability.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -141,6 +142,15 @@ serve(async (req) => {
       success: result.success, message: userMessage, providerUsed: result.providerUsed,
       fallbackAttempted: result.fallbackAttempted, rawResponse: result.rawResponse, reference: result.reference,
     };
+
+    // Track plan reliability (fire-and-forget; never block transaction)
+    trackPlanOutcome(adminSupabase, {
+      serviceType: "data",
+      network: networkUpper,
+      planId: String(planId),
+      success: result.success,
+      failureMessage: result.success ? undefined : userMessage,
+    }).catch((e) => console.error("trackPlanOutcome error:", e));
 
     return await finalizeTransaction(ctx, lockResult, providerResult);
   } catch (error: unknown) {
