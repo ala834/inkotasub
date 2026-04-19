@@ -67,7 +67,7 @@ serve(async (req) => {
     const isAgent = profile?.is_agent || false;
     const userType = isAgent ? 'agent' : 'user';
     const normalizedRequestedProvider = typeof requestedProviderRaw === "string" ? requestedProviderRaw.toLowerCase() : undefined;
-    const [{ data: pricingConfigs }, { data: matchingPlans }] = await Promise.all([
+    const [{ data: pricingConfigs }, { data: matchingPlans }, { data: flowpayManualPlan }] = await Promise.all([
       adminSupabase.from("pricing_config").select("*").eq("service_type", "data").eq("is_active", true).eq("user_type", userType),
       adminSupabase
         .from("service_plans")
@@ -77,8 +77,16 @@ serve(async (req) => {
         .eq("plan_id", String(planId))
         .eq("is_enabled", true)
         .limit(1),
+      // Look up Flowpay manual plan — `planId` may be the manual plan UUID or its api_plan_id
+      adminSupabase
+        .from("flowpay_manual_plans")
+        .select("id, api_plan_id, network, price, plan_name")
+        .or(`id.eq.${String(planId)},api_plan_id.eq.${String(planId)}`)
+        .eq("is_enabled", true)
+        .maybeSingle(),
     ]);
     const selectedPlanProvider = normalizedRequestedProvider
+      || (flowpayManualPlan ? "flowpay" : undefined)
       || (typeof matchingPlans?.[0]?.provider === "string" ? matchingPlans[0].provider.toLowerCase() : undefined);
     if (selectedPlanProvider) {
       console.log(`Resolved ${networkUpper} data plan ${planId} to provider ${selectedPlanProvider}`);
@@ -107,6 +115,10 @@ serve(async (req) => {
     const lockResult = await acquireLockAndDeductWallet(ctx);
     if (!lockResult.ok) return lockResult.response;
 
+    // For Flowpay manual plans, use the api_plan_id (provider-side plan code), not the DB id.
+    const flowpayPlanId = flowpayManualPlan?.api_plan_id || String(planId);
+    const flowpayAmount = flowpayManualPlan?.price ? Number(flowpayManualPlan.price) : sellingPrice;
+
     // Provider call with fallback
     const result = await executeWithFallback(
       () => subpadiPurchaseData(networkUpper, phoneNumber, planId, sellingPrice),
@@ -116,7 +128,7 @@ serve(async (req) => {
       selectedPlanProvider ? { preferredProvider: selectedPlanProvider } : undefined,
       () => clubkonnectPurchaseData(networkUpper, phoneNumber, planId),
       () => renderPurchaseData(networkUpper, phoneNumber, planId, sellingPrice),
-      () => flowpayPurchaseData(networkUpper, phoneNumber, planId),
+      () => flowpayPurchaseData(networkUpper, phoneNumber, flowpayPlanId, flowpayAmount),
     );
 
     // Map provider-specific errors to user-friendly messages
