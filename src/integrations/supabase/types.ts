@@ -268,9 +268,14 @@ export type Database = {
           api_plan_id: string | null
           created_at: string
           created_by: string | null
+          failure_count: number
           id: string
           is_enabled: boolean
+          last_failure_at: string | null
+          last_failure_reason: string | null
+          last_success_at: string | null
           network: string
+          permanently_disabled: boolean
           plan_name: string
           plan_type: string
           price: number
@@ -281,9 +286,14 @@ export type Database = {
           api_plan_id?: string | null
           created_at?: string
           created_by?: string | null
+          failure_count?: number
           id?: string
           is_enabled?: boolean
+          last_failure_at?: string | null
+          last_failure_reason?: string | null
+          last_success_at?: string | null
           network: string
+          permanently_disabled?: boolean
           plan_name: string
           plan_type?: string
           price: number
@@ -294,9 +304,14 @@ export type Database = {
           api_plan_id?: string | null
           created_at?: string
           created_by?: string | null
+          failure_count?: number
           id?: string
           is_enabled?: boolean
+          last_failure_at?: string | null
+          last_failure_reason?: string | null
+          last_success_at?: string | null
           network?: string
+          permanently_disabled?: boolean
           plan_name?: string
           plan_type?: string
           price?: number
@@ -855,12 +870,17 @@ export type Database = {
         Row: {
           base_price: number
           created_at: string
+          failure_count: number
           id: string
           is_enabled: boolean
           is_featured: boolean
           is_manual: boolean
+          last_failure_at: string | null
+          last_failure_reason: string | null
+          last_success_at: string | null
           last_synced_at: string | null
           network: string
+          permanently_disabled: boolean
           plan_id: string
           plan_name: string
           plan_type: string
@@ -873,12 +893,17 @@ export type Database = {
         Insert: {
           base_price?: number
           created_at?: string
+          failure_count?: number
           id?: string
           is_enabled?: boolean
           is_featured?: boolean
           is_manual?: boolean
+          last_failure_at?: string | null
+          last_failure_reason?: string | null
+          last_success_at?: string | null
           last_synced_at?: string | null
           network: string
+          permanently_disabled?: boolean
           plan_id: string
           plan_name: string
           plan_type?: string
@@ -891,12 +916,17 @@ export type Database = {
         Update: {
           base_price?: number
           created_at?: string
+          failure_count?: number
           id?: string
           is_enabled?: boolean
           is_featured?: boolean
           is_manual?: boolean
+          last_failure_at?: string | null
+          last_failure_reason?: string | null
+          last_success_at?: string | null
           last_synced_at?: string | null
           network?: string
+          permanently_disabled?: boolean
           plan_id?: string
           plan_name?: string
           plan_type?: string
