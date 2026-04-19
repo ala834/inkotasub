@@ -59,28 +59,73 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = FLOWP
   throw lastError || new Error("Flowpay request failed");
 }
 
+// Normalize a Nigerian phone number to local 11-digit format: 0XXXXXXXXXX
+// Accepts: 080..., 23480..., +23480..., 80...
+function normalizePhone(input: string): string | null {
+  if (!input) return null;
+  let p = String(input).replace(/[^\d]/g, ""); // strip non-digits (also drops +)
+  if (p.startsWith("234")) p = "0" + p.slice(3);
+  if (p.length === 10 && !p.startsWith("0")) p = "0" + p; // bare 8012345678
+  if (!/^0\d{10}$/.test(p)) return null;
+  return p;
+}
+
+// Extract a meaningful error message from Flowpay's various error shapes.
+// Flowpay (Laravel) commonly returns 422 with: { message: "...", errors: { field: ["msg"] } }
+function extractFlowpayError(data: any, httpStatus: number): string {
+  if (!data || typeof data !== "object") return `Flowpay error (HTTP ${httpStatus})`;
+  const inner = (data.data && typeof data.data === "object") ? data.data : null;
+  // Laravel-style validation errors
+  if (data.errors && typeof data.errors === "object") {
+    const firstKey = Object.keys(data.errors)[0];
+    if (firstKey) {
+      const arr = data.errors[firstKey];
+      const msg = Array.isArray(arr) ? arr[0] : String(arr);
+      if (msg) return `${msg} (${firstKey})`;
+    }
+  }
+  const msg = data.message || data.error || data.error_message
+    || inner?.message || inner?.error
+    || (typeof data.errors === "string" ? data.errors : null);
+  return msg || `Flowpay error (HTTP ${httpStatus})`;
+}
+
 export async function flowpayPurchaseData(
   network: string,
   phoneNumber: string,
   planId: string,
+  amount?: number,
 ): Promise<FlowpayResponse> {
   if (!isFlowpayConfigured()) {
     return { success: false, message: "Flowpay not configured", rawResponse: null };
   }
 
-  const networkCode = NETWORK_CODES[network.toUpperCase()];
+  // ─── Input validation ──────────────────────────────────────────────────
+  const networkUpper = String(network || "").toUpperCase().trim();
+  const networkCode = NETWORK_CODES[networkUpper];
   if (!networkCode) {
     return { success: false, message: `Unsupported network for Flowpay: ${network}`, rawResponse: null };
   }
+  const normalizedPhone = normalizePhone(phoneNumber);
+  if (!normalizedPhone) {
+    return { success: false, message: `Invalid phone number for Flowpay: ${phoneNumber}`, rawResponse: null };
+  }
+  const cleanedPlanId = String(planId || "").trim();
+  if (!cleanedPlanId) {
+    return { success: false, message: "Flowpay plan_id is required", rawResponse: null };
+  }
 
   try {
-    const body = {
-      mobile_number: phoneNumber,
-      plan: planId,
+    const body: Record<string, unknown> = {
+      mobile_number: normalizedPhone,
+      plan: cleanedPlanId,
       network: networkCode,
     };
+    if (typeof amount === "number" && amount > 0) {
+      body.amount = amount;
+    }
 
-    console.log(`Flowpay data purchase:`, body);
+    console.log(`[Flowpay] POST ${FLOWPAY_BASE_URL}/data request:`, JSON.stringify(body));
 
     const response = await fetchWithRetry(`${FLOWPAY_BASE_URL}/data`, {
       method: "POST",
@@ -90,7 +135,19 @@ export async function flowpayPurchaseData(
 
     const text = await response.text();
     const data = parseJson(text);
-    console.log(`Flowpay response (HTTP ${response.status}):`, JSON.stringify(data));
+    console.log(`[Flowpay] response (HTTP ${response.status}):`, text.slice(0, 1000));
+
+    // Flowpay returns 422 for validation errors — surface the exact reason.
+    if (response.status === 422) {
+      const errMsg = extractFlowpayError(data, 422);
+      console.error(`[Flowpay] 422 validation failure:`, errMsg, "request was:", JSON.stringify(body));
+      return { success: false, message: `Flowpay: ${errMsg}`, rawResponse: data };
+    }
+    if (response.status >= 400 && response.status !== 422) {
+      const errMsg = extractFlowpayError(data, response.status);
+      console.error(`[Flowpay] HTTP ${response.status} failure:`, errMsg);
+      return { success: false, message: `Flowpay: ${errMsg}`, rawResponse: data };
+    }
 
     // Robust success detection — Flowpay may use different shapes:
     //   { status: true, message: "...", reference: "..." }
