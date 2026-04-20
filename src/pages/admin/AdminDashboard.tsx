@@ -22,6 +22,7 @@ import {
   MessageCircle,
   Mail,
   TestTube,
+  Code,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +51,7 @@ import AdminManagementTab from "@/components/admin/AdminManagementTab";
 import AdminSupportChatTab from "@/components/admin/AdminSupportChatTab";
 import AdminEmailSettingsTab from "@/components/admin/AdminEmailSettingsTab";
 import AdminEmailTestingTab from "@/components/admin/AdminEmailTestingTab";
+import AdminDeveloperApiTab from "@/components/admin/AdminDeveloperApiTab";
 
 type TabDef = {
   value: string;
@@ -79,6 +81,7 @@ const allTabs: TabDef[] = [
   { value: "admin-team", label: "Admin Team", icon: UserCog, superOnly: true },
   { value: "email-settings", label: "Email Templates", icon: Mail, superOnly: true },
   { value: "email-testing", label: "Email Testing", icon: TestTube, superOnly: true },
+  { value: "developer-api", label: "Developer API", icon: Code, superOnly: true },
   { value: "settings", label: "Settings", icon: Settings, superOnly: true },
 ];
 
@@ -185,6 +188,7 @@ const AdminDashboard = () => {
           {isSuperAdmin && <TabsContent value="admin-team"><AdminManagementTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="email-settings"><AdminEmailSettingsTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="email-testing"><AdminEmailTestingTab /></TabsContent>}
+          {isSuperAdmin && <TabsContent value="developer-api"><AdminDeveloperApiTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="settings"><AdminSettingsTab /></TabsContent>}
         </Tabs>
       </main>

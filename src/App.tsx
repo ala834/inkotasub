@@ -46,6 +46,7 @@ import TransactionReceipt from "./pages/TransactionReceipt";
 import RechargeCard from "./pages/RechargeCard";
 import EmailSettings from "./pages/EmailSettings";
 import EmailTesting from "./pages/EmailTesting";
+import Developer from "./pages/Developer";
 
 const queryClient = new QueryClient();
 
@@ -97,6 +98,7 @@ const App = () => {
               <Route path="/internet-services" element={<ProtectedRoute><InternetServices /></ProtectedRoute>} />
               <Route path="/recharge-card" element={<ProtectedRoute><RechargeCard /></ProtectedRoute>} />
               <Route path="/calculator" element={<ProtectedRoute><ProfitCalculator /></ProtectedRoute>} />
+              <Route path="/developer" element={<ProtectedRoute><Developer /></ProtectedRoute>} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/refund-policy" element={<RefundPolicy />} />
