@@ -50,6 +50,195 @@ export type Database = {
         }
         Relationships: []
       }
+      api_access_requests: {
+        Row: {
+          business_name: string | null
+          created_at: string
+          id: string
+          reason: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          business_name?: string | null
+          created_at?: string
+          id?: string
+          reason?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          business_name?: string | null
+          created_at?: string
+          id?: string
+          reason?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      api_keys: {
+        Row: {
+          created_at: string
+          id: string
+          is_revoked: boolean
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string
+          rate_limit_per_min: number
+          revoked_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_revoked?: boolean
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name: string
+          rate_limit_per_min?: number
+          revoked_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_revoked?: boolean
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string
+          rate_limit_per_min?: number
+          revoked_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      api_request_logs: {
+        Row: {
+          api_key_id: string | null
+          created_at: string
+          endpoint: string
+          error_message: string | null
+          id: string
+          ip_address: string | null
+          method: string
+          request_body: Json | null
+          response_body: Json | null
+          response_time_ms: number | null
+          status_code: number
+          success: boolean
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          api_key_id?: string | null
+          created_at?: string
+          endpoint: string
+          error_message?: string | null
+          id?: string
+          ip_address?: string | null
+          method: string
+          request_body?: Json | null
+          response_body?: Json | null
+          response_time_ms?: number | null
+          status_code: number
+          success: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          api_key_id?: string | null
+          created_at?: string
+          endpoint?: string
+          error_message?: string | null
+          id?: string
+          ip_address?: string | null
+          method?: string
+          request_body?: Json | null
+          response_body?: Json | null
+          response_time_ms?: number | null
+          status_code?: number
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      api_wallet_ledger: {
+        Row: {
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at: string
+          entry_type: string
+          id: string
+          metadata: Json | null
+          reference: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at?: string
+          entry_type: string
+          id?: string
+          metadata?: Json | null
+          reference?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          balance_before?: number
+          created_at?: string
+          entry_type?: string
+          id?: string
+          metadata?: Json | null
+          reference?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      api_wallets: {
+        Row: {
+          balance: number
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           created_at: string
@@ -1358,6 +1547,14 @@ export type Database = {
         Args: { target_user_id: string }
         Returns: undefined
       }
+      atomic_api_wallet_credit: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: number
+      }
+      atomic_api_wallet_debit: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: number
+      }
       atomic_wallet_credit: {
         Args: { p_amount: number; p_user_id: string }
         Returns: number
@@ -1374,6 +1571,7 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_api_wallet_balance: { Args: { p_user_id: string }; Returns: number }
       get_wallet_balance: { Args: { p_user_id: string }; Returns: number }
       has_role: {
         Args: {
