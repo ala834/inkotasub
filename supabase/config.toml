@@ -82,3 +82,6 @@ verify_jwt = false
 [functions.check-provider-balance]
 verify_jwt = false
 
+[functions.sync-flowpay-health]
+verify_jwt = false
+

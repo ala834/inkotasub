@@ -17,7 +17,7 @@ import {
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Plus, Pencil, Trash2, RefreshCw, Database } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, RefreshCw, Database, HeartPulse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -75,6 +75,24 @@ const AdminFlowpayPlansTab = () => {
   const [editing, setEditing] = useState<FlowpayManualPlan | null>(null);
   const [form, setForm] = useState<PlanFormState>(emptyForm);
   const [networkFilter, setNetworkFilter] = useState<string>("all");
+  const [healthChecking, setHealthChecking] = useState(false);
+
+  const runHealthCheck = async () => {
+    setHealthChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-flowpay-health");
+      if (error) throw error;
+      const retried = (data as { retried?: number; message?: string })?.retried ?? 0;
+      const msg = (data as { message?: string })?.message;
+      if (retried > 0) toast.success(`Re-tested ${retried} unstable plan(s). They're visible to users again.`);
+      else toast.info(msg || "Nothing to retry — all plans healthy.");
+      loadPlans();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Health-check failed");
+    } finally {
+      setHealthChecking(false);
+    }
+  };
 
   const loadPlans = async () => {
     setLoading(true);
@@ -180,7 +198,8 @@ const AdminFlowpayPlansTab = () => {
               <div>
                 <CardTitle>Flowpay Plans</CardTitle>
                 <CardDescription>
-                  Manually managed Flowpay data plans. Used as fallback when the API catalog is unavailable.
+                  Manually managed Flowpay data plans. Runs an automatic health-check every 6 hours
+                  to give failing plans a fresh chance — admin-disabled plans are never touched.
                 </CardDescription>
               </div>
             </div>
@@ -192,6 +211,10 @@ const AdminFlowpayPlansTab = () => {
                   {NETWORKS.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Button variant="outline" size="sm" onClick={runHealthCheck} disabled={healthChecking}>
+                <HeartPulse className={`h-4 w-4 mr-2 ${healthChecking ? "animate-pulse" : ""}`} />
+                Health-check
+              </Button>
               <Button variant="outline" size="sm" onClick={loadPlans} disabled={loading}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
                 Refresh
