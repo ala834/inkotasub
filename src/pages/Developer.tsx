@@ -52,14 +52,33 @@ const Developer = () => {
     return { total, success, failed: total - success };
   }, [logs]);
 
+  const filteredPlans = useMemo(() => {
+    const q = planSearch.trim().toLowerCase();
+    return plans.filter(p => {
+      if (networkFilter !== "ALL" && p.network.toUpperCase() !== networkFilter) return false;
+      if (!q) return true;
+      return p.plan_name.toLowerCase().includes(q) || p.plan_id.toLowerCase().includes(q);
+    });
+  }, [plans, planSearch, networkFilter]);
+
+  const groupedPlans = useMemo(() => {
+    const groups: Record<string, ServicePlan[]> = {};
+    for (const p of filteredPlans) {
+      const net = p.network.toUpperCase();
+      (groups[net] ||= []).push(p);
+    }
+    return groups;
+  }, [filteredPlans]);
+
   const loadData = async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: req }, { data: ks }, { data: w }, { data: ls }] = await Promise.all([
+    const [{ data: req }, { data: ks }, { data: w }, { data: ls }, { data: ps }] = await Promise.all([
       supabase.from("api_access_requests").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("api_keys").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("api_wallets").select("balance").eq("user_id", user.id).maybeSingle(),
       supabase.from("api_request_logs").select("id, endpoint, method, status_code, success, response_time_ms, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
+      supabase.from("service_plans").select("id, plan_id, plan_name, network, selling_price, base_price, validity, is_enabled, failure_count, permanently_disabled").eq("service_type", "data").eq("is_enabled", true).order("network").order("base_price"),
     ]);
     setAccessRequest(req as AccessRequest | null);
     setKeys((ks as ApiKey[]) ?? []);
