@@ -5,6 +5,7 @@ import { subpadiPurchaseAirtime } from "../_shared/subpadi-provider.ts";
 import { smeplugPurchaseAirtime } from "../_shared/smeplug-provider.ts";
 import { clubkonnectPurchaseAirtime } from "../_shared/clubkonnect-provider.ts";
 import { renderPurchaseAirtime } from "../_shared/render-provider.ts";
+import { normalizePhone, detectNetwork } from "../_shared/phone-utils.ts";
 import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { checkFraud, fraudBlockResponse } from "../_shared/fraud-detection.ts";
@@ -39,27 +40,25 @@ serve(async (req) => {
 
     const { network, phoneNumber, amount, transaction_pin: transactionPin } = await req.json();
     console.log("Purchase airtime request - network:", network, "phoneNumber:", phoneNumber, "amount:", amount);
-    
+
+    // ─── Normalize phone (always to local 0XXXXXXXXXX) ───
+    const phone = normalizePhone(phoneNumber);
+    if (!phone) {
+      console.error(`[purchase-airtime] INVALID INPUT: phone=${phoneNumber}`);
+      return jsonResponse({ error: `Invalid phone number: ${phoneNumber}`, success: false }, 400);
+    }
+    const normalizedPhone = phone.local;
+
     const validNetworks = ['mtn', 'glo', 'airtel', '9mobile', 'etisalat'];
     let resolvedNetwork = network?.toLowerCase?.() || '';
-    
+
     if (!validNetworks.includes(resolvedNetwork)) {
-      const prefixes: Record<string, string[]> = {
-        mtn: ["0803","0806","0703","0706","0813","0816","0810","0814","0903","0906","0913","0916","0704"],
-        airtel: ["0802","0808","0708","0812","0701","0902","0901","0907","0912"],
-        glo: ["0805","0807","0705","0815","0811","0905","0915"],
-        "9mobile": ["0809","0818","0817","0909","0908"],
-      };
-      let normalized = phoneNumber?.replace(/\D/g, '') || '';
-      if (normalized.startsWith('234') && normalized.length === 13) normalized = '0' + normalized.slice(3);
-      const p4 = normalized.slice(0, 4);
-      for (const [net, pList] of Object.entries(prefixes)) {
-        if (pList.includes(p4)) { resolvedNetwork = net; break; }
-      }
+      const detected = detectNetwork(normalizedPhone);
+      if (detected) resolvedNetwork = detected;
       if (!validNetworks.includes(resolvedNetwork)) {
         return jsonResponse({ error: `Could not detect network for ${phoneNumber}`, success: false }, 400);
       }
-      console.log(`Auto-detected network: ${resolvedNetwork} from phone: ${phoneNumber}`);
+      console.log(`Auto-detected network: ${resolvedNetwork} from phone: ${normalizedPhone}`);
     }
     
     const fraudCheck = await checkFraud(userId, 'airtime', amount);
@@ -106,33 +105,45 @@ serve(async (req) => {
     const reference = generateReference('airtime');
     const ctx: TransactionContext = {
       userId, adminSupabase, serviceType: 'airtime', sellingPrice, costPrice, profit,
-      reference, description: `${resolvedNetwork.toUpperCase()} Airtime - ${phoneNumber}`,
-      provider: resolvedNetwork.toUpperCase(), recipient: phoneNumber,
+      reference, description: `${resolvedNetwork.toUpperCase()} Airtime - ${normalizedPhone}`,
+      provider: resolvedNetwork.toUpperCase(), recipient: normalizedPhone,
     };
 
     const lockResult = await acquireLockAndDeductWallet(ctx);
     if (!lockResult.ok) return lockResult.response;
 
+    // 9mobile is fragile on some providers — prefer Subpadi/SMEPlug routing
+    const preferredProvider = resolvedNetwork === '9mobile' ? 'subpadi' : undefined;
+
     // Provider call — always send FULL amount so user gets the full value
     const result = await executeWithFallback(
-      () => subpadiPurchaseAirtime(resolvedNetwork, phoneNumber, sellingPrice),
-      () => smeplugPurchaseAirtime(resolvedNetwork, phoneNumber, sellingPrice),
+      () => subpadiPurchaseAirtime(resolvedNetwork, normalizedPhone, sellingPrice),
+      () => smeplugPurchaseAirtime(resolvedNetwork, normalizedPhone, sellingPrice),
       'airtime',
       resolvedNetwork,
-      { preferredProvider: 'smeplug' },
-      () => clubkonnectPurchaseAirtime(resolvedNetwork, phoneNumber, sellingPrice),
-      () => renderPurchaseAirtime(resolvedNetwork, phoneNumber, sellingPrice),
+      preferredProvider ? { preferredProvider } : { preferredProvider: 'smeplug' },
+      () => clubkonnectPurchaseAirtime(resolvedNetwork, normalizedPhone, sellingPrice),
+      () => renderPurchaseAirtime(resolvedNetwork, normalizedPhone, sellingPrice),
     );
 
+    // User-friendly message when all providers fail
+    let userMessage = result.message;
+    if (!result.success) {
+      console.error(`[purchase-airtime] All providers failed for ${resolvedNetwork} ${normalizedPhone}: ${result.message}`);
+      userMessage = "Service temporarily unavailable, please try again.";
+    }
+
     const providerResult: ProviderResult = {
-      success: result.success, message: result.message,
+      success: result.success, message: userMessage,
       providerUsed: result.providerUsed, fallbackAttempted: result.fallbackAttempted,
       rawResponse: result.rawResponse, reference: result.reference,
     };
 
     return await finalizeTransaction(ctx, lockResult, providerResult);
   } catch (error: unknown) {
-    console.error("Error:", error);
-    return jsonResponse({ error: error instanceof Error ? error.message : "Unknown error", success: false }, 500);
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    const isAbort = error instanceof Error && (error.name === "AbortError" || /aborted/i.test(error.message));
+    console.error(`[purchase-airtime] ${isAbort ? "TIMEOUT" : "ERROR"}:`, msg);
+    return jsonResponse({ error: "Service temporarily unavailable, please try again.", success: false }, 500);
   }
 });

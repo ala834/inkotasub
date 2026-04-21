@@ -6,6 +6,7 @@ import { smeplugPurchaseData } from "../_shared/smeplug-provider.ts";
 import { clubkonnectPurchaseData } from "../_shared/clubkonnect-provider.ts";
 import { renderPurchaseData } from "../_shared/render-provider.ts";
 import { flowpayPurchaseData } from "../_shared/flowpay-provider.ts";
+import { normalizePhone } from "../_shared/phone-utils.ts";
 import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { checkFraud, fraudBlockResponse } from "../_shared/fraud-detection.ts";
@@ -40,6 +41,15 @@ serve(async (req) => {
     if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterMs!, corsHeaders);
 
     const { network, phoneNumber, planId, amount, provider: requestedProviderRaw, transaction_pin: transactionPin } = await req.json();
+
+    // ─── Normalize phone (always to local 0XXXXXXXXXX) ───
+    const phone = normalizePhone(phoneNumber);
+    if (!phone) {
+      console.error(`[purchase-data] INVALID INPUT: phone=${phoneNumber}`);
+      return jsonResponse({ error: `Invalid phone number: ${phoneNumber}`, success: false }, 400);
+    }
+    const normalizedPhone = phone.local;
+
     const fraudCheck = await checkFraud(userId, 'data', amount);
     if (!fraudCheck.allowed) return fraudBlockResponse(fraudCheck.reason!, corsHeaders);
 
@@ -109,8 +119,8 @@ serve(async (req) => {
     const reference = generateReference('data');
     const ctx: TransactionContext = {
       userId, adminSupabase, serviceType: 'data', sellingPrice, costPrice, profit,
-      reference, description: `${networkUpper} Data - ${phoneNumber}`,
-      provider: selectedPlanProvider || networkUpper, recipient: phoneNumber,
+      reference, description: `${networkUpper} Data - ${normalizedPhone}`,
+      provider: selectedPlanProvider || networkUpper, recipient: normalizedPhone,
     };
 
     const lockResult = await acquireLockAndDeductWallet(ctx);
@@ -120,22 +130,34 @@ serve(async (req) => {
     const flowpayPlanId = flowpayManualPlan?.api_plan_id || String(planId);
     const flowpayAmount = flowpayManualPlan?.price ? Number(flowpayManualPlan.price) : sellingPrice;
 
+    // 9mobile is unreliable on Flowpay — force away from Flowpay if it was selected
+    let effectivePreferredProvider = selectedPlanProvider;
+    if (networkUpper === "9MOBILE" && effectivePreferredProvider === "flowpay") {
+      console.log(`[purchase-data] 9mobile detected with Flowpay plan — switching preferred provider to subpadi`);
+      effectivePreferredProvider = "subpadi";
+    }
+
     // Provider call with fallback
     const result = await executeWithFallback(
-      () => subpadiPurchaseData(networkUpper, phoneNumber, planId, sellingPrice),
-      () => smeplugPurchaseData(networkUpper, phoneNumber, planId),
+      () => subpadiPurchaseData(networkUpper, normalizedPhone, planId, sellingPrice),
+      () => smeplugPurchaseData(networkUpper, normalizedPhone, planId),
       'data',
       networkUpper,
-      selectedPlanProvider ? { preferredProvider: selectedPlanProvider } : undefined,
-      () => clubkonnectPurchaseData(networkUpper, phoneNumber, planId),
-      () => renderPurchaseData(networkUpper, phoneNumber, planId, sellingPrice),
-      () => flowpayPurchaseData(networkUpper, phoneNumber, flowpayPlanId, flowpayAmount),
+      effectivePreferredProvider ? { preferredProvider: effectivePreferredProvider } : undefined,
+      () => clubkonnectPurchaseData(networkUpper, normalizedPhone, planId),
+      () => renderPurchaseData(networkUpper, normalizedPhone, planId, sellingPrice),
+      () => flowpayPurchaseData(networkUpper, normalizedPhone, flowpayPlanId, flowpayAmount),
     );
 
     // Map provider-specific errors to user-friendly messages
     let userMessage = result.message;
-    if (!result.success && /cannot purchase this bundle for other users/i.test(result.message)) {
-      userMessage = "This data plan is restricted to self-recharge only and cannot be purchased for other numbers. Please choose a different plan.";
+    if (!result.success) {
+      if (/cannot purchase this bundle for other users/i.test(result.message)) {
+        userMessage = "This data plan is restricted to self-recharge only and cannot be purchased for other numbers. Please choose a different plan.";
+      } else {
+        console.error(`[purchase-data] All providers failed for ${networkUpper} ${normalizedPhone} plan=${planId}: ${result.message}`);
+        userMessage = "Service temporarily unavailable, please try again.";
+      }
     }
 
     const providerResult: ProviderResult = {
@@ -154,7 +176,9 @@ serve(async (req) => {
 
     return await finalizeTransaction(ctx, lockResult, providerResult);
   } catch (error: unknown) {
-    console.error("Error:", error);
-    return jsonResponse({ error: error instanceof Error ? error.message : "Unknown error", success: false }, 500);
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    const isAbort = error instanceof Error && (error.name === "AbortError" || /aborted/i.test(error.message));
+    console.error(`[purchase-data] ${isAbort ? "TIMEOUT" : "ERROR"}:`, msg);
+    return jsonResponse({ error: "Service temporarily unavailable, please try again.", success: false }, 500);
   }
 });
