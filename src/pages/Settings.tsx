@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   User, Wallet, Shield, Bell, Palette, HelpCircle, Info, LogOut, ChevronRight,
   Moon, Sun, Lock, Fingerprint, CreditCard, History, MessageCircle, Mail,
-  FileText, Phone, Settings as SettingsIcon, Globe, Building2, Smartphone, ArrowLeft, Loader2
+  FileText, Phone, Settings as SettingsIcon, Globe, Building2, Smartphone, ArrowLeft, Loader2, Code2
 } from "lucide-react";
 import BottomNav from "@/components/layout/BottomNav";
 import { Switch } from "@/components/ui/switch";
@@ -222,6 +222,12 @@ const Settings = () => {
         { icon: darkMode ? Moon : Sun, label: "Dark Mode", toggle: true, value: darkMode, onToggle: handleDarkModeToggle, iconColor: darkMode ? "text-yellow-500 bg-yellow-50" : "text-gray-600 bg-gray-100" },
         { icon: Globe, label: "Language", description: "English", badge: "Default", iconColor: "text-cyan-500 bg-cyan-50" },
         { icon: CreditCard, label: "Currency", description: "₦ NGN", badge: "Default", iconColor: "text-green-500 bg-green-50" },
+      ],
+    },
+    {
+      title: "Advanced",
+      items: [
+        { icon: Code2, label: "Developer API", description: "Access API keys and developer tools", action: () => navigate("/developer"), iconColor: "text-violet-500 bg-violet-50" },
       ],
     },
     {
