@@ -84,6 +84,7 @@ const Developer = () => {
     setKeys((ks as ApiKey[]) ?? []);
     setWallet({ balance: Number(w?.balance ?? 0) });
     setLogs((ls as ApiLog[]) ?? []);
+    setPlans((ps as ServicePlan[]) ?? []);
     setLoading(false);
   };
 
