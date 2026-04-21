@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   User, Wallet, Shield, Bell, Palette, HelpCircle, Info, LogOut, ChevronRight,
   Moon, Sun, Lock, Fingerprint, CreditCard, History, MessageCircle, Mail,
-  FileText, Phone, Settings as SettingsIcon, Globe, Building2, Smartphone, ArrowLeft, Loader2
+  FileText, Phone, Settings as SettingsIcon, Globe, Building2, Smartphone, ArrowLeft, Loader2, Code2
 } from "lucide-react";
 import BottomNav from "@/components/layout/BottomNav";
 import { Switch } from "@/components/ui/switch";
