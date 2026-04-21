@@ -255,6 +255,245 @@ const Developer = () => {
               </Card>
             </TabsContent>
 
+            {/* SERVICES */}
+            <TabsContent value="services" className="space-y-4">
+              {/* Available Services */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Available Services</CardTitle>
+                  <CardDescription>Live VTU services accessible via the API</CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-3">
+                  <div className="p-4 rounded-xl border bg-card flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Database className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Data</p>
+                      <p className="text-xs text-muted-foreground">{plans.length} plans</p>
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl border bg-card flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Phone className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Airtime</p>
+                      <p className="text-xs text-muted-foreground">All networks</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Tabs defaultValue="data">
+                <TabsList className="grid grid-cols-3 w-full">
+                  <TabsTrigger value="data">Data</TabsTrigger>
+                  <TabsTrigger value="airtime">Airtime</TabsTrigger>
+                  <TabsTrigger value="rules">Rules</TabsTrigger>
+                </TabsList>
+
+                {/* DATA PLANS */}
+                <TabsContent value="data" className="space-y-3 mt-4">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg">Data Plans</CardTitle>
+                      <CardDescription>Use the <code className="bg-muted px-1 rounded">plan_id</code> when calling <code className="bg-muted px-1 rounded">/buy-data</code></CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search plan name or ID..."
+                            value={planSearch}
+                            onChange={e => setPlanSearch(e.target.value)}
+                            className="pl-9"
+                          />
+                        </div>
+                        <div className="flex gap-1 flex-wrap">
+                          <Button size="sm" variant={networkFilter === "ALL" ? "default" : "outline"} onClick={() => setNetworkFilter("ALL")}>All</Button>
+                          {NETWORKS.map(n => (
+                            <Button key={n} size="sm" variant={networkFilter === n ? "default" : "outline"} onClick={() => setNetworkFilter(n)}>{n}</Button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {Object.keys(groupedPlans).length === 0 && (
+                        <p className="text-sm text-muted-foreground py-8 text-center">No plans match your filters.</p>
+                      )}
+
+                      {NETWORKS.filter(n => groupedPlans[n]?.length).map(net => (
+                        <div key={net} className="rounded-lg border overflow-hidden">
+                          <div className="px-3 py-2 bg-muted/50 flex items-center justify-between">
+                            <span className="font-semibold text-sm">{net}</span>
+                            <Badge variant="outline">{groupedPlans[net].length} plans</Badge>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Plan</TableHead>
+                                  <TableHead className="hidden sm:table-cell">Validity</TableHead>
+                                  <TableHead>Price</TableHead>
+                                  <TableHead>Plan ID</TableHead>
+                                  <TableHead className="text-right">Status</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {groupedPlans[net].map(p => {
+                                  const price = Number(p.selling_price ?? p.base_price ?? 0);
+                                  const unstable = p.failure_count >= 2 || p.permanently_disabled;
+                                  return (
+                                    <TableRow key={p.id}>
+                                      <TableCell className="font-medium text-sm">{p.plan_name}</TableCell>
+                                      <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{p.validity ?? "—"}</TableCell>
+                                      <TableCell className="font-semibold">₦{price.toLocaleString()}</TableCell>
+                                      <TableCell>
+                                        <div className="flex items-center gap-1">
+                                          <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{p.plan_id}</code>
+                                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => copy(p.plan_id, `Plan ID ${p.plan_id} copied`)}>
+                                            <Copy className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-right">
+                                        {unstable ? (
+                                          <Badge variant="destructive" className="text-[10px]">Unstable</Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-[10px] border-green-600 text-green-600">Available</Badge>
+                                        )}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* AIRTIME */}
+                <TabsContent value="airtime" className="space-y-3 mt-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Airtime Purchase</CardTitle>
+                      <CardDescription>Endpoint: <code className="bg-muted px-1 rounded">POST /buy-airtime</code></CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div>
+                        <Label className="text-xs uppercase text-muted-foreground">Request body</Label>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Field</TableHead>
+                              <TableHead>Type</TableHead>
+                              <TableHead>Required</TableHead>
+                              <TableHead>Notes</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            <TableRow>
+                              <TableCell><code>network</code></TableCell>
+                              <TableCell className="text-xs">string</TableCell>
+                              <TableCell><Badge variant="default" className="text-[10px]">Yes</Badge></TableCell>
+                              <TableCell className="text-xs">mtn, glo, airtel, 9mobile</TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell><code>phone</code></TableCell>
+                              <TableCell className="text-xs">string</TableCell>
+                              <TableCell><Badge variant="default" className="text-[10px]">Yes</Badge></TableCell>
+                              <TableCell className="text-xs">234XXXXXXXXXX format</TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell><code>amount</code></TableCell>
+                              <TableCell className="text-xs">number</TableCell>
+                              <TableCell><Badge variant="default" className="text-[10px]">Yes</Badge></TableCell>
+                              <TableCell className="text-xs">Min ₦{AIRTIME_MIN}</TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <Label className="text-xs uppercase text-muted-foreground">Sample request</Label>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => copy(`{\n  "network": "mtn",\n  "phone": "2348031234567",\n  "amount": 100\n}`, "Sample copied")}>
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto">{`{
+  "network": "mtn",
+  "phone": "2348031234567",
+  "amount": 100
+}`}</pre>
+                      </div>
+
+                      <div>
+                        <Label className="text-xs uppercase text-muted-foreground">Sample response</Label>
+                        <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto mt-1">{`{
+  "success": true,
+  "reference": "api_air_1714234567890",
+  "amount": 100,
+  "network": "mtn",
+  "provider": "subpadi"
+}`}</pre>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* RULES */}
+                <TabsContent value="rules" className="space-y-3 mt-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Validation Rules</CardTitle>
+                      <CardDescription>Requests that fail these checks return HTTP 400</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                      <div className="flex gap-3">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-medium">Phone format</p>
+                          <p className="text-xs text-muted-foreground">Must start with <code className="bg-muted px-1 rounded">234</code> followed by 10 digits. Local <code className="bg-muted px-1 rounded">0XXX</code> formats are auto-converted.</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-medium">Network whitelist</p>
+                          <p className="text-xs text-muted-foreground">Only <code className="bg-muted px-1 rounded">mtn</code>, <code className="bg-muted px-1 rounded">glo</code>, <code className="bg-muted px-1 rounded">airtel</code>, <code className="bg-muted px-1 rounded">9mobile</code> are accepted (case-insensitive).</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-medium">Minimum amount</p>
+                          <p className="text-xs text-muted-foreground">Airtime: ₦{AIRTIME_MIN} minimum. Data: amount derived from <code className="bg-muted px-1 rounded">plan_id</code>.</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-medium">Sufficient API wallet balance</p>
+                          <p className="text-xs text-muted-foreground">Wallet is debited before delivery; auto-refunded on provider failure.</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-medium">Valid plan_id</p>
+                          <p className="text-xs text-muted-foreground">Data plans marked Unstable are temporarily hidden from <code className="bg-muted px-1 rounded">/data-plans</code>.</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </TabsContent>
+
             {/* USAGE */}
             <TabsContent value="usage" className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
