@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Code, Key, Activity, BookOpen, Copy, Plus, Trash2, AlertCircle, CheckCircle2, Clock, Wallet } from "lucide-react";
+import { ArrowLeft, Code, Key, Activity, BookOpen, Copy, Plus, Trash2, AlertCircle, CheckCircle2, Clock, Wallet, Search, Phone, Database } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
