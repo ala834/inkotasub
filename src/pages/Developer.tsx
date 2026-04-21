@@ -200,11 +200,12 @@ const Developer = () => {
 
         {isApproved && (
           <Tabs defaultValue="keys" className="space-y-4">
-            <TabsList className="grid grid-cols-4 w-full">
-              <TabsTrigger value="keys" className="gap-2"><Key className="h-4 w-4" /><span className="hidden sm:inline">Keys</span></TabsTrigger>
-              <TabsTrigger value="usage" className="gap-2"><Activity className="h-4 w-4" /><span className="hidden sm:inline">Usage</span></TabsTrigger>
-              <TabsTrigger value="wallet" className="gap-2"><Wallet className="h-4 w-4" /><span className="hidden sm:inline">Wallet</span></TabsTrigger>
-              <TabsTrigger value="docs" className="gap-2"><BookOpen className="h-4 w-4" /><span className="hidden sm:inline">Docs</span></TabsTrigger>
+            <TabsList className="grid grid-cols-5 w-full">
+              <TabsTrigger value="keys" className="gap-1 px-2"><Key className="h-4 w-4" /><span className="hidden sm:inline">Keys</span></TabsTrigger>
+              <TabsTrigger value="services" className="gap-1 px-2"><Database className="h-4 w-4" /><span className="hidden sm:inline">Services</span></TabsTrigger>
+              <TabsTrigger value="usage" className="gap-1 px-2"><Activity className="h-4 w-4" /><span className="hidden sm:inline">Usage</span></TabsTrigger>
+              <TabsTrigger value="wallet" className="gap-1 px-2"><Wallet className="h-4 w-4" /><span className="hidden sm:inline">Wallet</span></TabsTrigger>
+              <TabsTrigger value="docs" className="gap-1 px-2"><BookOpen className="h-4 w-4" /><span className="hidden sm:inline">Docs</span></TabsTrigger>
             </TabsList>
 
             {/* KEYS */}
