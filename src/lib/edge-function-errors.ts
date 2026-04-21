@@ -61,5 +61,8 @@ function mapErrorMessage(msg: string, data?: any): string {
   if (msg.includes("Another transaction")) {
     return "A transaction is already being processed. Please wait a moment.";
   }
+  if (/temporarily unavailable|service unavailable|provider (failed|error)|all providers/i.test(msg)) {
+    return "Service temporarily unavailable, please try again.";
+  }
   return msg;
 }
