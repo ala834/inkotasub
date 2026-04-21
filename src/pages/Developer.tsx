@@ -40,6 +40,9 @@ const Developer = () => {
   const [keyName, setKeyName] = useState("");
   const [creatingKey, setCreatingKey] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
+  const [plans, setPlans] = useState<ServicePlan[]>([]);
+  const [planSearch, setPlanSearch] = useState("");
+  const [networkFilter, setNetworkFilter] = useState<string>("ALL");
 
   const isApproved = accessRequest?.status === "approved";
 
