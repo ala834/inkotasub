@@ -2,7 +2,8 @@
 // Base URL: https://inkotasub-backend.onrender.com
 
 const RENDER_BASE_URL = "https://inkotasub-backend.onrender.com";
-const RENDER_TIMEOUT_MS = 15000;
+const RENDER_TIMEOUT_MS = 30000;
+const RENDER_MAX_RETRIES = 2;
 
 export interface RenderResponse {
   success: boolean;
@@ -20,17 +21,26 @@ export function isRenderConfigured(): boolean {
 async function fetchWithTimeout(
   url: string,
   options: RequestInit,
+  retries = RENDER_MAX_RETRIES,
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), RENDER_TIMEOUT_MS);
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    throw error;
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), RENDER_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const isAbort = lastError.name === "AbortError" || /aborted/i.test(lastError.message);
+      const kind = isAbort ? "TIMEOUT" : /fetch|network/i.test(lastError.message) ? "NETWORK" : "ERROR";
+      console.error(`[Render] attempt ${attempt + 1}/${retries + 1} ${kind}: ${lastError.message}`);
+      if (attempt < retries) await new Promise(r => setTimeout(r, (attempt + 1) * 1000));
+    }
   }
+  throw lastError || new Error("Render request failed");
 }
 
 export async function renderPurchaseAirtime(
