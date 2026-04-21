@@ -3,7 +3,7 @@
 // Auth: Authorization: Bearer {SMEPLUG_API_KEY}
 
 const SMEPLUG_BASE_URL = "https://smeplug.ng/api/v1";
-const SMEPLUG_TIMEOUT_MS = 15000;
+const SMEPLUG_TIMEOUT_MS = 30000;
 const SMEPLUG_MAX_RETRIES = 2;
 
 function getHeaders(): Record<string, string> {
@@ -44,15 +44,18 @@ async function fetchWithRetry(
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SMEPLUG_TIMEOUT_MS);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), SMEPLUG_TIMEOUT_MS);
       const response = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeoutId);
       return response;
     } catch (error) {
+      clearTimeout(timeoutId);
       lastError = error instanceof Error ? error : new Error(String(error));
-      console.error(`SMEPlug request attempt ${attempt + 1}/${retries + 1} failed:`, lastError.message);
+      const isAbort = lastError.name === "AbortError" || /aborted/i.test(lastError.message);
+      const kind = isAbort ? "TIMEOUT" : /fetch|network/i.test(lastError.message) ? "NETWORK" : "ERROR";
+      console.error(`[SMEPlug] attempt ${attempt + 1}/${retries + 1} ${kind}: ${lastError.message}`);
       if (attempt < retries) {
         await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 1000));
       }

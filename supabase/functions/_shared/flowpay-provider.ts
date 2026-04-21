@@ -4,8 +4,8 @@
 // Docs: https://app.flowpay.ng/developer
 
 const FLOWPAY_BASE_URL = "https://app.flowpay.ng/api";
-const FLOWPAY_TIMEOUT_MS = 20000;
-const FLOWPAY_MAX_RETRIES = 1;
+const FLOWPAY_TIMEOUT_MS = 30000;
+const FLOWPAY_MAX_RETRIES = 2;
 
 // Network code mapping (Flowpay uses numeric IDs)
 const NETWORK_CODES: Record<string, number> = {
@@ -44,15 +44,18 @@ function parseJson(text: string): any {
 async function fetchWithRetry(url: string, options: RequestInit, retries = FLOWPAY_MAX_RETRIES): Promise<Response> {
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FLOWPAY_TIMEOUT_MS);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FLOWPAY_TIMEOUT_MS);
       const response = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeoutId);
       return response;
     } catch (error) {
+      clearTimeout(timeoutId);
       lastError = error instanceof Error ? error : new Error(String(error));
-      console.error(`Flowpay request attempt ${attempt + 1}/${retries + 1} failed:`, lastError.message);
+      const isAbort = lastError.name === "AbortError" || /aborted/i.test(lastError.message);
+      const kind = isAbort ? "TIMEOUT" : /fetch|network/i.test(lastError.message) ? "NETWORK" : "ERROR";
+      console.error(`[Flowpay] attempt ${attempt + 1}/${retries + 1} ${kind}: ${lastError.message}`);
       if (attempt < retries) await new Promise(r => setTimeout(r, (attempt + 1) * 1000));
     }
   }

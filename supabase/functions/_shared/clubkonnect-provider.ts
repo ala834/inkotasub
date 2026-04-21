@@ -3,7 +3,7 @@
 // Auth: UserID + APIKey as query parameters (HTTPS GET API)
 
 const CLUBKONNECT_BASE_URL = "https://www.clubkonnect.com";
-const CLUBKONNECT_TIMEOUT_MS = 15000;
+const CLUBKONNECT_TIMEOUT_MS = 30000;
 const CLUBKONNECT_MAX_RETRIES = 2;
 
 export interface ClubkonnectResponse {
@@ -52,15 +52,18 @@ function buildUrl(endpoint: string, params: Record<string, string>): string {
 async function fetchWithRetry(url: string, retries = CLUBKONNECT_MAX_RETRIES): Promise<Response> {
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CLUBKONNECT_TIMEOUT_MS);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), CLUBKONNECT_TIMEOUT_MS);
       const response = await fetch(url, { method: "GET", signal: controller.signal });
       clearTimeout(timeoutId);
       return response;
     } catch (error) {
+      clearTimeout(timeoutId);
       lastError = error instanceof Error ? error : new Error(String(error));
-      console.error(`ClubKonnect request attempt ${attempt + 1}/${retries + 1} failed:`, lastError.message);
+      const isAbort = lastError.name === "AbortError" || /aborted/i.test(lastError.message);
+      const kind = isAbort ? "TIMEOUT" : /fetch|network/i.test(lastError.message) ? "NETWORK" : "ERROR";
+      console.error(`[ClubKonnect] attempt ${attempt + 1}/${retries + 1} ${kind}: ${lastError.message}`);
       if (attempt < retries) {
         await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 1000));
       }

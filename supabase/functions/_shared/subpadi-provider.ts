@@ -3,7 +3,7 @@
 // Auth: Authorization: Token {SUBPADI_API_TOKEN}
 
 const SUBPADI_BASE_URL = "https://subpadi.com/api";
-const SUBPADI_TIMEOUT_MS = 10000; // 10 seconds
+const SUBPADI_TIMEOUT_MS = 30000; // 30 seconds
 const SUBPADI_MAX_RETRIES = 2;
 
 function parseSubpadiJson(text: string) {
@@ -102,23 +102,19 @@ async function fetchWithRetry(
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SUBPADI_TIMEOUT_MS);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), SUBPADI_TIMEOUT_MS);
-
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-
+      const response = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeoutId);
       return response;
     } catch (error) {
+      clearTimeout(timeoutId);
       lastError = error instanceof Error ? error : new Error(String(error));
-      console.error(`Subpadi request attempt ${attempt + 1}/${retries + 1} failed:`, lastError.message);
-
+      const isAbort = lastError.name === "AbortError" || /aborted/i.test(lastError.message);
+      const kind = isAbort ? "TIMEOUT" : /fetch|network/i.test(lastError.message) ? "NETWORK" : "ERROR";
+      console.error(`[Subpadi] attempt ${attempt + 1}/${retries + 1} ${kind}: ${lastError.message}`);
       if (attempt < retries) {
-        // Wait before retrying (exponential backoff: 1s, 2s)
         await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 1000));
       }
     }
