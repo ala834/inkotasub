@@ -19,6 +19,10 @@ type AccessRequest = { id: string; status: string; reason: string | null; busine
 type ApiKey = { id: string; name: string; key_prefix: string; is_revoked: boolean; last_used_at: string | null; created_at: string; rate_limit_per_min: number };
 type ApiWallet = { balance: number };
 type ApiLog = { id: string; endpoint: string; method: string; status_code: number; success: boolean; response_time_ms: number | null; created_at: string };
+type ServicePlan = { id: string; plan_id: string; plan_name: string; network: string; selling_price: number | null; base_price: number; validity: string | null; is_enabled: boolean; failure_count: number; permanently_disabled: boolean };
+
+const NETWORKS = ["MTN", "GLO", "AIRTEL", "9MOBILE"] as const;
+const AIRTIME_MIN = 50;
 
 const API_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/developer-api`;
 
