@@ -225,6 +225,12 @@ const Settings = () => {
       ],
     },
     {
+      title: "Advanced",
+      items: [
+        { icon: Code2, label: "Developer API", description: "Access API keys and developer tools", action: () => navigate("/developer"), iconColor: "text-violet-500 bg-violet-50" },
+      ],
+    },
+    {
       title: "Support & Legal",
       items: [
         { icon: MessageCircle, label: "Contact Support", description: supportSettings.support_email, action: () => navigate("/support"), iconColor: "text-green-500 bg-green-50" },
