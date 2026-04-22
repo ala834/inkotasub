@@ -140,17 +140,21 @@ const TransactionResultScreen = ({
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", delay: 0.15, damping: 10 }}
                   className={`w-24 h-24 rounded-full flex items-center justify-center ${
-                    success
+                    pending
+                      ? "bg-gradient-to-br from-amber-400 to-amber-600 shadow-lg shadow-amber-500/30"
+                      : success
                       ? "bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/30"
                       : "bg-gradient-to-br from-red-400 to-red-600 shadow-lg shadow-red-500/30"
                   }`}
                 >
                   <motion.div
                     initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.5, delay: 0.4 }}
+                    animate={pending ? { rotate: 360 } : { pathLength: 1 }}
+                    transition={pending ? { duration: 2, repeat: Infinity, ease: "linear" } : { duration: 0.5, delay: 0.4 }}
                   >
-                    {success ? (
+                    {pending ? (
+                      <Clock className="h-12 w-12 text-white" strokeWidth={2.5} />
+                    ) : success ? (
                       <Check className="h-12 w-12 text-white" strokeWidth={3} />
                     ) : (
                       <X className="h-12 w-12 text-white" strokeWidth={3} />
@@ -168,10 +172,12 @@ const TransactionResultScreen = ({
               className="text-center space-y-1"
             >
               <h2 className="text-2xl font-display font-bold text-foreground">
-                {success ? "Transaction Successful!" : "Transaction Failed"}
+                {pending ? "Processing..." : success ? "Transaction Successful!" : "Transaction Failed"}
               </h2>
               <p className="text-muted-foreground text-sm">
-                {success
+                {pending
+                  ? (errorMessage || "Your transaction is being confirmed. We'll update the status shortly.")
+                  : success
                   ? "Your transaction was completed successfully"
                   : errorMessage || "Something went wrong. Please try again."}
               </p>
@@ -184,7 +190,7 @@ const TransactionResultScreen = ({
               transition={{ delay: 0.5 }}
               className="text-center"
             >
-              <p className={`text-4xl font-bold ${success ? "text-emerald-600" : "text-red-500"}`}>
+              <p className={`text-4xl font-bold ${pending ? "text-amber-600" : success ? "text-emerald-600" : "text-red-500"}`}>
                 {formatCurrency(amount)}
               </p>
             </motion.div>
