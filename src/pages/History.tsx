@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Search, ArrowLeft, ArrowDownLeft, ArrowUpRight, Loader2, SlidersHorizontal, X } from "lucide-react";
+import { Search, ArrowLeft, ArrowDownLeft, ArrowUpRight, Loader2, SlidersHorizontal, X, Clock, CheckCircle2, XCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/layout/BottomNav";
 import { useTransactions, Transaction } from "@/hooks/useTransactions";
