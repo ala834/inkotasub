@@ -183,8 +183,15 @@ export async function executeWithFallback(
         (r) => r.success, (r) => r.success ? undefined : r.message
       );
 
+      // If neither succeeded but BOTH look like timeouts/network issues,
+      // surface as indeterminate so caller keeps the transaction pending (no refund yet).
+      const bothIndeterminate = !fallbackResult.success
+        && isIndeterminateMsg(primaryResult.message)
+        && isIndeterminateMsg(fallbackResult.message);
+
       return {
         success: fallbackResult.success,
+        indeterminate: !fallbackResult.success && bothIndeterminate,
         message: fallbackResult.success ? fallbackResult.message : primaryResult.message,
         providerUsed: fallbackResult.success ? config.fallbackProvider! : config.primaryProvider,
         fallbackAttempted: true,
@@ -200,7 +207,9 @@ export async function executeWithFallback(
 
   // No fallback or fallback also failed
   return {
-    success: false, message: primaryResult.message,
+    success: false,
+    indeterminate: isIndeterminateMsg(primaryResult.message),
+    message: primaryResult.message,
     providerUsed: config.primaryProvider, fallbackAttempted: config.fallbackEnabled && !!fallbackFn,
     rawResponse: primaryResult.rawResponse, reference: primaryResult.reference,
   };
