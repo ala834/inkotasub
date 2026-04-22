@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, Share2, UserPlus, Home, Copy, ReceiptText } from "lucide-react";
+import { Check, X, Share2, UserPlus, Home, Copy, ReceiptText, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -15,6 +15,8 @@ interface TransactionResultScreenProps {
   open: boolean;
   onClose: () => void;
   success: boolean;
+  /** When true, render a "Processing..." state — provider response was indeterminate. */
+  pending?: boolean;
   amount: number;
   details: TransactionDetail[];
   transactionId?: string;
@@ -27,6 +29,7 @@ const TransactionResultScreen = ({
   open,
   onClose,
   success,
+  pending = false,
   amount,
   details,
   transactionId,
