@@ -92,8 +92,10 @@ serve(async (req) => {
       r => r.success
     );
 
+    const indeterminate = !result.success && /timeout|aborted|network|fetch failed|after retries|503|504/i.test(result.message || "");
     const providerResult: ProviderResult = {
-      success: result.success, message: result.success ? "Subscription successful" : "Subscription failed",
+      success: result.success, indeterminate,
+      message: result.success ? "Subscription successful" : (indeterminate ? "Processing... Your transaction is being confirmed." : "Subscription failed"),
       providerUsed: 'subpadi', fallbackAttempted: false, rawResponse: result.rawResponse,
     };
 

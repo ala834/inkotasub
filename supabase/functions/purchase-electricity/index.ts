@@ -96,9 +96,11 @@ serve(async (req) => {
       r => r.success && !!r.token
     );
 
+    const indeterminate = !result.success && /timeout|aborted|network|fetch failed|after retries|503|504/i.test(result.message || "");
     const providerResult: ProviderResult = {
       success: result.success && !!result.token,
-      message: result.success ? "Electricity purchased" : "Purchase failed",
+      indeterminate,
+      message: result.success ? "Electricity purchased" : (indeterminate ? "Processing... Your transaction is being confirmed." : "Purchase failed"),
       providerUsed: 'subpadi', fallbackAttempted: false, rawResponse: result.rawResponse,
       token: result.token, extraData: { serviceCharge, totalAmount: sellingPrice },
     };
