@@ -8,11 +8,17 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const statusTabs = [
-  { value: "all" as const, label: "All" },
-  { value: "success" as const, label: "Successful" },
-  { value: "pending" as const, label: "Pending" },
-  { value: "failed" as const, label: "Failed" },
+  { value: "all" as const, label: "All", icon: null },
+  { value: "success" as const, label: "Successful", icon: CheckCircle2 },
+  { value: "pending" as const, label: "Processing", icon: Clock },
+  { value: "failed" as const, label: "Failed", icon: XCircle },
 ];
+
+const statusMeta = {
+  success: { label: "Success", icon: CheckCircle2, classes: "text-green-600 bg-green-50" },
+  pending: { label: "Processing", icon: Clock, classes: "text-amber-600 bg-amber-50" },
+  failed: { label: "Failed", icon: XCircle, classes: "text-red-500 bg-red-50" },
+} as const;
 
 const History = () => {
   const navigate = useNavigate();
