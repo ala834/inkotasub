@@ -28,6 +28,12 @@ function hashString(str: string): number {
 
 export interface ProviderResult {
   success: boolean;
+  /**
+   * Indeterminate = we could not confirm success or failure (timeout, network error,
+   * or ambiguous provider response). The transaction must stay PENDING so the
+   * reconciler / webhook can verify the real outcome later. Wallet must NOT be refunded.
+   */
+  indeterminate?: boolean;
   message: string;
   providerUsed: string;
   fallbackAttempted: boolean;
@@ -37,6 +43,16 @@ export interface ProviderResult {
   token?: string;
   pins?: unknown[];
   extraData?: Record<string, unknown>;
+}
+
+/**
+ * Detect whether a provider error message suggests an indeterminate state
+ * (timeout, network failure, abort) — meaning the request may or may not have
+ * actually been processed by the upstream provider.
+ */
+export function isIndeterminateError(message: string | undefined | null): boolean {
+  if (!message) return false;
+  return /timeout|timed out|aborted|abort|network|fetch failed|ETIMEDOUT|ECONNRESET|ECONNREFUSED|socket hang up|gateway|503|504|after retries/i.test(message);
 }
 
 export interface TransactionContext {
