@@ -42,14 +42,12 @@ const History = () => {
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 2 }).format(amount);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "success": return "text-green-600 bg-green-50";
-      case "pending": return "text-amber-600 bg-amber-50";
-      case "failed": return "text-red-500 bg-red-50";
-      default: return "text-gray-500 bg-gray-100";
-    }
-  };
+  const getStatusMeta = (status: string) =>
+    statusMeta[status as keyof typeof statusMeta] ?? {
+      label: status,
+      icon: Clock,
+      classes: "text-gray-500 bg-gray-100",
+    };
 
   const isDepositCharge = (tx: Transaction) =>
     (tx.metadata as any)?.type === "deposit_charge" || tx.description?.toLowerCase().includes("deposit processing fee");
