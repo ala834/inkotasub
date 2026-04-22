@@ -112,20 +112,24 @@ const History = () => {
         {/* Status Tabs */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 }}>
           <div className="flex bg-white rounded-xl p-1 border border-gray-100 shadow-sm">
-            {statusTabs.map(tab => (
-              <button
-                key={tab.value}
-                onClick={() => setStatusFilter(tab.value)}
-                className={cn(
-                  "flex-1 py-2 rounded-lg text-xs font-semibold transition-all",
-                  statusFilter === tab.value
-                    ? "bg-green-500 text-white shadow-sm"
-                    : "text-gray-500 active:bg-gray-50"
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
+            {statusTabs.map(tab => {
+              const TabIcon = tab.icon;
+              return (
+                <button
+                  key={tab.value}
+                  onClick={() => setStatusFilter(tab.value)}
+                  className={cn(
+                    "flex-1 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1",
+                    statusFilter === tab.value
+                      ? "bg-green-500 text-white shadow-sm"
+                      : "text-gray-500 active:bg-gray-50"
+                  )}
+                >
+                  {TabIcon && <TabIcon className="h-3.5 w-3.5" />}
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </motion.div>
 
