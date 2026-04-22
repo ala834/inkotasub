@@ -11,6 +11,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export interface FallbackResult {
   success: boolean;
+  /** True when no provider could be confirmed success/failure (timeout/network). */
+  indeterminate?: boolean;
   message: string;
   providerUsed: string;
   fallbackAttempted: boolean;
@@ -18,6 +20,11 @@ export interface FallbackResult {
   fallbackResponse?: unknown;
   reference?: string;
   token?: string;
+}
+
+function isIndeterminateMsg(message: string | undefined | null): boolean {
+  if (!message) return false;
+  return /timeout|timed out|aborted|abort|network|fetch failed|ETIMEDOUT|ECONNRESET|ECONNREFUSED|socket hang up|gateway|503|504|after retries/i.test(message);
 }
 
 type ProviderResponse = SubpadiResponse | SmeplugResponse | ClubkonnectResponse | RenderResponse | FlowpayResponse;
