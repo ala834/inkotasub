@@ -25,11 +25,24 @@ export function parseEdgeFunctionError(
 
   // Structured error from data
   if (data && !data.success) {
+    // Pending / indeterminate state — provider response delayed, transaction kept pending
+    if (data.pending === true || data.status === "pending" || /processing\.\.\./i.test(data.message || "")) {
+      return data.message || "Processing... Your transaction is being confirmed. We'll update the status shortly.";
+    }
     const msg = data.error || data.message || fallbackMessage;
     return mapErrorMessage(msg, data);
   }
 
   return fallbackMessage;
+}
+
+/**
+ * Returns true when an edge-function response represents a pending (in-flight) transaction
+ * rather than a hard failure. Use this to show "Processing..." UI instead of an error toast.
+ */
+export function isPendingTransaction(data: any): boolean {
+  if (!data) return false;
+  return data.pending === true || data.status === "pending" || /processing\.\.\./i.test(data.message || "");
 }
 
 function mapErrorMessage(msg: string, data?: any): string {
