@@ -126,15 +126,20 @@ serve(async (req) => {
       () => renderPurchaseAirtime(resolvedNetwork, normalizedPhone, sellingPrice),
     );
 
-    // User-friendly message when all providers fail
+    // User-friendly message — distinguish indeterminate (timeout) vs definitive failure
     let userMessage = result.message;
     if (!result.success) {
-      console.error(`[purchase-airtime] All providers failed for ${resolvedNetwork} ${normalizedPhone}: ${result.message}`);
-      userMessage = "Service temporarily unavailable, please try again.";
+      if (result.indeterminate) {
+        console.warn(`[purchase-airtime] INDETERMINATE for ${resolvedNetwork} ${normalizedPhone}: ${result.message}`);
+        userMessage = "Processing... Your transaction is being confirmed.";
+      } else {
+        console.error(`[purchase-airtime] All providers failed for ${resolvedNetwork} ${normalizedPhone}: ${result.message}`);
+        userMessage = "Service temporarily unavailable, please try again.";
+      }
     }
 
     const providerResult: ProviderResult = {
-      success: result.success, message: userMessage,
+      success: result.success, indeterminate: result.indeterminate, message: userMessage,
       providerUsed: result.providerUsed, fallbackAttempted: result.fallbackAttempted,
       rawResponse: result.rawResponse, reference: result.reference,
     };

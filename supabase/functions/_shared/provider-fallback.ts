@@ -11,6 +11,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export interface FallbackResult {
   success: boolean;
+  /** True when no provider could be confirmed success/failure (timeout/network). */
+  indeterminate?: boolean;
   message: string;
   providerUsed: string;
   fallbackAttempted: boolean;
@@ -18,6 +20,11 @@ export interface FallbackResult {
   fallbackResponse?: unknown;
   reference?: string;
   token?: string;
+}
+
+function isIndeterminateMsg(message: string | undefined | null): boolean {
+  if (!message) return false;
+  return /timeout|timed out|aborted|abort|network|fetch failed|ETIMEDOUT|ECONNRESET|ECONNREFUSED|socket hang up|gateway|503|504|after retries/i.test(message);
 }
 
 type ProviderResponse = SubpadiResponse | SmeplugResponse | ClubkonnectResponse | RenderResponse | FlowpayResponse;
@@ -176,8 +183,15 @@ export async function executeWithFallback(
         (r) => r.success, (r) => r.success ? undefined : r.message
       );
 
+      // If neither succeeded but BOTH look like timeouts/network issues,
+      // surface as indeterminate so caller keeps the transaction pending (no refund yet).
+      const bothIndeterminate = !fallbackResult.success
+        && isIndeterminateMsg(primaryResult.message)
+        && isIndeterminateMsg(fallbackResult.message);
+
       return {
         success: fallbackResult.success,
+        indeterminate: !fallbackResult.success && bothIndeterminate,
         message: fallbackResult.success ? fallbackResult.message : primaryResult.message,
         providerUsed: fallbackResult.success ? config.fallbackProvider! : config.primaryProvider,
         fallbackAttempted: true,
@@ -193,7 +207,9 @@ export async function executeWithFallback(
 
   // No fallback or fallback also failed
   return {
-    success: false, message: primaryResult.message,
+    success: false,
+    indeterminate: isIndeterminateMsg(primaryResult.message),
+    message: primaryResult.message,
     providerUsed: config.primaryProvider, fallbackAttempted: config.fallbackEnabled && !!fallbackFn,
     rawResponse: primaryResult.rawResponse, reference: primaryResult.reference,
   };

@@ -28,6 +28,12 @@ function hashString(str: string): number {
 
 export interface ProviderResult {
   success: boolean;
+  /**
+   * Indeterminate = we could not confirm success or failure (timeout, network error,
+   * or ambiguous provider response). The transaction must stay PENDING so the
+   * reconciler / webhook can verify the real outcome later. Wallet must NOT be refunded.
+   */
+  indeterminate?: boolean;
   message: string;
   providerUsed: string;
   fallbackAttempted: boolean;
@@ -37,6 +43,16 @@ export interface ProviderResult {
   token?: string;
   pins?: unknown[];
   extraData?: Record<string, unknown>;
+}
+
+/**
+ * Detect whether a provider error message suggests an indeterminate state
+ * (timeout, network failure, abort) — meaning the request may or may not have
+ * actually been processed by the upstream provider.
+ */
+export function isIndeterminateError(message: string | undefined | null): boolean {
+  if (!message) return false;
+  return /timeout|timed out|aborted|abort|network|fetch failed|ETIMEDOUT|ECONNRESET|ECONNREFUSED|socket hang up|gateway|503|504|after retries/i.test(message);
 }
 
 export interface TransactionContext {
@@ -234,8 +250,38 @@ export async function finalizeTransaction(
       }
 
       return jsonResponse(responseBody);
+    } else if (providerResult.indeterminate) {
+      // INDETERMINATE: timeout / network failure — provider may have processed it.
+      // Keep transaction as 'pending', do NOT refund. Reconciler / webhook will resolve.
+      await adminSupabase.from("transactions").update({ status: "pending" }).eq("id", transactionId);
+
+      await adminSupabase.from("vtu_orders").insert({
+        user_id: userId,
+        transaction_id: transactionId,
+        service_type: serviceType,
+        provider,
+        recipient,
+        amount: sellingPrice,
+        cost_price: costPrice,
+        profit: 0,
+        status: "pending",
+        api_response: providerResult.rawResponse,
+        provider_used: providerResult.providerUsed,
+        fallback_attempted: providerResult.fallbackAttempted,
+        fallback_response: providerResult.fallbackResponse ?? null,
+        fallback_provider: null,
+      });
+
+      console.log(`[finalizeTransaction] INDETERMINATE — tx ${transactionId} kept pending for reconciliation`);
+      return jsonResponse({
+        success: false,
+        pending: true,
+        status: "pending",
+        message: "Processing... Your transaction is being confirmed. We'll update the status shortly.",
+        reference,
+      });
     } else {
-      // REFUND wallet - provider failed
+      // REFUND wallet - provider definitively failed
       await adminSupabase.from("wallets").update({ balance: currentBalance }).eq("user_id", userId);
       await adminSupabase.from("transactions").update({ status: "failed" }).eq("id", transactionId);
 
@@ -251,8 +297,8 @@ export async function finalizeTransaction(
         status: "failed",
         api_response: providerResult.rawResponse,
         provider_used: providerResult.providerUsed,
-        fallback_attempted: false,
-        fallback_response: null,
+        fallback_attempted: providerResult.fallbackAttempted,
+        fallback_response: providerResult.fallbackResponse ?? null,
         fallback_provider: null,
       });
 

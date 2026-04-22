@@ -107,8 +107,10 @@ serve(async (req) => {
     );
 
     const pins = extractPins(result.rawResponse);
+    const indeterminate = !result.success && /timeout|aborted|network|fetch failed|after retries|503|504/i.test(result.message || "");
     const providerResult: ProviderResult = {
-      success: result.success, message: result.success ? "Exam card purchased" : (result.message || "Purchase failed"),
+      success: result.success, indeterminate,
+      message: result.success ? "Exam card purchased" : (indeterminate ? "Processing... Your transaction is being confirmed." : (result.message || "Purchase failed")),
       providerUsed: 'subpadi', fallbackAttempted: false, rawResponse: result.rawResponse,
       pins: result.success ? pins : undefined, extraData: { reference },
     };

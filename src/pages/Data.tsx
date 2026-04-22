@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
+import { parseEdgeFunctionError, isPendingTransaction } from "@/lib/edge-function-errors";
 import { useNetworkDetection, normalizePhoneNumber, detectNetwork } from "@/hooks/useNetworkDetection";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
@@ -52,6 +52,7 @@ const Data = () => {
   const [showResult, setShowResult] = useState(false);
   const [showBeneficiaries, setShowBeneficiaries] = useState(false);
   const [resultSuccess, setResultSuccess] = useState(false);
+  const [resultPending, setResultPending] = useState(false);
   const [resultError, setResultError] = useState("");
   const [resultTransactionId, setResultTransactionId] = useState<string | undefined>();
   const { recentNumbers, addRecentNumber, clearRecentNumbers } = useRecentNumbers("data");
@@ -187,10 +188,20 @@ const Data = () => {
           transaction_pin: pin,
         },
       });
+      // Pending (indeterminate) — show Processing UI, do not throw
+      if (!error && data && !data.success && isPendingTransaction(data)) {
+        setResultSuccess(false);
+        setResultPending(true);
+        setResultError(data.message || "Processing... Your transaction is being confirmed.");
+        setResultTransactionId(data?.reference);
+        setShowResult(true);
+        return;
+      }
       if (error || !data?.success) {
         const message = parseEdgeFunctionError(error, data, "Failed to purchase data");
         if (!message.includes("PIN") && !message.includes("locked")) {
           setResultSuccess(false);
+          setResultPending(false);
           setResultError(message);
           setResultTransactionId(data?.reference);
           setShowResult(true);
@@ -200,6 +211,7 @@ const Data = () => {
       addRecentNumber(phoneNumber, contactName);
       addBeneficiary(phoneNumber, contactName, selectedNetwork || undefined);
       setResultSuccess(true);
+      setResultPending(false);
       setResultError("");
       setResultTransactionId(data?.reference || data?.transactionId);
       setShowResult(true);
@@ -478,6 +490,7 @@ const Data = () => {
         open={showResult}
         onClose={() => setShowResult(false)}
         success={resultSuccess}
+        pending={resultPending}
         amount={selectedPlan?.amount || 0}
         details={[
           { label: "Service", value: "Data Bundle" },

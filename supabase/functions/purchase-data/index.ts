@@ -152,7 +152,10 @@ serve(async (req) => {
     // Map provider-specific errors to user-friendly messages
     let userMessage = result.message;
     if (!result.success) {
-      if (/cannot purchase this bundle for other users/i.test(result.message)) {
+      if (result.indeterminate) {
+        console.warn(`[purchase-data] INDETERMINATE for ${networkUpper} ${normalizedPhone} plan=${planId}: ${result.message}`);
+        userMessage = "Processing... Your transaction is being confirmed.";
+      } else if (/cannot purchase this bundle for other users/i.test(result.message)) {
         userMessage = "This data plan is restricted to self-recharge only and cannot be purchased for other numbers. Please choose a different plan.";
       } else {
         console.error(`[purchase-data] All providers failed for ${networkUpper} ${normalizedPhone} plan=${planId}: ${result.message}`);
@@ -161,7 +164,7 @@ serve(async (req) => {
     }
 
     const providerResult: ProviderResult = {
-      success: result.success, message: userMessage, providerUsed: result.providerUsed,
+      success: result.success, indeterminate: result.indeterminate, message: userMessage, providerUsed: result.providerUsed,
       fallbackAttempted: result.fallbackAttempted, rawResponse: result.rawResponse, reference: result.reference,
     };
 
