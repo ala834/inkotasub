@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Search, ArrowLeft, ArrowDownLeft, ArrowUpRight, Loader2, SlidersHorizontal, X } from "lucide-react";
+import { Search, ArrowLeft, ArrowDownLeft, ArrowUpRight, Loader2, SlidersHorizontal, X, Clock, CheckCircle2, XCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/layout/BottomNav";
 import { useTransactions, Transaction } from "@/hooks/useTransactions";
@@ -8,11 +8,17 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 const statusTabs = [
-  { value: "all" as const, label: "All" },
-  { value: "success" as const, label: "Successful" },
-  { value: "pending" as const, label: "Pending" },
-  { value: "failed" as const, label: "Failed" },
+  { value: "all" as const, label: "All", icon: null },
+  { value: "success" as const, label: "Successful", icon: CheckCircle2 },
+  { value: "pending" as const, label: "Processing", icon: Clock },
+  { value: "failed" as const, label: "Failed", icon: XCircle },
 ];
+
+const statusMeta = {
+  success: { label: "Success", icon: CheckCircle2, classes: "text-green-600 bg-green-50" },
+  pending: { label: "Processing", icon: Clock, classes: "text-amber-600 bg-amber-50" },
+  failed: { label: "Failed", icon: XCircle, classes: "text-red-500 bg-red-50" },
+} as const;
 
 const History = () => {
   const navigate = useNavigate();
@@ -36,14 +42,12 @@ const History = () => {
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 2 }).format(amount);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "success": return "text-green-600 bg-green-50";
-      case "pending": return "text-amber-600 bg-amber-50";
-      case "failed": return "text-red-500 bg-red-50";
-      default: return "text-gray-500 bg-gray-100";
-    }
-  };
+  const getStatusMeta = (status: string) =>
+    statusMeta[status as keyof typeof statusMeta] ?? {
+      label: status,
+      icon: Clock,
+      classes: "text-gray-500 bg-gray-100",
+    };
 
   const isDepositCharge = (tx: Transaction) =>
     (tx.metadata as any)?.type === "deposit_charge" || tx.description?.toLowerCase().includes("deposit processing fee");
@@ -108,20 +112,24 @@ const History = () => {
         {/* Status Tabs */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.03 }}>
           <div className="flex bg-white rounded-xl p-1 border border-gray-100 shadow-sm">
-            {statusTabs.map(tab => (
-              <button
-                key={tab.value}
-                onClick={() => setStatusFilter(tab.value)}
-                className={cn(
-                  "flex-1 py-2 rounded-lg text-xs font-semibold transition-all",
-                  statusFilter === tab.value
-                    ? "bg-green-500 text-white shadow-sm"
-                    : "text-gray-500 active:bg-gray-50"
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
+            {statusTabs.map(tab => {
+              const TabIcon = tab.icon;
+              return (
+                <button
+                  key={tab.value}
+                  onClick={() => setStatusFilter(tab.value)}
+                  className={cn(
+                    "flex-1 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1",
+                    statusFilter === tab.value
+                      ? "bg-green-500 text-white shadow-sm"
+                      : "text-gray-500 active:bg-gray-50"
+                  )}
+                >
+                  {TabIcon && <TabIcon className="h-3.5 w-3.5" />}
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </motion.div>
 
@@ -187,42 +195,55 @@ const History = () => {
                 {format(new Date(dateKey), "EEEE, MMM d, yyyy")}
               </p>
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-50 overflow-hidden">
-                {txs.map(transaction => (
-                  <motion.button
-                    key={transaction.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    onClick={() => navigate(`/receipt/${transaction.id}`)}
-                    className="w-full flex items-center gap-3 p-4 text-left active:bg-gray-50 transition-colors"
-                  >
-                    <div className={cn(
-                      "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
-                      isDepositCharge(transaction) ? "bg-red-50" :
-                      transaction.type === "credit" ? "bg-green-50" : "bg-red-50"
-                    )}>
-                      {transaction.type === "credit" && !isDepositCharge(transaction)
-                        ? <ArrowDownLeft className="h-5 w-5 text-green-500" />
-                        : <ArrowUpRight className="h-5 w-5 text-red-500" />
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 text-sm truncate">{getTransactionLabel(transaction)}</p>
-                      <p className="text-xs text-gray-400">{format(new Date(transaction.created_at), "h:mm a")}</p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className={cn(
-                        "font-bold text-sm",
-                        isDepositCharge(transaction) ? "text-red-500" :
-                        transaction.type === "credit" ? "text-green-600" : "text-red-500"
+                {txs.map(transaction => {
+                  const meta = getStatusMeta(transaction.status);
+                  const StatusIcon = meta.icon;
+                  return (
+                    <motion.button
+                      key={transaction.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      onClick={() => navigate(`/receipt/${transaction.id}`)}
+                      className="w-full flex items-center gap-3 p-4 text-left active:bg-gray-50 transition-colors"
+                    >
+                      <div className={cn(
+                        "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 relative",
+                        isDepositCharge(transaction) ? "bg-red-50" :
+                        transaction.type === "credit" ? "bg-green-50" : "bg-red-50"
                       )}>
-                        {transaction.type === "credit" ? "+" : "-"}{formatCurrency(transaction.amount)}
-                      </p>
-                      <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full capitalize font-medium", getStatusColor(transaction.status))}>
-                        {transaction.status}
-                      </span>
-                    </div>
-                  </motion.button>
-                ))}
+                        {transaction.type === "credit" && !isDepositCharge(transaction)
+                          ? <ArrowDownLeft className="h-5 w-5 text-green-500" />
+                          : <ArrowUpRight className="h-5 w-5 text-red-500" />
+                        }
+                        {transaction.status === "pending" && (
+                          <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center ring-2 ring-white">
+                            <Clock className="h-2.5 w-2.5 text-white" />
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 text-sm truncate">{getTransactionLabel(transaction)}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <p className="text-xs text-gray-400">{format(new Date(transaction.created_at), "h:mm a")}</p>
+                          <span className={cn("inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium", meta.classes)}>
+                            <StatusIcon className={cn("h-2.5 w-2.5", transaction.status === "pending" && "animate-pulse")} />
+                            {meta.label}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className={cn(
+                          "font-bold text-sm",
+                          transaction.status === "pending" ? "text-amber-600" :
+                          isDepositCharge(transaction) ? "text-red-500" :
+                          transaction.type === "credit" ? "text-green-600" : "text-red-500"
+                        )}>
+                          {transaction.type === "credit" ? "+" : "-"}{formatCurrency(transaction.amount)}
+                        </p>
+                      </div>
+                    </motion.button>
+                  );
+                })}
               </div>
             </div>
           ))
