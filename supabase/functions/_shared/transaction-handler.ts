@@ -39,6 +39,11 @@ export interface ProviderResult {
   fallbackAttempted: boolean;
   rawResponse: unknown;
   fallbackResponse?: unknown;
+  fallbackProvider?: string | null;
+  providerStatus?: string;
+  providerMessage?: string;
+  providerPlanId?: string;
+  fallbackHistory?: Array<{ provider: string; success: boolean; message: string; rawResponse: unknown }>;
   reference?: string;
   token?: string;
   pins?: unknown[];
@@ -66,6 +71,7 @@ export interface TransactionContext {
   description: string;
   provider: string;
   recipient: string;
+  providerPlanId?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -182,24 +188,34 @@ export async function finalizeTransaction(
   const releaseLock = async () => { try { await adminSupabase.rpc("release_advisory_lock", { lock_key: lockKey }); } catch (_) { /* ignore */ } };
 
   try {
+    const orderBase = {
+      user_id: userId,
+      transaction_id: transactionId,
+      service_type: serviceType,
+      provider,
+      recipient,
+      amount: sellingPrice,
+      provider_used: providerResult.providerUsed,
+      fallback_attempted: providerResult.fallbackAttempted,
+      fallback_response: providerResult.fallbackResponse ?? null,
+      fallback_provider: providerResult.fallbackProvider ?? null,
+      api_response: providerResult.rawResponse,
+      provider_status: providerResult.providerStatus ?? (providerResult.success ? "success" : providerResult.indeterminate ? "pending" : "failed"),
+      provider_message: providerResult.providerMessage ?? providerResult.message,
+      provider_plan_id: providerResult.providerPlanId ?? ctx.providerPlanId ?? null,
+      provider_reference: providerResult.reference ?? reference,
+      fallback_history: providerResult.fallbackHistory ?? null,
+    };
+
     if (providerResult.success) {
       await adminSupabase.from("transactions").update({ status: "success" }).eq("id", transactionId);
 
       await adminSupabase.from("vtu_orders").insert({
-        user_id: userId,
-        transaction_id: transactionId,
-        service_type: serviceType,
-        provider,
-        recipient,
+        ...orderBase,
         amount: sellingPrice,
         cost_price: costPrice,
         profit,
         status: "success",
-        api_response: providerResult.rawResponse,
-        provider_used: providerResult.providerUsed,
-        fallback_attempted: false,
-        fallback_response: null,
-        fallback_provider: null,
       });
 
       // Ledger (fire-and-forget)
@@ -256,20 +272,11 @@ export async function finalizeTransaction(
       await adminSupabase.from("transactions").update({ status: "pending" }).eq("id", transactionId);
 
       await adminSupabase.from("vtu_orders").insert({
-        user_id: userId,
-        transaction_id: transactionId,
-        service_type: serviceType,
-        provider,
-        recipient,
+        ...orderBase,
         amount: sellingPrice,
         cost_price: costPrice,
         profit: 0,
         status: "pending",
-        api_response: providerResult.rawResponse,
-        provider_used: providerResult.providerUsed,
-        fallback_attempted: providerResult.fallbackAttempted,
-        fallback_response: providerResult.fallbackResponse ?? null,
-        fallback_provider: null,
       });
 
       console.log(`[finalizeTransaction] INDETERMINATE — tx ${transactionId} kept pending for reconciliation`);
@@ -286,20 +293,11 @@ export async function finalizeTransaction(
       await adminSupabase.from("transactions").update({ status: "failed" }).eq("id", transactionId);
 
       await adminSupabase.from("vtu_orders").insert({
-        user_id: userId,
-        transaction_id: transactionId,
-        service_type: serviceType,
-        provider,
-        recipient,
+        ...orderBase,
         amount: sellingPrice,
         cost_price: costPrice,
         profit: 0,
         status: "failed",
-        api_response: providerResult.rawResponse,
-        provider_used: providerResult.providerUsed,
-        fallback_attempted: providerResult.fallbackAttempted,
-        fallback_response: providerResult.fallbackResponse ?? null,
-        fallback_provider: null,
       });
 
       return jsonResponse({ success: false, message: providerResult.message || "Transaction failed. Please try again." });
