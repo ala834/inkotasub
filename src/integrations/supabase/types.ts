@@ -335,6 +335,84 @@ export type Database = {
         }
         Relationships: []
       }
+      developer_api_plans: {
+        Row: {
+          auto_hide_on_failure: boolean
+          created_at: string
+          created_by: string | null
+          developer_price: number
+          failure_count: number
+          id: string
+          is_enabled: boolean
+          is_hidden_from_users: boolean
+          last_failure_at: string | null
+          last_failure_reason: string | null
+          last_success_at: string | null
+          metadata: Json | null
+          network: string | null
+          plan_id: string
+          plan_name: string
+          provider_source: string
+          reseller_price: number
+          service_type: Database["public"]["Enums"]["service_type"]
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+          user_price: number
+          validation_id: string | null
+        }
+        Insert: {
+          auto_hide_on_failure?: boolean
+          created_at?: string
+          created_by?: string | null
+          developer_price?: number
+          failure_count?: number
+          id?: string
+          is_enabled?: boolean
+          is_hidden_from_users?: boolean
+          last_failure_at?: string | null
+          last_failure_reason?: string | null
+          last_success_at?: string | null
+          metadata?: Json | null
+          network?: string | null
+          plan_id: string
+          plan_name: string
+          provider_source: string
+          reseller_price?: number
+          service_type: Database["public"]["Enums"]["service_type"]
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+          user_price?: number
+          validation_id?: string | null
+        }
+        Update: {
+          auto_hide_on_failure?: boolean
+          created_at?: string
+          created_by?: string | null
+          developer_price?: number
+          failure_count?: number
+          id?: string
+          is_enabled?: boolean
+          is_hidden_from_users?: boolean
+          last_failure_at?: string | null
+          last_failure_reason?: string | null
+          last_success_at?: string | null
+          metadata?: Json | null
+          network?: string | null
+          plan_id?: string
+          plan_name?: string
+          provider_source?: string
+          reseller_price?: number
+          service_type?: Database["public"]["Enums"]["service_type"]
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+          user_price?: number
+          validation_id?: string | null
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -1593,6 +1671,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_developer_api_approved: {
+        Args: { _user_id: string }
         Returns: boolean
       }
       move_to_dlq: {
