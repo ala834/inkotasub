@@ -35,20 +35,26 @@ serve(async (req) => {
     let reconciled = 0;
     let refunded = 0;
 
+    const looksSuccessful = (value: unknown) => {
+      const status = String((value as any)?.status ?? (value as any)?.Status ?? (value as any)?.current_status ?? "").toLowerCase();
+      return status === "success" || status === "successful" || (value as any)?.success === true;
+    };
+
     for (const tx of stuckTxs) {
       const { data: vtuOrder } = await adminSupabase
         .from("vtu_orders")
-        .select("id, status, api_response")
+        .select("id, status, api_response, provider_status, provider_message")
         .eq("transaction_id", tx.id)
         .single();
 
       if (vtuOrder) {
-        if (vtuOrder.status === "success") {
+        if (vtuOrder.status === "success" || vtuOrder.provider_status === "success" || looksSuccessful(vtuOrder.api_response)) {
           // Provider succeeded but transaction stuck — finalize
           await adminSupabase.from("transactions").update({ status: "success" }).eq("id", tx.id);
+          await adminSupabase.from("vtu_orders").update({ status: "success", provider_status: "success" }).eq("id", vtuOrder.id);
           // Wallet was already deducted during "processing" state, so no wallet change needed
           reconciled++;
-        } else if (vtuOrder.status === "failed") {
+        } else if (vtuOrder.status === "failed" || vtuOrder.provider_status === "failed") {
           // Provider failed — if we already deducted (processing state), refund
           if (tx.status === "processing") {
             await adminSupabase.from("wallets").update({ balance: tx.balance_before }).eq("user_id", tx.user_id);
@@ -56,6 +62,8 @@ serve(async (req) => {
           }
           await adminSupabase.from("transactions").update({ status: "failed" }).eq("id", tx.id);
           reconciled++;
+        } else {
+          await adminSupabase.from("transactions").update({ status: "pending" }).eq("id", tx.id);
         }
       } else {
         // No VTU order — provider call never completed
