@@ -14,6 +14,7 @@ type WalletLedgerRow = { id: string; user_id: string; amount: number; entry_type
 type DeveloperPlanRow = { id: string; service_type: string; provider_source: string; network: string | null; plan_name: string; plan_id: string; is_enabled: boolean; is_hidden_from_users: boolean; failure_count: number };
 
 const AdminDeveloperApiTab = () => {
+  const db = supabase as any;
   const [tab, setTab] = useState("requests");
   const [requests, setRequests] = useState<Request[]>([]);
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
@@ -41,7 +42,7 @@ const AdminDeveloperApiTab = () => {
       supabase.from("api_keys").select("*").order("created_at", { ascending: false }),
       supabase.from("api_request_logs").select("success").gte("created_at", new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()),
       supabase.from("api_wallet_ledger").select("id, user_id, amount, entry_type, reference, created_at").order("created_at", { ascending: false }).limit(50),
-      supabase.from("developer_api_plans").select("id, service_type, provider_source, network, plan_name, plan_id, is_enabled, is_hidden_from_users, failure_count").order("service_type").order("network").order("plan_name"),
+      db.from("developer_api_plans").select("id, service_type, provider_source, network, plan_name, plan_id, is_enabled, is_hidden_from_users, failure_count").order("service_type").order("network").order("plan_name"),
     ]);
     setRequests((reqs as Request[]) ?? []);
     setKeys((ks as ApiKeyRow[]) ?? []);
