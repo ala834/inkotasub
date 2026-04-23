@@ -48,6 +48,7 @@ serve(async (req) => {
       return jsonResponse({ error: `Invalid phone number: ${phoneNumber}`, success: false }, 400);
     }
     const normalizedPhone = phone.local;
+    const providerPhone = phone.intl;
 
     const validNetworks = ['mtn', 'glo', 'airtel', '9mobile', 'etisalat'];
     let resolvedNetwork = network?.toLowerCase?.() || '';
@@ -105,7 +106,7 @@ serve(async (req) => {
     const reference = generateReference('airtime');
     const ctx: TransactionContext = {
       userId, adminSupabase, serviceType: 'airtime', sellingPrice, costPrice, profit,
-      reference, description: `${resolvedNetwork.toUpperCase()} Airtime - ${normalizedPhone}`,
+      reference, description: `${resolvedNetwork.toUpperCase()} Airtime - ${providerPhone}`,
       provider: resolvedNetwork.toUpperCase(), recipient: normalizedPhone,
     };
 
@@ -117,13 +118,13 @@ serve(async (req) => {
 
     // Provider call — always send FULL amount so user gets the full value
     const result = await executeWithFallback(
-      () => subpadiPurchaseAirtime(resolvedNetwork, normalizedPhone, sellingPrice),
-      () => smeplugPurchaseAirtime(resolvedNetwork, normalizedPhone, sellingPrice),
+      () => subpadiPurchaseAirtime(resolvedNetwork, providerPhone, sellingPrice),
+      () => smeplugPurchaseAirtime(resolvedNetwork, providerPhone, sellingPrice),
       'airtime',
       resolvedNetwork,
       preferredProvider ? { preferredProvider } : { preferredProvider: 'smeplug' },
-      () => clubkonnectPurchaseAirtime(resolvedNetwork, normalizedPhone, sellingPrice),
-      () => renderPurchaseAirtime(resolvedNetwork, normalizedPhone, sellingPrice),
+      () => clubkonnectPurchaseAirtime(resolvedNetwork, providerPhone, sellingPrice),
+      () => renderPurchaseAirtime(resolvedNetwork, providerPhone, sellingPrice),
     );
 
     // User-friendly message — distinguish indeterminate (timeout) vs definitive failure
@@ -142,6 +143,9 @@ serve(async (req) => {
       success: result.success, indeterminate: result.indeterminate, message: userMessage,
       providerUsed: result.providerUsed, fallbackAttempted: result.fallbackAttempted,
       rawResponse: result.rawResponse, reference: result.reference,
+      fallbackResponse: result.fallbackResponse, fallbackProvider: result.fallbackProvider,
+      fallbackHistory: result.fallbackHistory, providerStatus: result.success ? 'success' : result.indeterminate ? 'pending' : 'failed',
+      providerMessage: result.message,
     };
 
     return await finalizeTransaction(ctx, lockResult, providerResult);
