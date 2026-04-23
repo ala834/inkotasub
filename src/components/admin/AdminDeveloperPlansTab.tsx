@@ -58,6 +58,7 @@ const emptyForm = {
 };
 
 export default function AdminDeveloperPlansTab() {
+  const db = supabase as any;
   const [plans, setPlans] = useState<DeveloperApiPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -71,7 +72,7 @@ export default function AdminDeveloperPlansTab() {
 
   const loadPlans = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("developer_api_plans")
       .select("*")
       .order("service_type")
@@ -170,8 +171,8 @@ export default function AdminDeveloperPlansTab() {
     };
 
     const query = editing
-      ? supabase.from("developer_api_plans").update(payload).eq("id", editing.id)
-      : supabase.from("developer_api_plans").insert(payload);
+      ? db.from("developer_api_plans").update(payload).eq("id", editing.id)
+      : db.from("developer_api_plans").insert(payload);
 
     const { error } = await query;
     setSaving(false);
@@ -189,7 +190,7 @@ export default function AdminDeveloperPlansTab() {
 
   const deletePlan = async (id: string) => {
     if (!confirm("Delete this developer API plan?")) return;
-    const { error } = await supabase.from("developer_api_plans").delete().eq("id", id);
+    const { error } = await db.from("developer_api_plans").delete().eq("id", id);
     if (error) {
       toast.error(error.message);
       return;
@@ -199,7 +200,7 @@ export default function AdminDeveloperPlansTab() {
   };
 
   const restorePlan = async (plan: DeveloperApiPlan) => {
-    const { error } = await supabase
+    const { error } = await db
       .from("developer_api_plans")
       .update({
         failure_count: 0,
