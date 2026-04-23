@@ -19,7 +19,7 @@ type AccessRequest = { id: string; status: string; reason: string | null; busine
 type ApiKey = { id: string; name: string; key_prefix: string; is_revoked: boolean; last_used_at: string | null; created_at: string; rate_limit_per_min: number };
 type ApiWallet = { balance: number };
 type ApiLog = { id: string; endpoint: string; method: string; status_code: number; success: boolean; response_time_ms: number | null; created_at: string };
-type ServicePlan = { id: string; plan_id: string; plan_name: string; network: string; selling_price: number | null; base_price: number; validity: string | null; is_enabled: boolean; failure_count: number; permanently_disabled: boolean };
+type ServicePlan = { id: string; plan_id: string; plan_name: string; network: string; selling_price: number | null; base_price: number; validity: string | null; is_enabled: boolean; failure_count: number; permanently_disabled: boolean; provider: string; plan_type?: string | null };
 
 const NETWORKS = ["MTN", "GLO", "AIRTEL", "9MOBILE"] as const;
 const AIRTIME_MIN = 50;
@@ -78,7 +78,7 @@ const Developer = () => {
       supabase.from("api_keys").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("api_wallets").select("balance").eq("user_id", user.id).maybeSingle(),
       supabase.from("api_request_logs").select("id, endpoint, method, status_code, success, response_time_ms, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
-      supabase.from("service_plans").select("id, plan_id, plan_name, network, selling_price, base_price, validity, is_enabled, failure_count, permanently_disabled").eq("service_type", "data").eq("is_enabled", true).order("network").order("base_price"),
+      supabase.from("service_plans").select("id, plan_id, plan_name, network, selling_price, base_price, validity, is_enabled, failure_count, permanently_disabled, provider, plan_type").eq("service_type", "data").eq("is_enabled", true).order("network").order("base_price"),
     ]);
     setAccessRequest(req as AccessRequest | null);
     setKeys((ks as ApiKey[]) ?? []);
@@ -331,8 +331,9 @@ const Developer = () => {
                           <div className="overflow-x-auto">
                             <Table>
                               <TableHeader>
-                                <TableRow>
+                                  <TableRow>
                                   <TableHead>Plan</TableHead>
+                                    <TableHead className="hidden md:table-cell">Provider</TableHead>
                                   <TableHead className="hidden sm:table-cell">Validity</TableHead>
                                   <TableHead>Price</TableHead>
                                   <TableHead>Plan ID</TableHead>
@@ -345,7 +346,13 @@ const Developer = () => {
                                   const unstable = p.failure_count >= 2 || p.permanently_disabled;
                                   return (
                                     <TableRow key={p.id}>
-                                      <TableCell className="font-medium text-sm">{p.plan_name}</TableCell>
+                                      <TableCell className="font-medium text-sm">
+                                        <div>{p.plan_name}</div>
+                                        {p.plan_type && <div className="text-[10px] text-muted-foreground uppercase">{p.plan_type}</div>}
+                                      </TableCell>
+                                      <TableCell className="hidden md:table-cell">
+                                        <Badge variant="outline" className="text-[10px] uppercase">{p.provider}</Badge>
+                                      </TableCell>
                                       <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{p.validity ?? "—"}</TableCell>
                                       <TableCell className="font-semibold">₦{price.toLocaleString()}</TableCell>
                                       <TableCell>
