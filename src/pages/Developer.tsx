@@ -1,9 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Code, Key, Activity, BookOpen, Copy, Plus, Trash2, AlertCircle, CheckCircle2, Clock, Wallet, Search, Phone, Database } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Activity,
+  AlertCircle,
+  ArrowLeft,
+  BookOpen,
+  CheckCircle2,
+  Code,
+  Copy,
+  CreditCard,
+  Database,
+  Key,
+  Layers3,
+  Phone,
+  Search,
+  ShieldAlert,
+  Wallet,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +26,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -19,14 +36,30 @@ type AccessRequest = { id: string; status: string; reason: string | null; busine
 type ApiKey = { id: string; name: string; key_prefix: string; is_revoked: boolean; last_used_at: string | null; created_at: string; rate_limit_per_min: number };
 type ApiWallet = { balance: number };
 type ApiLog = { id: string; endpoint: string; method: string; status_code: number; success: boolean; response_time_ms: number | null; created_at: string };
-type ServicePlan = { id: string; plan_id: string; plan_name: string; network: string; selling_price: number | null; base_price: number; validity: string | null; is_enabled: boolean; failure_count: number; permanently_disabled: boolean; provider: string; plan_type?: string | null };
+type WalletLedgerRow = { id: string; amount: number; entry_type: string; reference: string | null; created_at: string; metadata: Record<string, unknown> | null };
+type DeveloperPlan = {
+  id: string;
+  service_type: string;
+  provider_source: string;
+  network: string | null;
+  plan_name: string;
+  plan_id: string;
+  validation_id: string | null;
+  developer_price: number;
+  user_price: number;
+  reseller_price: number;
+  is_enabled: boolean;
+  failure_count: number;
+  is_hidden_from_users: boolean;
+};
 
-const NETWORKS = ["MTN", "GLO", "AIRTEL", "9MOBILE"] as const;
+const NETWORKS = ["ALL", "MTN", "GLO", "AIRTEL", "9MOBILE"] as const;
+const SERVICES = ["all", "data", "airtime", "cable", "electricity"] as const;
 const AIRTIME_MIN = 50;
-
 const API_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/developer-api`;
 
 const Developer = () => {
+  const db = supabase as any;
   const navigate = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -34,61 +67,89 @@ const Developer = () => {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [wallet, setWallet] = useState<ApiWallet>({ balance: 0 });
   const [logs, setLogs] = useState<ApiLog[]>([]);
+  const [walletHistory, setWalletHistory] = useState<WalletLedgerRow[]>([]);
   const [reason, setReason] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [requesting, setRequesting] = useState(false);
   const [keyName, setKeyName] = useState("");
   const [creatingKey, setCreatingKey] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
-  const [plans, setPlans] = useState<ServicePlan[]>([]);
+  const [plans, setPlans] = useState<DeveloperPlan[]>([]);
   const [planSearch, setPlanSearch] = useState("");
   const [networkFilter, setNetworkFilter] = useState<string>("ALL");
+  const [serviceFilter, setServiceFilter] = useState<string>("all");
 
   const isApproved = accessRequest?.status === "approved";
 
   const stats = useMemo(() => {
     const total = logs.length;
-    const success = logs.filter(l => l.success).length;
+    const success = logs.filter((l) => l.success).length;
     return { total, success, failed: total - success };
   }, [logs]);
 
+  const walletStats = useMemo(() => {
+    return walletHistory.reduce(
+      (acc, row) => {
+        if (row.entry_type === "credit") acc.funded += Number(row.amount ?? 0);
+        if (row.entry_type === "debit") acc.deducted += Number(row.amount ?? 0);
+        return acc;
+      },
+      { funded: 0, deducted: 0 },
+    );
+  }, [walletHistory]);
+
   const filteredPlans = useMemo(() => {
     const q = planSearch.trim().toLowerCase();
-    return plans.filter(p => {
-      if (networkFilter !== "ALL" && p.network.toUpperCase() !== networkFilter) return false;
+    return plans.filter((plan) => {
+      if (serviceFilter !== "all" && plan.service_type !== serviceFilter) return false;
+      if (networkFilter !== "ALL" && (plan.network ?? "") !== networkFilter) return false;
       if (!q) return true;
-      return p.plan_name.toLowerCase().includes(q) || p.plan_id.toLowerCase().includes(q);
+      return [
+        plan.plan_name,
+        plan.plan_id,
+        plan.validation_id ?? "",
+        plan.provider_source,
+        plan.network ?? "",
+        plan.service_type,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(q);
     });
-  }, [plans, planSearch, networkFilter]);
+  }, [plans, planSearch, networkFilter, serviceFilter]);
 
-  const groupedPlans = useMemo(() => {
-    const groups: Record<string, ServicePlan[]> = {};
-    for (const p of filteredPlans) {
-      const net = p.network.toUpperCase();
-      (groups[net] ||= []).push(p);
-    }
-    return groups;
+  const planGroups = useMemo(() => {
+    return filteredPlans.reduce<Record<string, DeveloperPlan[]>>((acc, plan) => {
+      const key = plan.service_type;
+      (acc[key] ||= []).push(plan);
+      return acc;
+    }, {});
   }, [filteredPlans]);
 
   const loadData = async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: req }, { data: ks }, { data: w }, { data: ls }, { data: ps }] = await Promise.all([
+    const [{ data: req }, { data: ks }, { data: w }, { data: ls }, { data: ledgerRows }, { data: planRows }] = await Promise.all([
       supabase.from("api_access_requests").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("api_keys").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("api_wallets").select("balance").eq("user_id", user.id).maybeSingle(),
       supabase.from("api_request_logs").select("id, endpoint, method, status_code, success, response_time_ms, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
-      supabase.from("service_plans").select("id, plan_id, plan_name, network, selling_price, base_price, validity, is_enabled, failure_count, permanently_disabled, provider, plan_type").eq("service_type", "data").eq("is_enabled", true).order("network").order("base_price"),
+      supabase.from("api_wallet_ledger").select("id, amount, entry_type, reference, created_at, metadata").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
+      db.from("developer_api_plans").select("id, service_type, provider_source, network, plan_name, plan_id, validation_id, developer_price, user_price, reseller_price, is_enabled, failure_count, is_hidden_from_users").order("service_type").order("network").order("sort_order").order("plan_name"),
     ]);
-    setAccessRequest(req as AccessRequest | null);
+
+    setAccessRequest((req as AccessRequest | null) ?? null);
     setKeys((ks as ApiKey[]) ?? []);
     setWallet({ balance: Number(w?.balance ?? 0) });
     setLogs((ls as ApiLog[]) ?? []);
-    setPlans((ps as ServicePlan[]) ?? []);
+    setWalletHistory((ledgerRows as WalletLedgerRow[]) ?? []);
+    setPlans(((planRows as DeveloperPlan[]) ?? []).filter((plan) => plan.is_enabled && !plan.is_hidden_from_users));
     setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, [user?.id]);
+  useEffect(() => {
+    loadData();
+  }, [user?.id]);
 
   const requestAccess = async () => {
     if (!businessName.trim() || !reason.trim()) {
@@ -102,14 +163,21 @@ const Developer = () => {
       reason: reason.trim(),
     });
     setRequesting(false);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Access request submitted. An admin will review it shortly.");
-    setReason(""); setBusinessName("");
+    setReason("");
+    setBusinessName("");
     loadData();
   };
 
   const generateKey = async () => {
-    if (!keyName.trim()) { toast.error("Enter a key name"); return; }
+    if (!keyName.trim()) {
+      toast.error("Enter a key name");
+      return;
+    }
     setCreatingKey(true);
     const { data, error } = await supabase.functions.invoke("generate-api-key", { body: { name: keyName.trim() } });
     setCreatingKey(false);
@@ -125,13 +193,16 @@ const Developer = () => {
   const revokeKey = async (id: string) => {
     if (!confirm("Revoke this key? This cannot be undone.")) return;
     const { error } = await supabase.from("api_keys").update({ is_revoked: true, revoked_at: new Date().toISOString() }).eq("id", id);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Key revoked");
     loadData();
   };
 
-  const copy = (text: string, label = "Copied") => {
-    navigator.clipboard.writeText(text);
+  const copy = async (text: string, label = "Copied") => {
+    await navigator.clipboard.writeText(text);
     toast.success(label);
   };
 
@@ -159,7 +230,7 @@ const Developer = () => {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 max-w-5xl">
+      <main className="container mx-auto px-4 py-6 max-w-6xl space-y-4">
         {!accessRequest && (
           <Card>
             <CardHeader>
@@ -169,11 +240,11 @@ const Developer = () => {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="biz">Business / Project Name</Label>
-                <Input id="biz" value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="e.g. AcmeRecharge Ltd" maxLength={100} />
+                <Input id="biz" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. AcmeRecharge Ltd" maxLength={100} />
               </div>
               <div>
                 <Label htmlFor="reason">What will you build?</Label>
-                <Textarea id="reason" value={reason} onChange={e => setReason(e.target.value)} placeholder="Describe your use case..." rows={4} maxLength={500} />
+                <Textarea id="reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Describe your use case..." rows={4} maxLength={500} />
               </div>
               <Button onClick={requestAccess} disabled={requesting} className="w-full">
                 {requesting ? "Submitting..." : "Submit Request"}
@@ -184,7 +255,7 @@ const Developer = () => {
 
         {accessRequest && accessRequest.status === "pending" && (
           <Alert>
-            <Clock className="h-4 w-4" />
+            <AlertCircle className="h-4 w-4" />
             <AlertTitle>Request pending review</AlertTitle>
             <AlertDescription>Your API access request is being reviewed by an admin. You'll be notified once approved.</AlertDescription>
           </Alert>
@@ -202,13 +273,12 @@ const Developer = () => {
           <Tabs defaultValue="keys" className="space-y-4">
             <TabsList className="grid grid-cols-5 w-full">
               <TabsTrigger value="keys" className="gap-1 px-2"><Key className="h-4 w-4" /><span className="hidden sm:inline">Keys</span></TabsTrigger>
-              <TabsTrigger value="services" className="gap-1 px-2"><Database className="h-4 w-4" /><span className="hidden sm:inline">Services</span></TabsTrigger>
+              <TabsTrigger value="services" className="gap-1 px-2"><Layers3 className="h-4 w-4" /><span className="hidden sm:inline">Services</span></TabsTrigger>
               <TabsTrigger value="usage" className="gap-1 px-2"><Activity className="h-4 w-4" /><span className="hidden sm:inline">Usage</span></TabsTrigger>
               <TabsTrigger value="wallet" className="gap-1 px-2"><Wallet className="h-4 w-4" /><span className="hidden sm:inline">Wallet</span></TabsTrigger>
               <TabsTrigger value="docs" className="gap-1 px-2"><BookOpen className="h-4 w-4" /><span className="hidden sm:inline">Docs</span></TabsTrigger>
             </TabsList>
 
-            {/* KEYS */}
             <TabsContent value="keys" className="space-y-4">
               <Card>
                 <CardHeader>
@@ -216,9 +286,9 @@ const Developer = () => {
                   <CardDescription>Keys are shown once. Save them securely.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex gap-2">
-                  <Input value={keyName} onChange={e => setKeyName(e.target.value)} placeholder="e.g. Production server" maxLength={50} />
+                  <Input value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="e.g. Production server" maxLength={50} />
                   <Button onClick={generateKey} disabled={creatingKey} className="gap-2">
-                    <Plus className="h-4 w-4" /> Generate
+                    <Code className="h-4 w-4" /> Generate
                   </Button>
                 </CardContent>
               </Card>
@@ -227,302 +297,138 @@ const Developer = () => {
                 <CardHeader><CardTitle className="text-lg">Your API Keys</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                   {keys.length === 0 && <p className="text-sm text-muted-foreground">No keys yet.</p>}
-                  {keys.map(k => (
-                    <div key={k.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                  {keys.map((k) => (
+                    <div key={k.id} className="flex items-center justify-between p-3 rounded-lg border bg-card gap-3 flex-wrap">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium truncate">{k.name}</span>
-                          {k.is_revoked ? (
-                            <Badge variant="destructive">Revoked</Badge>
-                          ) : (
-                            <Badge variant="default" className="bg-green-600">Active</Badge>
-                          )}
+                          <Badge variant={k.is_revoked ? "destructive" : "secondary"}>{k.is_revoked ? "Revoked" : "Active"}</Badge>
                           <Badge variant="outline">{k.rate_limit_per_min}/min</Badge>
                         </div>
                         <code className="text-xs text-muted-foreground">{k.key_prefix}••••••••••••</code>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {k.last_used_at ? `Last used ${new Date(k.last_used_at).toLocaleString()}` : "Never used"}
-                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">{k.last_used_at ? `Last used ${new Date(k.last_used_at).toLocaleString()}` : "Never used"}</p>
                       </div>
-                      {!k.is_revoked && (
-                        <Button size="icon" variant="ghost" onClick={() => revokeKey(k.id)} className="text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      {!k.is_revoked && <Button size="sm" variant="outline" onClick={() => revokeKey(k.id)}>Revoke</Button>}
                     </div>
                   ))}
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* SERVICES */}
             <TabsContent value="services" className="space-y-4">
-              {/* Available Services */}
+              <div className="grid gap-3 md:grid-cols-4">
+                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Available API Plans</p><p className="text-2xl font-bold">{plans.length}</p></CardContent></Card>
+                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Data</p><p className="text-2xl font-bold">{plans.filter((plan) => plan.service_type === "data").length}</p></CardContent></Card>
+                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Airtime</p><p className="text-2xl font-bold">{plans.filter((plan) => plan.service_type === "airtime").length}</p></CardContent></Card>
+                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Hidden failed plans removed</p><p className="text-2xl font-bold">{plans.filter((plan) => plan.failure_count > 0).length}</p></CardContent></Card>
+              </div>
+
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Available Services</CardTitle>
-                  <CardDescription>Live VTU services accessible via the API</CardDescription>
+                  <CardTitle className="text-lg">Developer API Service Catalog</CardTitle>
+                  <CardDescription>Live plans managed from the admin dashboard, including provider routing metadata and developer pricing.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-3">
-                  <div className="p-4 rounded-xl border bg-card flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Database className="h-5 w-5 text-primary" />
+                <CardContent className="space-y-3">
+                  <div className="flex flex-col lg:flex-row gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input placeholder="Search by service, plan name, plan ID, validation ID..." value={planSearch} onChange={(e) => setPlanSearch(e.target.value)} className="pl-9" />
                     </div>
-                    <div>
-                      <p className="font-medium">Data</p>
-                      <p className="text-xs text-muted-foreground">{plans.length} plans</p>
-                    </div>
+                    <Select value={serviceFilter} onValueChange={setServiceFilter}>
+                      <SelectTrigger className="w-full lg:w-40"><SelectValue placeholder="Service" /></SelectTrigger>
+                      <SelectContent>
+                        {SERVICES.map((service) => <SelectItem key={service} value={service} className="capitalize">{service === "all" ? "All services" : service}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={networkFilter} onValueChange={setNetworkFilter}>
+                      <SelectTrigger className="w-full lg:w-40"><SelectValue placeholder="Network" /></SelectTrigger>
+                      <SelectContent>
+                        {NETWORKS.map((network) => <SelectItem key={network} value={network}>{network === "ALL" ? "All networks" : network}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="p-4 rounded-xl border bg-card flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Phone className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Airtime</p>
-                      <p className="text-xs text-muted-foreground">All networks</p>
-                    </div>
-                  </div>
+
+                  {Object.keys(planGroups).length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-8 text-center">No plans match your filters.</p>
+                  ) : (
+                    Object.entries(planGroups).map(([service, servicePlans]) => (
+                      <div key={service} className="rounded-lg border overflow-hidden">
+                        <div className="px-4 py-3 bg-muted/40 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            {service === "airtime" ? <Phone className="h-4 w-4 text-primary" /> : <Database className="h-4 w-4 text-primary" />}
+                            <span className="font-semibold capitalize">{service}</span>
+                          </div>
+                          <Badge variant="outline">{servicePlans.length} plans</Badge>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Service Name</TableHead>
+                                <TableHead>Provider</TableHead>
+                                <TableHead>Network</TableHead>
+                                <TableHead>Plan ID</TableHead>
+                                <TableHead>Validation ID</TableHead>
+                                <TableHead>Developer Price</TableHead>
+                                <TableHead>User Price</TableHead>
+                                <TableHead>Reseller Price</TableHead>
+                                <TableHead>Status</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {servicePlans.map((plan) => (
+                                <TableRow key={plan.id}>
+                                  <TableCell className="font-medium">{plan.plan_name}</TableCell>
+                                  <TableCell><Badge variant="outline" className="uppercase">{plan.provider_source}</Badge></TableCell>
+                                  <TableCell>{plan.network ?? "—"}</TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-1">
+                                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{plan.plan_id}</code>
+                                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => copy(plan.plan_id, `Plan ID ${plan.plan_id} copied`)}>
+                                        <Copy className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell><code className="text-xs">{plan.validation_id ?? "—"}</code></TableCell>
+                                  <TableCell>₦{Number(plan.developer_price).toLocaleString()}</TableCell>
+                                  <TableCell>₦{Number(plan.user_price).toLocaleString()}</TableCell>
+                                  <TableCell>₦{Number(plan.reseller_price).toLocaleString()}</TableCell>
+                                  <TableCell>
+                                    <Badge variant={plan.is_enabled ? "secondary" : "destructive"}>{plan.is_enabled ? "Active" : "Disabled"}</Badge>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </CardContent>
               </Card>
-
-              <Tabs defaultValue="data">
-                <TabsList className="grid grid-cols-3 w-full">
-                  <TabsTrigger value="data">Data</TabsTrigger>
-                  <TabsTrigger value="airtime">Airtime</TabsTrigger>
-                  <TabsTrigger value="rules">Rules</TabsTrigger>
-                </TabsList>
-
-                {/* DATA PLANS */}
-                <TabsContent value="data" className="space-y-3 mt-4">
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg">Data Plans</CardTitle>
-                      <CardDescription>Use the <code className="bg-muted px-1 rounded">plan_id</code> when calling <code className="bg-muted px-1 rounded">/buy-data</code></CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <div className="relative flex-1">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Search plan name or ID..."
-                            value={planSearch}
-                            onChange={e => setPlanSearch(e.target.value)}
-                            className="pl-9"
-                          />
-                        </div>
-                        <div className="flex gap-1 flex-wrap">
-                          <Button size="sm" variant={networkFilter === "ALL" ? "default" : "outline"} onClick={() => setNetworkFilter("ALL")}>All</Button>
-                          {NETWORKS.map(n => (
-                            <Button key={n} size="sm" variant={networkFilter === n ? "default" : "outline"} onClick={() => setNetworkFilter(n)}>{n}</Button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {Object.keys(groupedPlans).length === 0 && (
-                        <p className="text-sm text-muted-foreground py-8 text-center">No plans match your filters.</p>
-                      )}
-
-                      {NETWORKS.filter(n => groupedPlans[n]?.length).map(net => (
-                        <div key={net} className="rounded-lg border overflow-hidden">
-                          <div className="px-3 py-2 bg-muted/50 flex items-center justify-between">
-                            <span className="font-semibold text-sm">{net}</span>
-                            <Badge variant="outline">{groupedPlans[net].length} plans</Badge>
-                          </div>
-                          <div className="overflow-x-auto">
-                            <Table>
-                              <TableHeader>
-                                  <TableRow>
-                                  <TableHead>Plan</TableHead>
-                                    <TableHead className="hidden md:table-cell">Provider</TableHead>
-                                  <TableHead className="hidden sm:table-cell">Validity</TableHead>
-                                  <TableHead>Price</TableHead>
-                                  <TableHead>Plan ID</TableHead>
-                                  <TableHead className="text-right">Status</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {groupedPlans[net].map(p => {
-                                  const price = Number(p.selling_price ?? p.base_price ?? 0);
-                                  const unstable = p.failure_count >= 2 || p.permanently_disabled;
-                                  return (
-                                    <TableRow key={p.id}>
-                                      <TableCell className="font-medium text-sm">
-                                        <div>{p.plan_name}</div>
-                                        {p.plan_type && <div className="text-[10px] text-muted-foreground uppercase">{p.plan_type}</div>}
-                                      </TableCell>
-                                      <TableCell className="hidden md:table-cell">
-                                        <Badge variant="outline" className="text-[10px] uppercase">{p.provider}</Badge>
-                                      </TableCell>
-                                      <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{p.validity ?? "—"}</TableCell>
-                                      <TableCell className="font-semibold">₦{price.toLocaleString()}</TableCell>
-                                      <TableCell>
-                                        <div className="flex items-center gap-1">
-                                          <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{p.plan_id}</code>
-                                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => copy(p.plan_id, `Plan ID ${p.plan_id} copied`)}>
-                                            <Copy className="h-3 w-3" />
-                                          </Button>
-                                        </div>
-                                      </TableCell>
-                                      <TableCell className="text-right">
-                                        {unstable ? (
-                                          <Badge variant="destructive" className="text-[10px]">Unstable</Badge>
-                                        ) : (
-                                          <Badge variant="outline" className="text-[10px] border-green-600 text-green-600">Available</Badge>
-                                        )}
-                                      </TableCell>
-                                    </TableRow>
-                                  );
-                                })}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                {/* AIRTIME */}
-                <TabsContent value="airtime" className="space-y-3 mt-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Airtime Purchase</CardTitle>
-                      <CardDescription>Endpoint: <code className="bg-muted px-1 rounded">POST /buy-airtime</code></CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div>
-                        <Label className="text-xs uppercase text-muted-foreground">Request body</Label>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Field</TableHead>
-                              <TableHead>Type</TableHead>
-                              <TableHead>Required</TableHead>
-                              <TableHead>Notes</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            <TableRow>
-                              <TableCell><code>network</code></TableCell>
-                              <TableCell className="text-xs">string</TableCell>
-                              <TableCell><Badge variant="default" className="text-[10px]">Yes</Badge></TableCell>
-                              <TableCell className="text-xs">mtn, glo, airtel, 9mobile</TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell><code>phone</code></TableCell>
-                              <TableCell className="text-xs">string</TableCell>
-                              <TableCell><Badge variant="default" className="text-[10px]">Yes</Badge></TableCell>
-                              <TableCell className="text-xs">234XXXXXXXXXX format</TableCell>
-                            </TableRow>
-                            <TableRow>
-                              <TableCell><code>amount</code></TableCell>
-                              <TableCell className="text-xs">number</TableCell>
-                              <TableCell><Badge variant="default" className="text-[10px]">Yes</Badge></TableCell>
-                              <TableCell className="text-xs">Min ₦{AIRTIME_MIN}</TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <Label className="text-xs uppercase text-muted-foreground">Sample request</Label>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => copy(`{\n  "network": "mtn",\n  "phone": "2348031234567",\n  "amount": 100\n}`, "Sample copied")}>
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                        <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto">{`{
-  "network": "mtn",
-  "phone": "2348031234567",
-  "amount": 100
-}`}</pre>
-                      </div>
-
-                      <div>
-                        <Label className="text-xs uppercase text-muted-foreground">Sample response</Label>
-                        <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto mt-1">{`{
-  "success": true,
-  "reference": "api_air_1714234567890",
-  "amount": 100,
-  "network": "mtn",
-  "provider": "subpadi"
-}`}</pre>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                {/* RULES */}
-                <TabsContent value="rules" className="space-y-3 mt-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Validation Rules</CardTitle>
-                      <CardDescription>Requests that fail these checks return HTTP 400</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 text-sm">
-                      <div className="flex gap-3">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-medium">Phone format</p>
-                          <p className="text-xs text-muted-foreground">Must start with <code className="bg-muted px-1 rounded">234</code> followed by 10 digits. Local <code className="bg-muted px-1 rounded">0XXX</code> formats are auto-converted.</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-medium">Network whitelist</p>
-                          <p className="text-xs text-muted-foreground">Only <code className="bg-muted px-1 rounded">mtn</code>, <code className="bg-muted px-1 rounded">glo</code>, <code className="bg-muted px-1 rounded">airtel</code>, <code className="bg-muted px-1 rounded">9mobile</code> are accepted (case-insensitive).</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-medium">Minimum amount</p>
-                          <p className="text-xs text-muted-foreground">Airtime: ₦{AIRTIME_MIN} minimum. Data: amount derived from <code className="bg-muted px-1 rounded">plan_id</code>.</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-medium">Sufficient API wallet balance</p>
-                          <p className="text-xs text-muted-foreground">Wallet is debited before delivery; auto-refunded on provider failure.</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-medium">Valid plan_id</p>
-                          <p className="text-xs text-muted-foreground">Data plans marked Unstable are temporarily hidden from <code className="bg-muted px-1 rounded">/data-plans</code>.</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
             </TabsContent>
 
-            {/* USAGE */}
             <TabsContent value="usage" className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Total calls</p><p className="text-2xl font-bold">{stats.total}</p></CardContent></Card>
-                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Successful</p><p className="text-2xl font-bold text-green-600">{stats.success}</p></CardContent></Card>
-                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Failed</p><p className="text-2xl font-bold text-destructive">{stats.failed}</p></CardContent></Card>
+                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Successful</p><p className="text-2xl font-bold">{stats.success}</p></CardContent></Card>
+                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Failed</p><p className="text-2xl font-bold">{stats.failed}</p></CardContent></Card>
               </div>
               <Card>
                 <CardHeader><CardTitle className="text-lg">Recent requests</CardTitle></CardHeader>
                 <CardContent className="space-y-1 max-h-[500px] overflow-y-auto">
                   {logs.length === 0 && <p className="text-sm text-muted-foreground">No requests yet.</p>}
-                  {logs.map(l => (
-                    <div key={l.id} className="flex items-center justify-between py-2 border-b last:border-0 text-sm">
+                  {logs.map((log) => (
+                    <div key={log.id} className="flex items-center justify-between py-2 border-b last:border-0 text-sm gap-3">
                       <div className="flex items-center gap-2 min-w-0">
-                        {l.success ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" /> : <AlertCircle className="h-4 w-4 text-destructive shrink-0" />}
-                        <Badge variant="outline" className="font-mono text-[10px]">{l.method}</Badge>
-                        <code className="text-xs truncate">{l.endpoint}</code>
+                        {log.success ? <CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> : <ShieldAlert className="h-4 w-4 text-destructive shrink-0" />}
+                        <Badge variant="outline" className="font-mono text-[10px]">{log.method}</Badge>
+                        <code className="text-xs truncate">{log.endpoint}</code>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
-                        <span>{l.status_code}</span>
-                        <span>{l.response_time_ms ?? 0}ms</span>
-                        <span className="hidden sm:inline">{new Date(l.created_at).toLocaleTimeString()}</span>
+                        <span>{log.status_code}</span>
+                        <span>{log.response_time_ms ?? 0}ms</span>
+                        <span className="hidden sm:inline">{new Date(log.created_at).toLocaleTimeString()}</span>
                       </div>
                     </div>
                   ))}
@@ -530,23 +436,37 @@ const Developer = () => {
               </Card>
             </TabsContent>
 
-            {/* WALLET */}
-            <TabsContent value="wallet">
+            <TabsContent value="wallet" className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-4">
+                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Developer Wallet</p><p className="text-3xl font-bold text-primary">₦{wallet.balance.toLocaleString()}</p></CardContent></Card>
+                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Funded Amount</p><p className="text-2xl font-bold">₦{walletStats.funded.toLocaleString()}</p></CardContent></Card>
+                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Deducted Amount</p><p className="text-2xl font-bold">₦{walletStats.deducted.toLocaleString()}</p></CardContent></Card>
+                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Transactions</p><p className="text-2xl font-bold">{walletHistory.length}</p></CardContent></Card>
+              </div>
+
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">API Wallet Balance</CardTitle>
-                  <CardDescription>Funds used exclusively for API purchases</CardDescription>
+                  <CardTitle className="text-lg">Developer Wallet History</CardTitle>
+                  <CardDescription>Funding and deduction activity for API usage.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-4xl font-bold text-primary">₦{wallet.balance.toLocaleString()}</p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    To fund this wallet, contact support or an admin. (Self-service funding can be enabled later.)
-                  </p>
+                <CardContent className="space-y-2">
+                  {walletHistory.length === 0 && <p className="text-sm text-muted-foreground">No wallet transactions yet.</p>}
+                  {walletHistory.map((row) => (
+                    <div key={row.id} className="flex items-center justify-between rounded-lg border p-3 gap-3 flex-wrap">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant={row.entry_type === "credit" ? "secondary" : "outline"}>{row.entry_type === "credit" ? "Funded" : "Deducted"}</Badge>
+                          <span className="font-semibold">₦{Number(row.amount).toLocaleString()}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">{row.reference ?? "No reference"}</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{new Date(row.created_at).toLocaleString()}</p>
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* DOCS */}
             <TabsContent value="docs" className="space-y-4">
               <Card>
                 <CardHeader>
@@ -557,56 +477,52 @@ const Developer = () => {
                     <code className="text-xs sm:text-sm break-all">{API_BASE}</code>
                     <Button size="icon" variant="ghost" onClick={() => copy(API_BASE, "Base URL copied")}><Copy className="h-4 w-4" /></Button>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-3">
-                    Send your key in the <code className="bg-muted px-1 rounded">Authorization: Bearer YOUR_KEY</code> header on every request.
-                  </p>
+                  <p className="text-sm text-muted-foreground mt-3">Send your key in the <code className="bg-muted px-1 rounded">Authorization: Bearer YOUR_KEY</code> header on every request.</p>
                 </CardContent>
               </Card>
 
               <EndpointDoc
-                method="GET" path="/balance" desc="Get your API wallet balance"
+                method="GET"
+                path="/balance"
+                desc="Get developer wallet balance and summary"
                 onCopy={copy}
                 exampleReq={`curl ${API_BASE}/balance \\\n  -H "Authorization: Bearer ink_live_xxx"`}
-                exampleRes={`{ "success": true, "balance": 5000, "currency": "NGN" }`}
+                exampleRes={`{ "success": true, "balance": 5000, "currency": "NGN", "funded": 10000, "deducted": 5000 }`}
               />
               <EndpointDoc
-                method="GET" path="/data-plans?network=mtn" desc="List available data plans"
+                method="GET"
+                path="/service-plans?service_type=data&network=mtn"
+                desc="List admin-managed developer plans with provider, validation ID, and developer pricing"
                 onCopy={copy}
-                exampleReq={`curl "${API_BASE}/data-plans?network=mtn" \\\n  -H "Authorization: Bearer ink_live_xxx"`}
-                exampleRes={`{\n  "success": true,\n  "count": 12,\n  "plans": [\n    { "plan_id": "1", "plan_name": "1GB - 30 days", "network": "MTN", "selling_price": 500, "validity": "30 days" }\n  ]\n}`}
+                exampleReq={`curl "${API_BASE}/service-plans?service_type=data&network=mtn" \\\n  -H "Authorization: Bearer ink_live_xxx"`}
+                exampleRes={`{\n  "success": true,\n  "count": 2,\n  "plans": [\n    {\n      "service_type": "data",\n      "provider_source": "subpadi",\n      "network": "MTN",\n      "plan_name": "1GB SME",\n      "plan_id": "MTN-1GB-SME",\n      "validation_id": "sp-102",\n      "developer_price": 500,\n      "api_status": "active"\n    }\n  ]\n}`}
               />
               <EndpointDoc
-                method="POST" path="/buy-airtime" desc="Purchase airtime"
+                method="POST"
+                path="/buy-airtime"
+                desc="Purchase airtime with automatic 9mobile provider failover"
                 onCopy={copy}
-                exampleReq={`curl -X POST ${API_BASE}/buy-airtime \\\n  -H "Authorization: Bearer ink_live_xxx" \\\n  -H "Content-Type: application/json" \\\n  -d '{"network":"mtn","phone":"08031234567","amount":100}'`}
+                exampleReq={`curl -X POST ${API_BASE}/buy-airtime \\\n  -H "Authorization: Bearer ink_live_xxx" \\\n  -H "Content-Type: application/json" \\\n  -d '{"network":"mtn","phone":"2348031234567","amount":100}'`}
                 exampleRes={`{ "success": true, "reference": "api_air_...", "amount": 100, "provider": "subpadi" }`}
               />
               <EndpointDoc
-                method="POST" path="/buy-data" desc="Purchase a data bundle"
+                method="POST"
+                path="/buy-data"
+                desc="Purchase a data bundle using admin-managed developer plan routing"
                 onCopy={copy}
-                exampleReq={`curl -X POST ${API_BASE}/buy-data \\\n  -H "Authorization: Bearer ink_live_xxx" \\\n  -H "Content-Type: application/json" \\\n  -d '{"network":"mtn","phone":"08031234567","plan_id":"1"}'`}
-                exampleRes={`{ "success": true, "reference": "api_data_...", "plan_id": "1", "amount": 500 }`}
-              />
-              <EndpointDoc
-                method="POST" path="/buy-cable" desc="Pay cable TV subscription"
-                onCopy={copy}
-                exampleReq={`curl -X POST ${API_BASE}/buy-cable \\\n  -H "Authorization: Bearer ink_live_xxx" \\\n  -H "Content-Type: application/json" \\\n  -d '{"provider":"dstv","smartcard":"1234567890","plan_id":"PADI-DSTV-COMPACT"}'`}
-                exampleRes={`{ "success": true, "reference": "api_cable_...", "amount": 19000 }`}
-              />
-              <EndpointDoc
-                method="POST" path="/buy-electricity" desc="Buy electricity tokens"
-                onCopy={copy}
-                exampleReq={`curl -X POST ${API_BASE}/buy-electricity \\\n  -H "Authorization: Bearer ink_live_xxx" \\\n  -H "Content-Type: application/json" \\\n  -d '{"disco":"ekedc","meter":"1234567890","meter_type":"prepaid","amount":1000}'`}
-                exampleRes={`{ "success": true, "reference": "api_elec_...", "token": "1234-5678-9012-3456", "units": "8.5kWh" }`}
+                exampleReq={`curl -X POST ${API_BASE}/buy-data \\\n  -H "Authorization: Bearer ink_live_xxx" \\\n  -H "Content-Type: application/json" \\\n  -d '{"network":"airtel","phone":"2348031234567","plan_id":"AIRTEL-1GB-SME"}'`}
+                exampleRes={`{ "success": true, "reference": "api_data_...", "plan_id": "AIRTEL-1GB-SME", "amount": 500 }`}
               />
 
               <Card>
-                <CardHeader><CardTitle className="text-lg">Errors</CardTitle></CardHeader>
-                <CardContent className="text-sm space-y-1">
-                  <p><code className="bg-muted px-1 rounded">401</code> — Missing / invalid / revoked API key</p>
-                  <p><code className="bg-muted px-1 rounded">400</code> — Invalid request body</p>
-                  <p><code className="bg-muted px-1 rounded">429</code> — Rate limit exceeded</p>
-                  <p><code className="bg-muted px-1 rounded">502</code> — Provider error (wallet auto-refunded)</p>
+                <CardHeader>
+                  <CardTitle className="text-lg">Validation Rules</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div className="flex gap-3"><CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" /><div><p className="font-medium">Phone format</p><p className="text-xs text-muted-foreground">Phone numbers must start with <code className="bg-muted px-1 rounded">234</code>. Local numbers are normalized automatically.</p></div></div>
+                  <div className="flex gap-3"><CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" /><div><p className="font-medium">Allowed networks</p><p className="text-xs text-muted-foreground">Only MTN, GLO, Airtel, and 9mobile are accepted for airtime/data requests.</p></div></div>
+                  <div className="flex gap-3"><CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" /><div><p className="font-medium">Minimum amount</p><p className="text-xs text-muted-foreground">Airtime minimum is ₦{AIRTIME_MIN}. Data price is pulled from the admin-managed plan catalog.</p></div></div>
+                  <div className="flex gap-3"><ShieldAlert className="h-4 w-4 text-destructive shrink-0 mt-0.5" /><div><p className="font-medium">Failed plans</p><p className="text-xs text-muted-foreground">Repeatedly failing plans are hidden from the public developer catalog and kept in admin review only.</p></div></div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -614,8 +530,7 @@ const Developer = () => {
         )}
       </main>
 
-      {/* New key modal */}
-      <Dialog open={!!newKey} onOpenChange={(o) => { if (!o) setNewKey(null); }}>
+      <Dialog open={!!newKey} onOpenChange={(open) => { if (!open) setNewKey(null); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Save your API key</DialogTitle>
@@ -644,14 +559,16 @@ const EndpointDoc = ({ method, path, desc, exampleReq, exampleRes, onCopy }: { m
     <CardContent className="space-y-3">
       <div>
         <div className="flex items-center justify-between mb-1">
-          <Label className="text-xs uppercase text-muted-foreground">Request</Label>
-          <Button size="icon" variant="ghost" onClick={() => onCopy(exampleReq, "Request copied")}><Copy className="h-3 w-3" /></Button>
+          <Label className="text-xs uppercase text-muted-foreground">Example request</Label>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onCopy(exampleReq, `${path} request copied`)}>
+            <Copy className="h-3 w-3" />
+          </Button>
         </div>
-        <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-all">{exampleReq}</pre>
+        <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto">{exampleReq}</pre>
       </div>
       <div>
-        <Label className="text-xs uppercase text-muted-foreground">Response</Label>
-        <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-all mt-1">{exampleRes}</pre>
+        <Label className="text-xs uppercase text-muted-foreground">Example response</Label>
+        <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto mt-1">{exampleRes}</pre>
       </div>
     </CardContent>
   </Card>
