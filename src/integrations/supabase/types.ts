@@ -1394,11 +1394,16 @@ export type Database = {
           cost_price: number | null
           created_at: string
           fallback_attempted: boolean | null
+          fallback_history: Json | null
           fallback_provider: string | null
           fallback_response: Json | null
           id: string
           profit: number | null
           provider: string
+          provider_message: string | null
+          provider_plan_id: string | null
+          provider_reference: string | null
+          provider_status: string | null
           provider_used: string | null
           recipient: string
           service_type: Database["public"]["Enums"]["service_type"]
@@ -1412,11 +1417,16 @@ export type Database = {
           cost_price?: number | null
           created_at?: string
           fallback_attempted?: boolean | null
+          fallback_history?: Json | null
           fallback_provider?: string | null
           fallback_response?: Json | null
           id?: string
           profit?: number | null
           provider: string
+          provider_message?: string | null
+          provider_plan_id?: string | null
+          provider_reference?: string | null
+          provider_status?: string | null
           provider_used?: string | null
           recipient: string
           service_type: Database["public"]["Enums"]["service_type"]
@@ -1430,11 +1440,16 @@ export type Database = {
           cost_price?: number | null
           created_at?: string
           fallback_attempted?: boolean | null
+          fallback_history?: Json | null
           fallback_provider?: string | null
           fallback_response?: Json | null
           id?: string
           profit?: number | null
           provider?: string
+          provider_message?: string | null
+          provider_plan_id?: string | null
+          provider_reference?: string | null
+          provider_status?: string | null
           provider_used?: string | null
           recipient?: string
           service_type?: Database["public"]["Enums"]["service_type"]
