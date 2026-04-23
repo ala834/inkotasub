@@ -46,6 +46,11 @@ interface VTUOrder {
   fallback_attempted: boolean | null;
   fallback_provider: string | null;
   fallback_response: unknown;
+  provider_status?: string | null;
+  provider_message?: string | null;
+  provider_plan_id?: string | null;
+  provider_reference?: string | null;
+  fallback_history?: unknown;
   profile?: {
     full_name: string | null;
     phone_number: string | null;
@@ -110,15 +115,14 @@ const AdminVTUOrdersTab = () => {
   };
 
   const providerStats = useMemo(() => {
-    const stats = {
-      subpadi: { total: 0, success: 0, failed: 0 },
-    };
-    orders.forEach((o) => {
-      stats.subpadi.total++;
-      if (o.status === "success") stats.subpadi.success++;
-      if (o.status === "failed") stats.subpadi.failed++;
-    });
-    return stats;
+    return orders.reduce<Record<string, { total: number; success: number; failed: number }>>((acc, order) => {
+      const key = (order.provider_used || order.provider || "unknown").toLowerCase();
+      acc[key] ||= { total: 0, success: 0, failed: 0 };
+      acc[key].total += 1;
+      if (order.status === "success") acc[key].success += 1;
+      if (order.status === "failed") acc[key].failed += 1;
+      return acc;
+    }, {});
   }, [orders]);
 
   const handleRefund = async () => {
@@ -212,10 +216,10 @@ const AdminVTUOrdersTab = () => {
     return matchesSearch && matchesProvider;
   });
 
-  const getProviderBadge = (providerUsed: string | null, _fallbackAttempted: boolean | null) => {
+  const getProviderBadge = (providerUsed: string | null, fallbackAttempted: boolean | null) => {
     return (
-      <Badge variant="outline" className="border-blue-500/50 bg-blue-500/10 text-blue-600">
-        SUBPADI
+      <Badge variant="outline" className="uppercase">
+        {providerUsed || "unknown"}{fallbackAttempted ? " • fallback" : ""}
       </Badge>
     );
   };
@@ -226,23 +230,23 @@ const AdminVTUOrdersTab = () => {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="glass-card rounded-xl p-3 border border-blue-500/20">
           <p className="text-xs text-muted-foreground">Total Orders</p>
-          <p className="text-lg font-bold text-blue-600">{providerStats.subpadi.total}</p>
+          <p className="text-lg font-bold text-blue-600">{orders.length}</p>
           <div className="flex gap-2 text-[10px] mt-1">
-            <span className="text-green-500">{providerStats.subpadi.success} ✓</span>
-            <span className="text-red-500">{providerStats.subpadi.failed} ✗</span>
+            <span className="text-green-500">{orders.filter(o => o.status === "success").length} ✓</span>
+            <span className="text-red-500">{orders.filter(o => o.status === "failed").length} ✗</span>
           </div>
         </div>
         <div className="glass-card rounded-xl p-3 border border-border">
           <p className="text-xs text-muted-foreground">Success Rate</p>
           <p className="text-lg font-bold text-green-500">
             {orders.length > 0
-              ? Math.round((providerStats.subpadi.success / orders.length) * 100)
+              ? Math.round((orders.filter(o => o.status === "success").length / orders.length) * 100)
               : 0}%
           </p>
         </div>
         <div className="glass-card rounded-xl p-3 border border-border">
           <p className="text-xs text-muted-foreground">Provider</p>
-          <p className="text-lg font-bold text-primary">Subpadi</p>
+          <p className="text-lg font-bold text-primary">{Object.keys(providerStats).length} active</p>
         </div>
       </div>
 
@@ -423,6 +427,18 @@ const AdminVTUOrdersTab = () => {
                   {getProviderBadge(selectedOrder.provider_used, selectedOrder.fallback_attempted)}
                 </div>
                 <div>
+                  <p className="text-sm text-muted-foreground">Provider Status</p>
+                  <p className="font-medium capitalize">{selectedOrder.provider_status || selectedOrder.status}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Provider Plan ID</p>
+                  <p className="font-medium break-all">{selectedOrder.provider_plan_id || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Provider Reference</p>
+                  <p className="font-medium break-all">{selectedOrder.provider_reference || "N/A"}</p>
+                </div>
+                <div>
                   <p className="text-sm text-muted-foreground">Status</p>
                   <Badge className={getStatusColor(selectedOrder.status)}>
                     {selectedOrder.status}
@@ -458,6 +474,20 @@ const AdminVTUOrdersTab = () => {
                   <pre className="bg-muted p-3 rounded-lg text-xs overflow-auto max-h-32">
                     {JSON.stringify(selectedOrder.api_response, null, 2)}
                   </pre>
+                </div>
+              )}
+
+              {selectedOrder.provider_message && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Provider Message</p>
+                  <div className="bg-muted p-3 rounded-lg text-sm">{selectedOrder.provider_message}</div>
+                </div>
+              )}
+
+              {selectedOrder.fallback_history && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Fallback History</p>
+                  <pre className="bg-muted p-3 rounded-lg text-xs overflow-auto max-h-32">{JSON.stringify(selectedOrder.fallback_history, null, 2)}</pre>
                 </div>
               )}
 

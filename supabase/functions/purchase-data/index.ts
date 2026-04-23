@@ -49,6 +49,7 @@ serve(async (req) => {
       return jsonResponse({ error: `Invalid phone number: ${phoneNumber}`, success: false }, 400);
     }
     const normalizedPhone = phone.local;
+    const providerPhone = phone.intl;
 
     const fraudCheck = await checkFraud(userId, 'data', amount);
     if (!fraudCheck.allowed) return fraudBlockResponse(fraudCheck.reason!, corsHeaders);
@@ -119,8 +120,9 @@ serve(async (req) => {
     const reference = generateReference('data');
     const ctx: TransactionContext = {
       userId, adminSupabase, serviceType: 'data', sellingPrice, costPrice, profit,
-      reference, description: `${networkUpper} Data - ${normalizedPhone}`,
+      reference, description: `${networkUpper} Data - ${providerPhone}`,
       provider: selectedPlanProvider || networkUpper, recipient: normalizedPhone,
+      providerPlanId: flowpayManualPlan?.api_plan_id || String(planId),
     };
 
     const lockResult = await acquireLockAndDeductWallet(ctx);
@@ -129,6 +131,10 @@ serve(async (req) => {
     // For Flowpay manual plans, use the api_plan_id (provider-side plan code), not the DB id.
     const flowpayPlanId = flowpayManualPlan?.api_plan_id || String(planId);
     const flowpayAmount = flowpayManualPlan?.price ? Number(flowpayManualPlan.price) : sellingPrice;
+
+    const providerChain = networkUpper === "AIRTEL"
+      ? ["subpadi", "flowpay", "smeplug"]
+      : undefined;
 
     // 9mobile is unreliable on Flowpay — force away from Flowpay if it was selected
     let effectivePreferredProvider = selectedPlanProvider;
@@ -139,14 +145,14 @@ serve(async (req) => {
 
     // Provider call with fallback
     const result = await executeWithFallback(
-      () => subpadiPurchaseData(networkUpper, normalizedPhone, planId, sellingPrice),
-      () => smeplugPurchaseData(networkUpper, normalizedPhone, planId),
+      () => subpadiPurchaseData(networkUpper, providerPhone, String(planId), sellingPrice),
+      () => smeplugPurchaseData(networkUpper, providerPhone, String(planId)),
       'data',
       networkUpper,
-      effectivePreferredProvider ? { preferredProvider: effectivePreferredProvider } : undefined,
-      () => clubkonnectPurchaseData(networkUpper, normalizedPhone, planId),
-      () => renderPurchaseData(networkUpper, normalizedPhone, planId, sellingPrice),
-      () => flowpayPurchaseData(networkUpper, normalizedPhone, flowpayPlanId, flowpayAmount),
+      providerChain ? { providerChain } : (effectivePreferredProvider ? { preferredProvider: effectivePreferredProvider } : undefined),
+      () => clubkonnectPurchaseData(networkUpper, providerPhone, String(planId)),
+      () => renderPurchaseData(networkUpper, providerPhone, String(planId), sellingPrice),
+      () => flowpayPurchaseData(networkUpper, providerPhone, flowpayPlanId, flowpayAmount),
     );
 
     // Map provider-specific errors to user-friendly messages
@@ -166,6 +172,9 @@ serve(async (req) => {
     const providerResult: ProviderResult = {
       success: result.success, indeterminate: result.indeterminate, message: userMessage, providerUsed: result.providerUsed,
       fallbackAttempted: result.fallbackAttempted, rawResponse: result.rawResponse, reference: result.reference,
+      fallbackResponse: result.fallbackResponse, fallbackProvider: result.fallbackProvider,
+      fallbackHistory: result.fallbackHistory, providerStatus: result.success ? 'success' : result.indeterminate ? 'pending' : 'failed',
+      providerMessage: result.message, providerPlanId: flowpayPlanId,
     };
 
     // Track plan reliability (fire-and-forget; never block transaction)

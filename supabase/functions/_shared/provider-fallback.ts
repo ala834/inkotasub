@@ -18,6 +18,8 @@ export interface FallbackResult {
   fallbackAttempted: boolean;
   rawResponse: unknown;
   fallbackResponse?: unknown;
+  fallbackProvider?: string | null;
+  fallbackHistory?: Array<{ provider: string; success: boolean; message: string; rawResponse: unknown }>;
   reference?: string;
   token?: string;
 }
@@ -38,6 +40,7 @@ interface ProviderConfig {
 interface ExecuteWithFallbackOptions {
   preferredProvider?: string | null;
   disableFallback?: boolean;
+  providerChain?: string[];
 }
 
 // Get provider config from database
@@ -119,6 +122,83 @@ export async function executeWithFallback(
   };
 
   const preferredProvider = options.preferredProvider?.toLowerCase();
+  const explicitChain = options.providerChain
+    ?.map((provider) => provider.toLowerCase())
+    .filter((provider, index, list) => Boolean(providerFns[provider]) && list.indexOf(provider) === index);
+
+  if (explicitChain && explicitChain.length > 0) {
+    const attempts: Array<{ provider: string; success: boolean; message: string; rawResponse: unknown }> = [];
+    let sawIndeterminate = false;
+    let firstIndeterminate: { provider: string; message: string; rawResponse: unknown; reference?: string; token?: string } | null = null;
+
+    for (let i = 0; i < explicitChain.length; i += 1) {
+      const provider = explicitChain[i];
+      const fn = providerFns[provider];
+      if (!fn || !isProviderConfigured(provider)) continue;
+
+      const result = await withMetrics(
+        provider,
+        serviceType,
+        fn,
+        (r) => r.success,
+        (r) => r.success ? undefined : r.message,
+      );
+
+      attempts.push({
+        provider,
+        success: result.success,
+        message: result.message,
+        rawResponse: result.rawResponse,
+      });
+
+      if (result.success) {
+        const fallbackProvider = attempts.length > 1 ? attempts[attempts.length - 2]?.provider ?? null : null;
+        return {
+          success: true,
+          message: result.message,
+          providerUsed: provider,
+          fallbackAttempted: attempts.length > 1,
+          rawResponse: result.rawResponse,
+          fallbackResponse: attempts.length > 1 ? attempts[attempts.length - 2]?.rawResponse : undefined,
+          fallbackProvider,
+          fallbackHistory: attempts,
+          reference: result.reference,
+          token: result.token,
+        };
+      }
+
+      if (isIndeterminateMsg(result.message)) {
+        sawIndeterminate = true;
+        firstIndeterminate ??= {
+          provider,
+          message: result.message,
+          rawResponse: result.rawResponse,
+          reference: result.reference,
+          token: result.token,
+        };
+      }
+    }
+
+    const lastAttempt = attempts[attempts.length - 1];
+    const pendingSource = firstIndeterminate ?? (lastAttempt
+      ? { provider: lastAttempt.provider, message: lastAttempt.message, rawResponse: lastAttempt.rawResponse }
+      : null);
+
+    return {
+      success: false,
+      indeterminate: sawIndeterminate,
+      message: pendingSource?.message ?? "No service provider configured. Please contact support.",
+      providerUsed: pendingSource?.provider ?? explicitChain[0] ?? config.primaryProvider,
+      fallbackAttempted: attempts.length > 1,
+      rawResponse: pendingSource?.rawResponse ?? null,
+      fallbackResponse: attempts.length > 1 ? lastAttempt?.rawResponse : undefined,
+      fallbackProvider: attempts.length > 1 ? lastAttempt?.provider ?? null : null,
+      fallbackHistory: attempts,
+      reference: firstIndeterminate?.reference,
+      token: firstIndeterminate?.token,
+    };
+  }
+
   if (preferredProvider && providerFns[preferredProvider]) {
     const fallbackProvider = options.disableFallback
       ? null
@@ -151,12 +231,14 @@ export async function executeWithFallback(
       return {
         success: result.success, message: result.message,
         providerUsed: config.fallbackProvider!, fallbackAttempted: false,
-        rawResponse: result.rawResponse, reference: result.reference, token: result.token,
+        rawResponse: result.rawResponse, fallbackProvider: null,
+        fallbackHistory: [{ provider: config.fallbackProvider!, success: result.success, message: result.message, rawResponse: result.rawResponse }],
+        reference: result.reference, token: result.token,
       };
     }
     return {
       success: false, message: "No service provider configured. Please contact support.",
-      providerUsed: config.primaryProvider, fallbackAttempted: false, rawResponse: null,
+      providerUsed: config.primaryProvider, fallbackAttempted: false, rawResponse: null, fallbackProvider: null,
     };
   }
 
@@ -170,7 +252,9 @@ export async function executeWithFallback(
     return {
       success: true, message: primaryResult.message,
       providerUsed: config.primaryProvider, fallbackAttempted: false,
-      rawResponse: primaryResult.rawResponse, reference: primaryResult.reference, token: primaryResult.token,
+      rawResponse: primaryResult.rawResponse, fallbackProvider: null,
+      fallbackHistory: [{ provider: config.primaryProvider, success: true, message: primaryResult.message, rawResponse: primaryResult.rawResponse }],
+      reference: primaryResult.reference, token: primaryResult.token,
     };
   }
 
@@ -191,12 +275,17 @@ export async function executeWithFallback(
 
       return {
         success: fallbackResult.success,
-        indeterminate: !fallbackResult.success && bothIndeterminate,
+        indeterminate: !fallbackResult.success && (bothIndeterminate || isIndeterminateMsg(primaryResult.message)),
         message: fallbackResult.success ? fallbackResult.message : primaryResult.message,
         providerUsed: fallbackResult.success ? config.fallbackProvider! : config.primaryProvider,
         fallbackAttempted: true,
         rawResponse: fallbackResult.success ? fallbackResult.rawResponse : primaryResult.rawResponse,
         fallbackResponse: fallbackResult.rawResponse,
+        fallbackProvider: config.fallbackProvider!,
+        fallbackHistory: [
+          { provider: config.primaryProvider, success: primaryResult.success, message: primaryResult.message, rawResponse: primaryResult.rawResponse },
+          { provider: config.fallbackProvider!, success: fallbackResult.success, message: fallbackResult.message, rawResponse: fallbackResult.rawResponse },
+        ],
         reference: fallbackResult.success ? fallbackResult.reference : primaryResult.reference,
         token: fallbackResult.success ? fallbackResult.token : primaryResult.token,
       };
@@ -212,5 +301,7 @@ export async function executeWithFallback(
     message: primaryResult.message,
     providerUsed: config.primaryProvider, fallbackAttempted: config.fallbackEnabled && !!fallbackFn,
     rawResponse: primaryResult.rawResponse, reference: primaryResult.reference,
+    fallbackProvider: config.fallbackProvider,
+    fallbackHistory: [{ provider: config.primaryProvider, success: false, message: primaryResult.message, rawResponse: primaryResult.rawResponse }],
   };
 }
