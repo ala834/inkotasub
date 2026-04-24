@@ -202,6 +202,98 @@ export async function flowpayPurchaseData(
   }
 }
 
+// POST /api/topup — Buy Airtime
+// Flowpay airtime endpoint accepts: { network, mobile_number, amount, airtime_type }
+export async function flowpayPurchaseAirtime(
+  network: string,
+  phoneNumber: string,
+  amount: number,
+): Promise<FlowpayResponse> {
+  if (!isFlowpayConfigured()) {
+    return { success: false, message: "Flowpay not configured", rawResponse: null };
+  }
+
+  const networkUpper = String(network || "").toUpperCase().trim();
+  const networkCode = NETWORK_CODES[networkUpper];
+  if (!networkCode) {
+    return { success: false, message: `Unsupported network for Flowpay: ${network}`, rawResponse: null };
+  }
+  const normalizedPhone = normalizePhone(phoneNumber);
+  if (!normalizedPhone) {
+    return { success: false, message: `Invalid phone number for Flowpay: ${phoneNumber}`, rawResponse: null };
+  }
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { success: false, message: "Invalid amount for Flowpay airtime", rawResponse: null };
+  }
+
+  try {
+    const body = {
+      network: networkCode,
+      mobile_number: normalizedPhone,
+      amount: Math.floor(amount),
+      airtime_type: "VTU",
+    };
+
+    console.log(`[Flowpay] POST ${FLOWPAY_BASE_URL}/topup request:`, JSON.stringify(body));
+
+    const response = await fetchWithRetry(`${FLOWPAY_BASE_URL}/topup`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify(body),
+    });
+
+    const text = await response.text();
+    const data = parseJson(text);
+    console.log(`[Flowpay airtime] response (HTTP ${response.status}):`, text.slice(0, 1000));
+
+    if (response.status === 422) {
+      return { success: false, message: `Flowpay: ${extractFlowpayError(data, 422)}`, rawResponse: data };
+    }
+    if (response.status >= 400) {
+      return { success: false, message: `Flowpay: ${extractFlowpayError(data, response.status)}`, rawResponse: data };
+    }
+
+    const inner = (data && typeof data === "object" && data.data && typeof data.data === "object") ? data.data : null;
+    const statusCandidates: unknown[] = [
+      data?.status, data?.success, data?.code, data?.Status,
+      inner?.status, inner?.success, inner?.code,
+    ];
+    const isTruthyStatus = (v: unknown): boolean => {
+      if (v === true) return true;
+      if (typeof v === "number") return v === 200 || v === 1;
+      if (typeof v === "string") {
+        const s = v.toLowerCase().trim();
+        return ["success", "successful", "completed", "delivered", "true", "ok", "00", "200"].includes(s);
+      }
+      return false;
+    };
+    const isFailureStatus = (v: unknown): boolean => {
+      if (v === false) return true;
+      if (typeof v === "string") {
+        const s = v.toLowerCase().trim();
+        return ["failed", "failure", "error", "rejected", "declined", "false"].includes(s);
+      }
+      return false;
+    };
+
+    const explicitSuccess = statusCandidates.some(isTruthyStatus);
+    const explicitFailure = statusCandidates.some(isFailureStatus);
+    const reference = data?.reference || data?.transaction_id || data?.trans_id || data?.txn_id
+      || inner?.reference || inner?.transaction_id || inner?.trans_id;
+    const success = explicitSuccess || (response.ok && !explicitFailure && !!reference);
+
+    const message = success
+      ? (data?.message || inner?.message || "Airtime purchased successfully")
+      : `Flowpay: ${extractFlowpayError(data, response.status)}`;
+
+    return { success, message, rawResponse: data, reference };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Flowpay airtime request failed";
+    console.error("Flowpay airtime error:", msg);
+    return { success: false, message: msg, rawResponse: { error: msg } };
+  }
+}
+
 // Health/balance check — Flowpay docs don't expose a public balance endpoint
 // We ping the base URL to verify reachability
 export async function flowpayGetBalance(): Promise<FlowpayResponse> {
