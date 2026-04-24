@@ -114,8 +114,13 @@ serve(async (req) => {
     const lockResult = await acquireLockAndDeductWallet(ctx);
     if (!lockResult.ok) return lockResult.response;
 
-    // 9mobile is fragile on some providers — prefer Subpadi/SMEPlug routing
-    const preferredProvider = resolvedNetwork === '9mobile' ? 'subpadi' : undefined;
+    // 9mobile is fragile on Subpadi (rejects newer 0909 prefixes intermittently)
+    // and SMEPlug times out frequently — route through Flowpay first as the most
+    // reliable secondary, then fall back to SMEPlug/ClubKonnect.
+    // Other networks: keep existing Subpadi-primary chain (Subpadi → SMEPlug → ClubKonnect → Render).
+    const providerChain = resolvedNetwork === '9mobile'
+      ? ['subpadi', 'flowpay', 'smeplug', 'clubkonnect']
+      : undefined;
 
     // Provider call — always send FULL amount so user gets the full value
     const result = await executeWithFallback(
@@ -123,9 +128,10 @@ serve(async (req) => {
       () => smeplugPurchaseAirtime(resolvedNetwork, providerPhone, sellingPrice),
       'airtime',
       resolvedNetwork,
-      preferredProvider ? { preferredProvider } : { preferredProvider: 'smeplug' },
+      providerChain ? { providerChain } : { preferredProvider: 'smeplug' },
       () => clubkonnectPurchaseAirtime(resolvedNetwork, providerPhone, sellingPrice),
       () => renderPurchaseAirtime(resolvedNetwork, providerPhone, sellingPrice),
+      () => flowpayPurchaseAirtime(resolvedNetwork, providerPhone, sellingPrice),
     );
 
     // User-friendly message — distinguish indeterminate (timeout) vs definitive failure
