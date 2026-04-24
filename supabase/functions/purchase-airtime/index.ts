@@ -5,6 +5,7 @@ import { subpadiPurchaseAirtime } from "../_shared/subpadi-provider.ts";
 import { smeplugPurchaseAirtime } from "../_shared/smeplug-provider.ts";
 import { clubkonnectPurchaseAirtime } from "../_shared/clubkonnect-provider.ts";
 import { renderPurchaseAirtime } from "../_shared/render-provider.ts";
+import { flowpayPurchaseAirtime } from "../_shared/flowpay-provider.ts";
 import { normalizePhone, detectNetwork } from "../_shared/phone-utils.ts";
 import { comparePin, needsPinMigration, hashPin } from "../_shared/pin-utils.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
