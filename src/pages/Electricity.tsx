@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
+import { parseEdgeFunctionError, isPendingTransaction } from "@/lib/edge-function-errors";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import TransactionResultScreen from "@/components/common/TransactionResultScreen";
@@ -45,6 +45,7 @@ const Electricity = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [resultSuccess, setResultSuccess] = useState(false);
+  const [resultPending, setResultPending] = useState(false);
   const [resultTransactionId, setResultTransactionId] = useState("");
   const [resultError, setResultError] = useState("");
   const [resultToken, setResultToken] = useState("");
@@ -120,9 +121,20 @@ const Electricity = () => {
           transaction_pin: pin,
         },
       });
+      // Pending (indeterminate) — show Processing UI, do not throw
+      if (!error && data && !data.success && isPendingTransaction(data)) {
+        setResultSuccess(false);
+        setResultPending(true);
+        setResultError(data.message || "Processing... Your transaction is being confirmed.");
+        setResultTransactionId(data?.reference);
+        setResultToken("");
+        setShowResult(true);
+        return;
+      }
       if (error || !data?.success) {
         const message = parseEdgeFunctionError(error, data, "Failed to purchase electricity");
         setResultSuccess(false);
+        setResultPending(false);
         setResultError(message);
         setResultTransactionId("");
         setResultToken("");
@@ -133,6 +145,7 @@ const Electricity = () => {
       addRecentNumber(meterNumber, customerName || undefined);
       addBeneficiary(meterNumber, customerName || undefined);
       setResultSuccess(true);
+      setResultPending(false);
       setResultTransactionId(data.reference || data.transactionId || "");
       setResultToken(data.token || "");
       setResultError("");
@@ -405,6 +418,7 @@ const Electricity = () => {
         open={showResult}
         onClose={() => setShowResult(false)}
         success={resultSuccess}
+        pending={resultPending}
         amount={amountNum}
         details={[
           { label: "Service", value: "Electricity" },
