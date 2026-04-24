@@ -2,7 +2,8 @@
 // Authentication: Authorization: Bearer ink_live_xxx
 // Endpoints (path after /developer-api):
 //   GET  /balance
-//   GET  /data-plans?network=mtn
+//   GET  /service-plans?service_type=data&network=mtn  (preferred catalog)
+//   GET  /data-plans?network=mtn                       (legacy alias)
 //   POST /buy-airtime    { network, phone, amount }
 //   POST /buy-data       { network, phone, plan_id }
 //   POST /buy-cable      { provider, smartcard, plan_id }
@@ -16,6 +17,7 @@ import { smeplugPurchaseAirtime } from "../_shared/smeplug-provider.ts";
 import { clubkonnectPurchaseAirtime } from "../_shared/clubkonnect-provider.ts";
 import { renderPurchaseAirtime } from "../_shared/render-provider.ts";
 import { executeWithFallback } from "../_shared/provider-fallback.ts";
+import { normalizePhone, detectNetwork } from "../_shared/phone-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,22 +69,6 @@ async function logRequest(
   } catch (e) {
     console.error("api log insert failed:", e);
   }
-}
-
-function detectNetwork(phone: string): string | null {
-  const prefixes: Record<string, string[]> = {
-    mtn: ["0803","0806","0703","0706","0813","0816","0810","0814","0903","0906","0913","0916","0704"],
-    airtel: ["0802","0808","0708","0812","0701","0902","0901","0907","0912"],
-    glo: ["0805","0807","0705","0815","0811","0905","0915"],
-    "9mobile": ["0809","0818","0817","0909","0908"],
-  };
-  let n = phone.replace(/\D/g, "");
-  if (n.startsWith("234") && n.length === 13) n = "0" + n.slice(3);
-  const p4 = n.slice(0, 4);
-  for (const [net, list] of Object.entries(prefixes)) {
-    if (list.includes(p4)) return net;
-  }
-  return null;
 }
 
 serve(async (req) => {
@@ -144,13 +130,13 @@ serve(async (req) => {
     if (path === "/balance" && req.method === "GET") {
       const { data: w } = await admin.from("api_wallets").select("balance").eq("user_id", userId).maybeSingle();
       response = { status: 200, body: { success: true, balance: Number(w?.balance ?? 0), currency: "NGN" } };
+    } else if (path === "/service-plans" && req.method === "GET") {
+      response = await listServicePlans(admin, url);
     } else if (path === "/data-plans" && req.method === "GET") {
-      const network = url.searchParams.get("network")?.toLowerCase();
-      let q = admin.from("service_plans").select("plan_id, plan_name, network, plan_type, base_price, selling_price, validity, provider").eq("service_type", "data").eq("is_enabled", true).eq("permanently_disabled", false).lt("failure_count", 2);
-      if (network) q = q.eq("network", network.toUpperCase());
-      const { data: plans, error } = await q.order("base_price", { ascending: true });
-      if (error) throw error;
-      response = { status: 200, body: { success: true, count: plans?.length ?? 0, plans: plans ?? [] } };
+      // legacy alias — only data
+      const u = new URL(url.toString());
+      u.searchParams.set("service_type", "data");
+      response = await listServicePlans(admin, u);
     } else if (path === "/buy-airtime" && req.method === "POST") {
       response = await buyAirtime(admin, userId, parsedBody);
     } else if (path === "/buy-data" && req.method === "POST") {
@@ -185,6 +171,46 @@ serve(async (req) => {
   return json(response.body, response.status);
 });
 
+// ---- Catalog ----
+async function listServicePlans(admin: any, url: URL): Promise<{ status: number; body: any }> {
+  const serviceType = url.searchParams.get("service_type")?.toLowerCase();
+  const network = url.searchParams.get("network")?.toLowerCase();
+  const provider = url.searchParams.get("provider")?.toLowerCase();
+
+  let q = admin
+    .from("developer_api_plans")
+    .select("plan_id, plan_name, service_type, network, provider_source, developer_price, user_price, reseller_price, validation_id, is_enabled, is_hidden_from_users, sort_order")
+    .eq("is_enabled", true)
+    .eq("is_hidden_from_users", false);
+
+  if (serviceType) q = q.eq("service_type", serviceType);
+  if (network) q = q.ilike("network", network);
+  if (provider) q = q.eq("provider_source", provider);
+
+  const { data, error } = await q.order("sort_order", { ascending: true }).order("developer_price", { ascending: true });
+  if (error) return { status: 500, body: { success: false, error: error.message } };
+
+  return {
+    status: 200,
+    body: {
+      success: true,
+      count: data?.length ?? 0,
+      currency: "NGN",
+      plans: (data ?? []).map((p: any) => ({
+        plan_id: p.plan_id,
+        plan_name: p.plan_name,
+        service_type: p.service_type,
+        network: p.network,
+        provider: p.provider_source,
+        validation_id: p.validation_id,
+        price: Number(p.developer_price),
+        user_price: Number(p.user_price),
+        reseller_price: Number(p.reseller_price),
+      })),
+    },
+  };
+}
+
 // ---- Wallet helpers ----
 async function debitApiWallet(admin: any, userId: string, amount: number, reference: string, metadata: any) {
   const { data: balanceBefore } = await admin.rpc("get_api_wallet_balance", { p_user_id: userId });
@@ -204,77 +230,202 @@ async function refundApiWallet(admin: any, userId: string, amount: number, refer
   });
 }
 
+// ---- Plan failure tracking ----
+async function recordPlanResult(admin: any, planRow: any, success: boolean, reason?: string) {
+  if (!planRow?.id) return;
+  try {
+    if (success) {
+      await admin.from("developer_api_plans").update({
+        last_success_at: new Date().toISOString(),
+        failure_count: 0,
+        last_failure_reason: null,
+      }).eq("id", planRow.id);
+    } else {
+      const newFailureCount = (planRow.failure_count ?? 0) + 1;
+      const shouldHide = planRow.auto_hide_on_failure && newFailureCount >= 3;
+      await admin.from("developer_api_plans").update({
+        failure_count: newFailureCount,
+        last_failure_at: new Date().toISOString(),
+        last_failure_reason: reason ?? "Provider failed",
+        is_hidden_from_users: shouldHide ? true : planRow.is_hidden_from_users,
+      }).eq("id", planRow.id);
+    }
+  } catch (e) {
+    console.error("recordPlanResult failed:", e);
+  }
+}
+
 // ---- Endpoints ----
 async function buyAirtime(admin: any, userId: string, body: any): Promise<{ status: number; body: any }> {
-  const phone = String(body?.phone ?? "").trim();
+  const phoneRaw = String(body?.phone ?? "").trim();
   const amount = Number(body?.amount);
   let network = String(body?.network ?? "").toLowerCase();
-  if (!phone || !amount || amount < 50) return { status: 400, body: { success: false, error: "phone and amount (min 50) are required" } };
+
+  const phone = normalizePhone(phoneRaw);
+  if (!phone) return { status: 400, body: { success: false, error: `Invalid phone number: ${phoneRaw}. Use 234XXXXXXXXXX format.` } };
+  if (!amount || amount < 50) return { status: 400, body: { success: false, error: "amount is required (minimum ₦50)" } };
   if (!network || !["mtn","glo","airtel","9mobile"].includes(network)) {
-    const detected = detectNetwork(phone);
+    const detected = detectNetwork(phone.local);
     if (!detected) return { status: 400, body: { success: false, error: "Invalid or undetectable network" } };
     network = detected;
   }
 
   const reference = `api_air_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await debitApiWallet(admin, userId, amount, reference, { service: "airtime", network, phone, amount });
+  await debitApiWallet(admin, userId, amount, reference, { service: "airtime", network, phone: phone.intl, amount });
+
+  // 9mobile airtime is fragile — explicit chain prefers Subpadi → SMEPlug → ClubKonnect
+  const providerChain = network === "9mobile"
+    ? ["subpadi", "smeplug", "clubkonnect"]
+    : undefined;
 
   try {
     const result = await executeWithFallback(
-      () => subpadiPurchaseAirtime(network, phone, amount),
-      () => smeplugPurchaseAirtime(network, phone, amount),
+      () => subpadiPurchaseAirtime(network, phone.intl, amount),
+      () => smeplugPurchaseAirtime(network, phone.intl, amount),
       "airtime",
       network,
-      { preferredProvider: "smeplug" },
-      () => clubkonnectPurchaseAirtime(network, phone, amount),
-      () => renderPurchaseAirtime(network, phone, amount),
+      providerChain ? { providerChain } : { preferredProvider: "smeplug" },
+      () => clubkonnectPurchaseAirtime(network, phone.intl, amount),
+      () => renderPurchaseAirtime(network, phone.intl, amount),
     );
-    if (!result.success) {
-      await refundApiWallet(admin, userId, amount, reference, { service: "airtime", reason: result.message });
-      return { status: 502, body: { success: false, error: result.message ?? "Provider failed", reference, refunded: true } };
+
+    if (result.success) {
+      return {
+        status: 200,
+        body: {
+          success: true, reference, network, phone: phone.intl, amount,
+          provider: result.providerUsed,
+          provider_message: result.message,
+          fallback_attempted: result.fallbackAttempted,
+        },
+      };
     }
-    return { status: 200, body: { success: true, reference, network, phone, amount, provider: result.providerUsed, message: result.message } };
+
+    if (result.indeterminate) {
+      // Keep the debit; mark as pending so reconciliation can resolve it
+      return {
+        status: 202,
+        body: {
+          success: false, pending: true, reference, network, phone: phone.intl, amount,
+          provider: result.providerUsed,
+          message: "Processing — transaction will be confirmed shortly.",
+        },
+      };
+    }
+
+    await refundApiWallet(admin, userId, amount, reference, { service: "airtime", reason: result.message });
+    return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   } catch (err) {
     await refundApiWallet(admin, userId, amount, reference, { service: "airtime", reason: String(err) });
-    return { status: 502, body: { success: false, error: err instanceof Error ? err.message : "Provider error", reference, refunded: true } };
+    return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   }
 }
 
 async function buyData(admin: any, userId: string, body: any): Promise<{ status: number; body: any }> {
-  const phone = String(body?.phone ?? "").trim();
+  const phoneRaw = String(body?.phone ?? "").trim();
   const planId = String(body?.plan_id ?? "").trim();
   let network = String(body?.network ?? "").toLowerCase();
-  if (!phone || !planId) return { status: 400, body: { success: false, error: "phone and plan_id are required" } };
+
+  const phone = normalizePhone(phoneRaw);
+  if (!phone) return { status: 400, body: { success: false, error: `Invalid phone number: ${phoneRaw}. Use 234XXXXXXXXXX format.` } };
+  if (!planId) return { status: 400, body: { success: false, error: "plan_id is required" } };
   if (!network) {
-    const detected = detectNetwork(phone);
+    const detected = detectNetwork(phone.local);
     if (!detected) return { status: 400, body: { success: false, error: "Could not detect network" } };
     network = detected;
   }
-  // Look up plan
-  const { data: plan } = await admin.from("service_plans").select("*").eq("plan_id", planId).eq("service_type", "data").eq("is_enabled", true).eq("permanently_disabled", false).maybeSingle();
-  if (!plan) return { status: 404, body: { success: false, error: "Plan not found or unavailable" } };
-  if (plan.network.toLowerCase() !== network) return { status: 400, body: { success: false, error: `Plan is for ${plan.network}, not ${network}` } };
 
-  const amount = Number(plan.selling_price ?? plan.base_price);
+  // 1) Look up the plan in developer_api_plans (preferred)
+  const { data: devPlan } = await admin
+    .from("developer_api_plans")
+    .select("*")
+    .eq("plan_id", planId)
+    .eq("service_type", "data")
+    .eq("is_enabled", true)
+    .eq("is_hidden_from_users", false)
+    .maybeSingle();
+
+  // 2) Fallback to the global service_plans catalog
+  let amount: number;
+  let resolvedProvider: string | undefined;
+  let planRowForTracking: any = null;
+  if (devPlan) {
+    if (devPlan.network && devPlan.network.toLowerCase() !== network) {
+      return { status: 400, body: { success: false, error: `Plan is for ${devPlan.network}, not ${network}` } };
+    }
+    amount = Number(devPlan.developer_price);
+    resolvedProvider = (devPlan.provider_source || "").toLowerCase() || undefined;
+    planRowForTracking = devPlan;
+  } else {
+    const { data: legacy } = await admin
+      .from("service_plans")
+      .select("*")
+      .eq("plan_id", planId)
+      .eq("service_type", "data")
+      .eq("is_enabled", true)
+      .eq("permanently_disabled", false)
+      .maybeSingle();
+    if (!legacy) return { status: 404, body: { success: false, error: "Plan not found or unavailable" } };
+    if (legacy.network?.toLowerCase() !== network) return { status: 400, body: { success: false, error: `Plan is for ${legacy.network}, not ${network}` } };
+    amount = Number(legacy.selling_price ?? legacy.base_price);
+    resolvedProvider = (legacy.provider || "").toLowerCase() || undefined;
+  }
+
   const reference = `api_data_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await debitApiWallet(admin, userId, amount, reference, { service: "data", network, phone, plan_id: planId, amount });
+  await debitApiWallet(admin, userId, amount, reference, {
+    service: "data", network, phone: phone.intl, plan_id: planId, amount, provider_hint: resolvedProvider,
+  });
 
+  // Forward to internal purchase-data — pass smart-routing hints
   try {
-    // Forward to internal purchase-data via service-role token
     const resp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/purchase-data`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "x-api-internal": "1", "x-api-user-id": userId },
-      body: JSON.stringify({ network, phoneNumber: phone, planId, amount, viaApi: true }),
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "x-api-internal": "1",
+        "x-api-user-id": userId,
+      },
+      body: JSON.stringify({
+        network,
+        phoneNumber: phone.intl,
+        planId,
+        amount,
+        viaApi: true,
+        preferredProvider: resolvedProvider,
+      }),
     });
     const data = await resp.json();
-    if (!resp.ok || !data.success) {
-      await refundApiWallet(admin, userId, amount, reference, { service: "data", reason: data.error });
-      return { status: 502, body: { success: false, error: data.error ?? "Provider failed", reference, refunded: true } };
+
+    if (resp.ok && data.success) {
+      await recordPlanResult(admin, planRowForTracking, true);
+      return {
+        status: 200,
+        body: {
+          success: true, reference, network, phone: phone.intl, plan_id: planId, amount,
+          provider: data.provider ?? resolvedProvider,
+          message: "Data purchased successfully",
+        },
+      };
     }
-    return { status: 200, body: { success: true, reference, network, phone, plan_id: planId, amount, message: "Data purchased successfully" } };
+
+    // Pending / indeterminate — do not refund
+    if (resp.status === 202 || data?.pending) {
+      return {
+        status: 202,
+        body: {
+          success: false, pending: true, reference, network, phone: phone.intl, plan_id: planId, amount,
+          message: "Processing — transaction will be confirmed shortly.",
+        },
+      };
+    }
+
+    await recordPlanResult(admin, planRowForTracking, false, data?.error);
+    await refundApiWallet(admin, userId, amount, reference, { service: "data", reason: data?.error });
+    return { status: 502, body: { success: false, error: data?.error ?? "Service temporarily unavailable, please try again.", reference, refunded: true } };
   } catch (err) {
     await refundApiWallet(admin, userId, amount, reference, { service: "data", reason: String(err) });
-    return { status: 502, body: { success: false, error: err instanceof Error ? err.message : "Provider error", reference, refunded: true } };
+    return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   }
 }
 
@@ -284,10 +435,25 @@ async function buyCable(admin: any, userId: string, body: any): Promise<{ status
   const planId = String(body?.plan_id ?? "").trim();
   if (!provider || !smartcard || !planId) return { status: 400, body: { success: false, error: "provider, smartcard, plan_id required" } };
 
-  const { data: plan } = await admin.from("service_plans").select("*").eq("plan_id", planId).eq("service_type", "cable").eq("is_enabled", true).maybeSingle();
-  if (!plan) return { status: 404, body: { success: false, error: "Cable plan not found" } };
+  // Prefer developer_api_plans
+  const { data: devPlan } = await admin
+    .from("developer_api_plans")
+    .select("*")
+    .eq("plan_id", planId)
+    .eq("service_type", "cable")
+    .eq("is_enabled", true)
+    .eq("is_hidden_from_users", false)
+    .maybeSingle();
 
-  const amount = Number(plan.selling_price ?? plan.base_price);
+  let amount: number;
+  if (devPlan) {
+    amount = Number(devPlan.developer_price);
+  } else {
+    const { data: legacy } = await admin.from("service_plans").select("*").eq("plan_id", planId).eq("service_type", "cable").eq("is_enabled", true).maybeSingle();
+    if (!legacy) return { status: 404, body: { success: false, error: "Cable plan not found" } };
+    amount = Number(legacy.selling_price ?? legacy.base_price);
+  }
+
   const reference = `api_cable_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   await debitApiWallet(admin, userId, amount, reference, { service: "cable", provider, smartcard, plan_id: planId, amount });
 
@@ -299,13 +465,18 @@ async function buyCable(admin: any, userId: string, body: any): Promise<{ status
     });
     const data = await resp.json();
     if (!resp.ok || !data.success) {
+      if (resp.status === 202 || data?.pending) {
+        return { status: 202, body: { success: false, pending: true, reference, message: "Processing — will be confirmed shortly." } };
+      }
+      await recordPlanResult(admin, devPlan, false, data?.error);
       await refundApiWallet(admin, userId, amount, reference, { service: "cable", reason: data.error });
-      return { status: 502, body: { success: false, error: data.error ?? "Provider failed", reference, refunded: true } };
+      return { status: 502, body: { success: false, error: data.error ?? "Service temporarily unavailable, please try again.", reference, refunded: true } };
     }
+    await recordPlanResult(admin, devPlan, true);
     return { status: 200, body: { success: true, reference, provider, smartcard, plan_id: planId, amount } };
   } catch (err) {
     await refundApiWallet(admin, userId, amount, reference, { service: "cable", reason: String(err) });
-    return { status: 502, body: { success: false, error: err instanceof Error ? err.message : "Provider error", reference, refunded: true } };
+    return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   }
 }
 
@@ -327,12 +498,15 @@ async function buyElectricity(admin: any, userId: string, body: any): Promise<{ 
     });
     const data = await resp.json();
     if (!resp.ok || !data.success) {
+      if (resp.status === 202 || data?.pending) {
+        return { status: 202, body: { success: false, pending: true, reference, message: "Processing — will be confirmed shortly." } };
+      }
       await refundApiWallet(admin, userId, amount, reference, { service: "electricity", reason: data.error });
-      return { status: 502, body: { success: false, error: data.error ?? "Provider failed", reference, refunded: true } };
+      return { status: 502, body: { success: false, error: data.error ?? "Service temporarily unavailable, please try again.", reference, refunded: true } };
     }
     return { status: 200, body: { success: true, reference, disco, meter, amount, token: data.token, units: data.units } };
   } catch (err) {
     await refundApiWallet(admin, userId, amount, reference, { service: "electricity", reason: String(err) });
-    return { status: 502, body: { success: false, error: err instanceof Error ? err.message : "Provider error", reference, refunded: true } };
+    return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   }
 }
