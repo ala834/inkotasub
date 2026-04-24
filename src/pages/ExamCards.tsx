@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
+import { parseEdgeFunctionError, isPendingTransaction } from "@/lib/edge-function-errors";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionResultScreen from "@/components/common/TransactionResultScreen";
 
@@ -46,6 +46,7 @@ const ExamCards = () => {
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [resultSuccess, setResultSuccess] = useState(false);
+  const [resultPending, setResultPending] = useState(false);
   const [resultTransactionId, setResultTransactionId] = useState("");
   const [resultError, setResultError] = useState("");
   const [loadingPrices, setLoadingPrices] = useState(false);
@@ -102,9 +103,19 @@ const ExamCards = () => {
       const { data, error } = await supabase.functions.invoke("purchase-exam-pin", {
         body: { examType: selectedExam.slug, quantity, amount: totalAmount, transaction_pin: pin },
       });
+      // Pending (indeterminate) — show Processing UI, do not throw
+      if (!error && data && !data.success && isPendingTransaction(data)) {
+        setResultSuccess(false);
+        setResultPending(true);
+        setResultError(data.message || "Processing... Your transaction is being confirmed.");
+        setResultTransactionId(data?.reference);
+        setShowResult(true);
+        return;
+      }
       if (error || !data?.success) {
         const message = parseEdgeFunctionError(error, data, "Failed to purchase exam PIN");
         setResultSuccess(false);
+        setResultPending(false);
         setResultError(message);
         setResultTransactionId("");
         setShowResult(true);
@@ -112,6 +123,7 @@ const ExamCards = () => {
         throw new Error(message);
       }
       setResultSuccess(true);
+      setResultPending(false);
       setResultTransactionId(data.reference || data.transactionId || "");
       setResultError("");
       if (data.pins && data.pins.length > 0) {
@@ -355,6 +367,7 @@ const ExamCards = () => {
         open={showResult}
         onClose={() => setShowResult(false)}
         success={resultSuccess}
+        pending={resultPending}
         amount={totalAmount}
         details={[
           { label: "Service", value: "Exam Result Checker" },
