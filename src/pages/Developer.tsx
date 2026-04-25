@@ -627,6 +627,60 @@ const Developer = () => {
         )}
       </main>
 
+      {/* Fund Developer Wallet dialog (Paystack) */}
+      <Dialog open={fundOpen} onOpenChange={(open) => { if (!fundLoading) setFundOpen(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-green-600" />Fund Developer Wallet</DialogTitle>
+            <DialogDescription>Pay securely with Paystack. Card, bank transfer, and USSD supported. Minimum ₦100.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="fund-amount">Amount (NGN)</Label>
+              <div className="relative mt-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted-foreground">₦</span>
+                <Input
+                  id="fund-amount"
+                  type="number"
+                  inputMode="numeric"
+                  min={100}
+                  value={fundAmount}
+                  onChange={(e) => setFundAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="pl-8 h-12 text-lg font-bold"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[1000, 2000, 5000, 10000, 20000, 50000].map((amt) => (
+                <Button
+                  key={amt}
+                  type="button"
+                  variant={String(amt) === fundAmount ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFundAmount(String(amt))}
+                  className="font-semibold"
+                >
+                  ₦{amt.toLocaleString()}
+                </Button>
+              ))}
+            </div>
+            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+              <p className="flex items-center gap-1.5"><CheckCircle2 className="h-3 w-3 text-green-600" /> Funds credit instantly after Paystack confirms</p>
+              <p className="flex items-center gap-1.5"><CheckCircle2 className="h-3 w-3 text-green-600" /> Each successful API call deducts the plan price automatically</p>
+              <p className="flex items-center gap-1.5"><ShieldAlert className="h-3 w-3 text-amber-600" /> If balance is low, API requests are blocked until you top up</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFundOpen(false)} disabled={fundLoading}>Cancel</Button>
+            <Button onClick={fundWallet} disabled={fundLoading || !fundAmount} className="gap-2 bg-green-600 hover:bg-green-700">
+              {fundLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+              {fundLoading ? "Redirecting…" : `Pay ₦${(parseFloat(fundAmount || "0") || 0).toLocaleString()}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!newKey} onOpenChange={(open) => { if (!open) setNewKey(null); }}>
         <DialogContent>
           <DialogHeader>
