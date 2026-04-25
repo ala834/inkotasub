@@ -10,8 +10,9 @@ import { CheckCircle2, XCircle, Clock, Key, Activity, Wallet, ArrowDownCircle, A
 
 type Request = { id: string; user_id: string; business_name: string | null; reason: string | null; status: string; created_at: string; rejection_reason: string | null };
 type ApiKeyRow = { id: string; user_id: string; name: string; key_prefix: string; is_revoked: boolean; last_used_at: string | null; created_at: string };
-type WalletLedgerRow = { id: string; user_id: string; amount: number; entry_type: string; reference: string | null; created_at: string };
+type WalletLedgerRow = { id: string; user_id: string; amount: number; entry_type: string; reference: string | null; created_at: string; metadata: Record<string, any> | null };
 type DeveloperPlanRow = { id: string; service_type: string; provider_source: string; network: string | null; plan_name: string; plan_id: string; is_enabled: boolean; is_hidden_from_users: boolean; failure_count: number };
+type ProfileLite = { user_id: string; full_name: string | null; username: string | null };
 
 const AdminDeveloperApiTab = () => {
   const db = supabase as any;
