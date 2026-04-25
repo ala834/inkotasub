@@ -234,7 +234,7 @@ const TransactionResultScreen = ({
                 className="relative"
               >
                 {/* Ripple rings */}
-                {success && (
+                {effectiveSuccess && (
                   <>
                     <motion.div
                       initial={{ scale: 0.8, opacity: 0.6 }}
@@ -256,21 +256,21 @@ const TransactionResultScreen = ({
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", delay: 0.15, damping: 10 }}
                   className={`w-24 h-24 rounded-full flex items-center justify-center ${
-                    pending
+                    effectivePending
                       ? "bg-gradient-to-br from-amber-400 to-amber-600 shadow-lg shadow-amber-500/30"
-                      : success
+                      : effectiveSuccess
                       ? "bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/30"
                       : "bg-gradient-to-br from-red-400 to-red-600 shadow-lg shadow-red-500/30"
                   }`}
                 >
                   <motion.div
                     initial={{ pathLength: 0 }}
-                    animate={pending ? { rotate: 360 } : { pathLength: 1 }}
-                    transition={pending ? { duration: 2, repeat: Infinity, ease: "linear" } : { duration: 0.5, delay: 0.4 }}
+                    animate={effectivePending ? { rotate: 360 } : { pathLength: 1 }}
+                    transition={effectivePending ? { duration: 2, repeat: Infinity, ease: "linear" } : { duration: 0.5, delay: 0.4 }}
                   >
-                    {pending ? (
+                    {effectivePending ? (
                       <Clock className="h-12 w-12 text-white" strokeWidth={2.5} />
-                    ) : success ? (
+                    ) : effectiveSuccess ? (
                       <Check className="h-12 w-12 text-white" strokeWidth={3} />
                     ) : (
                       <X className="h-12 w-12 text-white" strokeWidth={3} />
@@ -288,15 +288,21 @@ const TransactionResultScreen = ({
               className="text-center space-y-1"
             >
               <h2 className="text-2xl font-display font-bold text-foreground">
-                {pending ? "Processing..." : success ? "Transaction Successful!" : "Transaction Failed"}
+                {effectivePending ? "Processing..." : effectiveSuccess ? "Transaction Successful!" : "Transaction Failed"}
               </h2>
               <p className="text-muted-foreground text-sm">
-                {pending
-                  ? (errorMessage || "Your transaction is being confirmed. We'll update the status shortly.")
-                  : success
+                {effectivePending
+                  ? (effectiveError || "Your transaction is being confirmed. We'll update the status shortly.")
+                  : effectiveSuccess
                   ? "Your transaction was completed successfully"
-                  : errorMessage || "Something went wrong. Please try again."}
+                  : effectiveError || "Something went wrong. Please try again."}
               </p>
+              {effectivePending && (
+                <p className="text-xs text-amber-600 mt-2 flex items-center justify-center gap-1.5">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Auto-refreshing status…
+                </p>
+              )}
             </motion.div>
 
             {/* Amount */}
@@ -306,7 +312,7 @@ const TransactionResultScreen = ({
               transition={{ delay: 0.5 }}
               className="text-center"
             >
-              <p className={`text-4xl font-bold ${pending ? "text-amber-600" : success ? "text-emerald-600" : "text-red-500"}`}>
+              <p className={`text-4xl font-bold ${effectivePending ? "text-amber-600" : effectiveSuccess ? "text-emerald-600" : "text-red-500"}`}>
                 {formatCurrency(amount)}
               </p>
             </motion.div>
