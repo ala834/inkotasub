@@ -500,35 +500,69 @@ const Developer = () => {
             </TabsContent>
 
             <TabsContent value="wallet" className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-4">
-                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Developer Wallet</p><p className="text-3xl font-bold text-primary">₦{wallet.balance.toLocaleString()}</p></CardContent></Card>
-                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Funded Amount</p><p className="text-2xl font-bold">₦{walletStats.funded.toLocaleString()}</p></CardContent></Card>
-                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Deducted Amount</p><p className="text-2xl font-bold">₦{walletStats.deducted.toLocaleString()}</p></CardContent></Card>
-                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Transactions</p><p className="text-2xl font-bold">{walletHistory.length}</p></CardContent></Card>
+              {/* Hero card with Fund Wallet CTA */}
+              <Card className="overflow-hidden border-0 bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 text-white shadow-xl">
+                <CardContent className="pt-6 pb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-white/80">Developer Wallet Balance</p>
+                    <p className="text-4xl font-bold mt-1">₦{wallet.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    <p className="text-xs text-white/80 mt-2">Used to pay for API calls. Charges are deducted automatically.</p>
+                  </div>
+                  <Button
+                    size="lg"
+                    onClick={() => { setFundAmount(""); setFundOpen(true); }}
+                    disabled={verifyingPayment}
+                    className="bg-white text-green-700 hover:bg-white/90 font-bold gap-2 shadow-lg"
+                  >
+                    {verifyingPayment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    {verifyingPayment ? "Verifying…" : "Fund Wallet"}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
+                <Card><CardContent className="pt-6 flex items-center gap-3"><ArrowDownCircle className="h-5 w-5 text-green-600" /><div><p className="text-xs text-muted-foreground">Total Funded</p><p className="text-xl font-bold">₦{walletStats.funded.toLocaleString()}</p></div></CardContent></Card>
+                <Card><CardContent className="pt-6 flex items-center gap-3"><ArrowUpCircle className="h-5 w-5 text-destructive" /><div><p className="text-xs text-muted-foreground">Total Deducted</p><p className="text-xl font-bold">₦{walletStats.deducted.toLocaleString()}</p></div></CardContent></Card>
+                <Card><CardContent className="pt-6 flex items-center gap-3"><Activity className="h-5 w-5 text-primary" /><div><p className="text-xs text-muted-foreground">Transactions</p><p className="text-xl font-bold">{walletHistory.length}</p></div></CardContent></Card>
               </div>
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Developer Wallet History</CardTitle>
-                  <CardDescription>Funding and deduction activity for API usage.</CardDescription>
+                  <CardTitle className="text-lg">Wallet History</CardTitle>
+                  <CardDescription>Funding deposits and per-call API charges.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {walletHistory.length === 0 && <p className="text-sm text-muted-foreground">No wallet transactions yet.</p>}
-                  {walletHistory.map((row) => (
-                    <div key={row.id} className="flex items-center justify-between rounded-lg border p-3 gap-3 flex-wrap">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant={row.entry_type === "credit" ? "secondary" : "outline"}>{row.entry_type === "credit" ? "Funded" : "Deducted"}</Badge>
-                          <span className="font-semibold">₦{Number(row.amount).toLocaleString()}</span>
+                  {walletHistory.length === 0 && <p className="text-sm text-muted-foreground py-6 text-center">No wallet transactions yet.</p>}
+                  {walletHistory.map((row) => {
+                    const meta = (row.metadata ?? {}) as Record<string, any>;
+                    const service = meta.service_type ? String(meta.service_type) : meta.type === "paystack_funding" ? "Paystack funding" : null;
+                    const channel = meta.channel ? String(meta.channel) : null;
+                    const isCredit = row.entry_type === "credit";
+                    return (
+                      <div key={row.id} className="flex items-start justify-between rounded-lg border p-3 gap-3 flex-wrap">
+                        <div className="min-w-0 flex items-start gap-3">
+                          <div className={`mt-0.5 h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${isCredit ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                            {isCredit ? <ArrowDownCircle className="h-5 w-5" /> : <ArrowUpCircle className="h-5 w-5" />}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant={isCredit ? "secondary" : "outline"}>{isCredit ? "Funded" : "Deducted"}</Badge>
+                              <span className="font-semibold">₦{Number(row.amount).toLocaleString()}</span>
+                              {service && <Badge variant="outline" className="capitalize text-[10px]">{service}</Badge>}
+                              {channel && <Badge variant="outline" className="capitalize text-[10px]">{channel}</Badge>}
+                              <Badge variant="secondary" className="bg-green-100 text-green-700 text-[10px]">Success</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1 break-all">Ref: {row.reference ?? "—"}</p>
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">{row.reference ?? "No reference"}</p>
+                        <p className="text-xs text-muted-foreground shrink-0">{new Date(row.created_at).toLocaleString()}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground">{new Date(row.created_at).toLocaleString()}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </CardContent>
               </Card>
             </TabsContent>
+
 
             <TabsContent value="docs" className="space-y-4">
               <Card>
