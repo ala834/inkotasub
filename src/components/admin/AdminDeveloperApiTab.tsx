@@ -186,20 +186,34 @@ const AdminDeveloperApiTab = () => {
 
         <TabsContent value="wallet" className="space-y-2">
           {ledger.length === 0 && <p className="text-sm text-muted-foreground">No wallet transactions yet.</p>}
-          {ledger.map((row) => (
-            <Card key={row.id}>
-              <CardContent className="pt-4 flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={row.entry_type === "credit" ? "secondary" : "outline"}>{row.entry_type}</Badge>
-                    <span className="font-medium">₦{Number(row.amount).toLocaleString()}</span>
+          {ledger.map((row) => {
+            const prof = profiles[row.user_id];
+            const meta = (row.metadata ?? {}) as Record<string, any>;
+            const service = meta.service_type ?? (meta.type === "paystack_funding" ? "Paystack funding" : null);
+            const channel = meta.channel ?? null;
+            const isCredit = row.entry_type === "credit";
+            return (
+              <Card key={row.id}>
+                <CardContent className="pt-4 flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant={isCredit ? "secondary" : "outline"}>{isCredit ? "Funded" : "Deducted"}</Badge>
+                      <span className="font-semibold">₦{Number(row.amount).toLocaleString()}</span>
+                      {service && <Badge variant="outline" className="capitalize text-[10px]">{String(service)}</Badge>}
+                      {channel && <Badge variant="outline" className="capitalize text-[10px]">{String(channel)}</Badge>}
+                      <Badge className="bg-green-600 text-[10px]">Success</Badge>
+                    </div>
+                    <p className="text-xs mt-1">
+                      <span className="font-medium">{prof?.full_name ?? prof?.username ?? "Unknown developer"}</span>
+                      {emails[row.user_id] && <span className="text-muted-foreground"> · {emails[row.user_id]}</span>}
+                    </p>
+                    <p className="text-xs text-muted-foreground break-all">Ref: {row.reference ?? "—"}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">User {row.user_id.slice(0, 8)}... · {row.reference ?? "No reference"}</p>
-                </div>
-                <p className="text-xs text-muted-foreground">{new Date(row.created_at).toLocaleString()}</p>
-              </CardContent>
-            </Card>
-          ))}
+                  <p className="text-xs text-muted-foreground shrink-0">{new Date(row.created_at).toLocaleString()}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
         </TabsContent>
 
         <TabsContent value="plans" className="space-y-2">
