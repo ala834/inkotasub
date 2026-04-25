@@ -65,6 +65,7 @@ const API_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/developer-ap
 const Developer = () => {
   const db = supabase as any;
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [accessRequest, setAccessRequest] = useState<AccessRequest | null>(null);
@@ -82,6 +83,10 @@ const Developer = () => {
   const [planSearch, setPlanSearch] = useState("");
   const [networkFilter, setNetworkFilter] = useState<string>("ALL");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
+  const [fundOpen, setFundOpen] = useState(false);
+  const [fundAmount, setFundAmount] = useState("");
+  const [fundLoading, setFundLoading] = useState(false);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
 
   const isApproved = accessRequest?.status === "approved";
 
