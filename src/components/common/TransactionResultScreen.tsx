@@ -41,6 +41,117 @@ const TransactionResultScreen = ({
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
 
+  // Live status overrides while polling on a Processing screen.
+  // null = use the props as-is; otherwise reflect the latest status from the server.
+  const [liveStatus, setLiveStatus] = useState<"pending" | "success" | "failed" | null>(null);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [liveReceiptId, setLiveReceiptId] = useState<string | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const attemptsRef = useRef(0);
+
+  // Reset live state whenever a new transaction is shown.
+  useEffect(() => {
+    if (open) {
+      setLiveStatus(null);
+      setLiveError(null);
+      setLiveReceiptId(null);
+      attemptsRef.current = 0;
+    }
+  }, [open, transactionId]);
+
+  // Effective values used for rendering — prefer live data once we have it.
+  const effectivePending = liveStatus === null ? pending : liveStatus === "pending";
+  const effectiveSuccess = liveStatus === null ? success : liveStatus === "success";
+  const effectiveError = liveError ?? errorMessage;
+  const effectiveReceiptId = liveReceiptId ?? receiptId;
+
+  // Poll + realtime-subscribe to the transaction while in Processing state.
+  useEffect(() => {
+    if (!open || !effectivePending || !transactionId) return;
+
+    let cancelled = false;
+    const MAX_ATTEMPTS = 60; // ~5 minutes at 5s interval
+    const INTERVAL_MS = 5000;
+
+    const checkStatus = async () => {
+      if (cancelled) return;
+      try {
+        const { data, error } = await supabase
+          .from("transactions")
+          .select("id, status, reference, description, metadata")
+          .eq("reference", transactionId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (cancelled || error || !data) return;
+
+        if (data.status === "success") {
+          setLiveStatus("success");
+          setLiveReceiptId(data.id);
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+        } else if (data.status === "failed") {
+          setLiveStatus("failed");
+          const meta = (data.metadata as Record<string, unknown> | null) ?? null;
+          const msg =
+            (meta && typeof meta.provider_message === "string"
+              ? (meta.provider_message as string)
+              : null) ||
+            data.description ||
+            "Transaction failed. Please contact support if you were debited.";
+          setLiveError(msg);
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+        }
+      } catch {
+        // Ignore network blips — next interval will retry.
+      }
+    };
+
+    // Immediate check, then interval polling.
+    checkStatus();
+    pollTimerRef.current = setInterval(() => {
+      attemptsRef.current += 1;
+      if (attemptsRef.current >= MAX_ATTEMPTS && pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+        return;
+      }
+      checkStatus();
+    }, INTERVAL_MS);
+
+    // Realtime subscription for instant update once backend reconciles.
+    const channel = supabase
+      .channel(`txn-status-${transactionId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "transactions",
+          filter: `reference=eq.${transactionId}`,
+        },
+        () => {
+          checkStatus();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      supabase.removeChannel(channel);
+    };
+  }, [open, effectivePending, transactionId]);
+
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("en-NG", {
       style: "currency",
