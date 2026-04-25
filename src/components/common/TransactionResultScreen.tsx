@@ -161,7 +161,7 @@ const TransactionResultScreen = ({
 
   const handleShare = async () => {
     const text = [
-      success ? "✅ Transaction Successful" : "❌ Transaction Failed",
+      effectiveSuccess ? "✅ Transaction Successful" : "❌ Transaction Failed",
       `Amount: ${formatCurrency(amount)}`,
       ...details.map((d) => `${d.label}: ${d.value}`),
       transactionId ? `Ref: ${transactionId}` : "",
@@ -195,13 +195,17 @@ const TransactionResultScreen = ({
 
   const handleGoHome = () => {
     onClose();
-    navigate("/dashboard");
+    if (effectivePending) {
+      navigate("/history");
+    } else {
+      navigate("/dashboard");
+    }
   };
 
   const handleViewReceipt = () => {
-    if (receiptId) {
+    if (effectiveReceiptId) {
       onClose();
-      navigate(`/receipt/${receiptId}`);
+      navigate(`/receipt/${effectiveReceiptId}`);
     }
   };
 
