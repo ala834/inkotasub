@@ -160,6 +160,60 @@ const Developer = () => {
     loadData();
   }, [user?.id]);
 
+  // Auto-verify Paystack payment on return (?api_wallet_ref=...)
+  useEffect(() => {
+    const ref = searchParams.get("api_wallet_ref");
+    if (!ref || !user || verifyingPayment) return;
+    (async () => {
+      setVerifyingPayment(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("verify-api-wallet-payment", {
+          body: { reference: ref },
+        });
+        if (error) throw error;
+        if (data?.status === "success") {
+          toast.success(`Developer Wallet funded with ₦${Number(data.amount).toLocaleString()}`);
+          await loadData();
+        } else {
+          toast.error(data?.message ?? "Payment verification failed");
+        }
+      } catch (e: any) {
+        toast.error(e?.message ?? "Could not verify payment");
+      } finally {
+        const next = new URLSearchParams(searchParams);
+        next.delete("api_wallet_ref");
+        setSearchParams(next, { replace: true });
+        setVerifyingPayment(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, user?.id]);
+
+  const fundWallet = async () => {
+    const amt = parseFloat(fundAmount || "0");
+    if (!user) return;
+    if (!amt || amt < 100) {
+      toast.error("Minimum funding amount is ₦100");
+      return;
+    }
+    setFundLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("initialize-api-wallet-payment", {
+        body: { amount: amt, email: user.email },
+      });
+      if (error) throw error;
+      if (data?.authorization_url) {
+        window.location.href = data.authorization_url;
+      } else {
+        throw new Error(data?.error ?? "Failed to initialize payment");
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not start payment");
+    } finally {
+      setFundLoading(false);
+    }
+  };
+
   const requestAccess = async () => {
     if (!businessName.trim() || !reason.trim()) {
       toast.error("Please fill in both fields");
