@@ -44,16 +44,32 @@ const AdminDeveloperApiTab = () => {
       supabase.from("api_access_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("api_keys").select("*").order("created_at", { ascending: false }),
       supabase.from("api_request_logs").select("success").gte("created_at", new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()),
-      supabase.from("api_wallet_ledger").select("id, user_id, amount, entry_type, reference, created_at").order("created_at", { ascending: false }).limit(50),
+      supabase.from("api_wallet_ledger").select("id, user_id, amount, entry_type, reference, created_at, metadata").order("created_at", { ascending: false }).limit(100),
       db.from("developer_api_plans").select("id, service_type, provider_source, network, plan_name, plan_id, is_enabled, is_hidden_from_users, failure_count").order("service_type").order("network").order("plan_name"),
     ]);
-    setRequests((reqs as Request[]) ?? []);
-    setKeys((ks as ApiKeyRow[]) ?? []);
-    setLedger((ledgerRows as WalletLedgerRow[]) ?? []);
+    const ledgerData = (ledgerRows as WalletLedgerRow[]) ?? [];
+    const requestData = (reqs as Request[]) ?? [];
+    const keyData = (ks as ApiKeyRow[]) ?? [];
+    setRequests(requestData);
+    setKeys(keyData);
+    setLedger(ledgerData);
     setDeveloperPlans((planRows as DeveloperPlanRow[]) ?? []);
     const total = logs?.length ?? 0;
     const success = logs?.filter((l: any) => l.success).length ?? 0;
     setStats({ total, success, failed: total - success });
+
+    // Hydrate developer profiles + emails for display
+    const userIds = Array.from(new Set([...ledgerData.map(l => l.user_id), ...requestData.map(r => r.user_id), ...keyData.map(k => k.user_id)]));
+    if (userIds.length) {
+      const { data: profs } = await supabase.from("profiles").select("user_id, full_name, username").in("user_id", userIds);
+      const profMap: Record<string, ProfileLite> = {};
+      (profs as ProfileLite[] | null)?.forEach(p => { profMap[p.user_id] = p; });
+      setProfiles(profMap);
+      try {
+        const { data: emailData } = await supabase.functions.invoke("admin-get-user-emails", { body: { user_ids: userIds } });
+        if (emailData?.emails) setEmails(emailData.emails);
+      } catch (e) { console.error("Failed to load emails", e); }
+    }
     setLoading(false);
   };
 
