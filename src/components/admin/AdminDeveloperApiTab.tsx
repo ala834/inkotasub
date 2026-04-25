@@ -21,6 +21,8 @@ const AdminDeveloperApiTab = () => {
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [ledger, setLedger] = useState<WalletLedgerRow[]>([]);
   const [developerPlans, setDeveloperPlans] = useState<DeveloperPlanRow[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, ProfileLite>>({});
+  const [emails, setEmails] = useState<Record<string, string>>({});
   const [stats, setStats] = useState({ total: 0, success: 0, failed: 0 });
   const [loading, setLoading] = useState(true);
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
