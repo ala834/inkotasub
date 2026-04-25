@@ -10,8 +10,9 @@ import { CheckCircle2, XCircle, Clock, Key, Activity, Wallet, ArrowDownCircle, A
 
 type Request = { id: string; user_id: string; business_name: string | null; reason: string | null; status: string; created_at: string; rejection_reason: string | null };
 type ApiKeyRow = { id: string; user_id: string; name: string; key_prefix: string; is_revoked: boolean; last_used_at: string | null; created_at: string };
-type WalletLedgerRow = { id: string; user_id: string; amount: number; entry_type: string; reference: string | null; created_at: string };
+type WalletLedgerRow = { id: string; user_id: string; amount: number; entry_type: string; reference: string | null; created_at: string; metadata: Record<string, any> | null };
 type DeveloperPlanRow = { id: string; service_type: string; provider_source: string; network: string | null; plan_name: string; plan_id: string; is_enabled: boolean; is_hidden_from_users: boolean; failure_count: number };
+type ProfileLite = { user_id: string; full_name: string | null; username: string | null };
 
 const AdminDeveloperApiTab = () => {
   const db = supabase as any;
@@ -20,6 +21,8 @@ const AdminDeveloperApiTab = () => {
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [ledger, setLedger] = useState<WalletLedgerRow[]>([]);
   const [developerPlans, setDeveloperPlans] = useState<DeveloperPlanRow[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, ProfileLite>>({});
+  const [emails, setEmails] = useState<Record<string, string>>({});
   const [stats, setStats] = useState({ total: 0, success: 0, failed: 0 });
   const [loading, setLoading] = useState(true);
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
@@ -41,16 +44,32 @@ const AdminDeveloperApiTab = () => {
       supabase.from("api_access_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("api_keys").select("*").order("created_at", { ascending: false }),
       supabase.from("api_request_logs").select("success").gte("created_at", new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()),
-      supabase.from("api_wallet_ledger").select("id, user_id, amount, entry_type, reference, created_at").order("created_at", { ascending: false }).limit(50),
+      supabase.from("api_wallet_ledger").select("id, user_id, amount, entry_type, reference, created_at, metadata").order("created_at", { ascending: false }).limit(100),
       db.from("developer_api_plans").select("id, service_type, provider_source, network, plan_name, plan_id, is_enabled, is_hidden_from_users, failure_count").order("service_type").order("network").order("plan_name"),
     ]);
-    setRequests((reqs as Request[]) ?? []);
-    setKeys((ks as ApiKeyRow[]) ?? []);
-    setLedger((ledgerRows as WalletLedgerRow[]) ?? []);
+    const ledgerData = (ledgerRows as WalletLedgerRow[]) ?? [];
+    const requestData = (reqs as Request[]) ?? [];
+    const keyData = (ks as ApiKeyRow[]) ?? [];
+    setRequests(requestData);
+    setKeys(keyData);
+    setLedger(ledgerData);
     setDeveloperPlans((planRows as DeveloperPlanRow[]) ?? []);
     const total = logs?.length ?? 0;
     const success = logs?.filter((l: any) => l.success).length ?? 0;
     setStats({ total, success, failed: total - success });
+
+    // Hydrate developer profiles + emails for display
+    const userIds = Array.from(new Set([...ledgerData.map(l => l.user_id), ...requestData.map(r => r.user_id), ...keyData.map(k => k.user_id)]));
+    if (userIds.length) {
+      const { data: profs } = await supabase.from("profiles").select("user_id, full_name, username").in("user_id", userIds);
+      const profMap: Record<string, ProfileLite> = {};
+      (profs as ProfileLite[] | null)?.forEach(p => { profMap[p.user_id] = p; });
+      setProfiles(profMap);
+      try {
+        const { data: emailData } = await supabase.functions.invoke("admin-get-user-emails", { body: { user_ids: userIds } });
+        if (emailData?.emails) setEmails(emailData.emails);
+      } catch (e) { console.error("Failed to load emails", e); }
+    }
     setLoading(false);
   };
 
@@ -167,20 +186,34 @@ const AdminDeveloperApiTab = () => {
 
         <TabsContent value="wallet" className="space-y-2">
           {ledger.length === 0 && <p className="text-sm text-muted-foreground">No wallet transactions yet.</p>}
-          {ledger.map((row) => (
-            <Card key={row.id}>
-              <CardContent className="pt-4 flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={row.entry_type === "credit" ? "secondary" : "outline"}>{row.entry_type}</Badge>
-                    <span className="font-medium">₦{Number(row.amount).toLocaleString()}</span>
+          {ledger.map((row) => {
+            const prof = profiles[row.user_id];
+            const meta = (row.metadata ?? {}) as Record<string, any>;
+            const service = meta.service_type ?? (meta.type === "paystack_funding" ? "Paystack funding" : null);
+            const channel = meta.channel ?? null;
+            const isCredit = row.entry_type === "credit";
+            return (
+              <Card key={row.id}>
+                <CardContent className="pt-4 flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant={isCredit ? "secondary" : "outline"}>{isCredit ? "Funded" : "Deducted"}</Badge>
+                      <span className="font-semibold">₦{Number(row.amount).toLocaleString()}</span>
+                      {service && <Badge variant="outline" className="capitalize text-[10px]">{String(service)}</Badge>}
+                      {channel && <Badge variant="outline" className="capitalize text-[10px]">{String(channel)}</Badge>}
+                      <Badge className="bg-green-600 text-[10px]">Success</Badge>
+                    </div>
+                    <p className="text-xs mt-1">
+                      <span className="font-medium">{prof?.full_name ?? prof?.username ?? "Unknown developer"}</span>
+                      {emails[row.user_id] && <span className="text-muted-foreground"> · {emails[row.user_id]}</span>}
+                    </p>
+                    <p className="text-xs text-muted-foreground break-all">Ref: {row.reference ?? "—"}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">User {row.user_id.slice(0, 8)}... · {row.reference ?? "No reference"}</p>
-                </div>
-                <p className="text-xs text-muted-foreground">{new Date(row.created_at).toLocaleString()}</p>
-              </CardContent>
-            </Card>
-          ))}
+                  <p className="text-xs text-muted-foreground shrink-0">{new Date(row.created_at).toLocaleString()}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
         </TabsContent>
 
         <TabsContent value="plans" className="space-y-2">

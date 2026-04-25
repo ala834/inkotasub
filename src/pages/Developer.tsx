@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Activity,
   AlertCircle,
   ArrowLeft,
+  ArrowDownCircle,
+  ArrowUpCircle,
   BookOpen,
   CheckCircle2,
   Code,
@@ -12,7 +14,9 @@ import {
   Database,
   Key,
   Layers3,
+  Loader2,
   Phone,
+  Plus,
   Search,
   ShieldAlert,
   Wallet,
@@ -61,6 +65,7 @@ const API_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/developer-ap
 const Developer = () => {
   const db = supabase as any;
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [accessRequest, setAccessRequest] = useState<AccessRequest | null>(null);
@@ -78,6 +83,10 @@ const Developer = () => {
   const [planSearch, setPlanSearch] = useState("");
   const [networkFilter, setNetworkFilter] = useState<string>("ALL");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
+  const [fundOpen, setFundOpen] = useState(false);
+  const [fundAmount, setFundAmount] = useState("");
+  const [fundLoading, setFundLoading] = useState(false);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
 
   const isApproved = accessRequest?.status === "approved";
 
@@ -150,6 +159,60 @@ const Developer = () => {
   useEffect(() => {
     loadData();
   }, [user?.id]);
+
+  // Auto-verify Paystack payment on return (?api_wallet_ref=...)
+  useEffect(() => {
+    const ref = searchParams.get("api_wallet_ref");
+    if (!ref || !user || verifyingPayment) return;
+    (async () => {
+      setVerifyingPayment(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("verify-api-wallet-payment", {
+          body: { reference: ref },
+        });
+        if (error) throw error;
+        if (data?.status === "success") {
+          toast.success(`Developer Wallet funded with ₦${Number(data.amount).toLocaleString()}`);
+          await loadData();
+        } else {
+          toast.error(data?.message ?? "Payment verification failed");
+        }
+      } catch (e: any) {
+        toast.error(e?.message ?? "Could not verify payment");
+      } finally {
+        const next = new URLSearchParams(searchParams);
+        next.delete("api_wallet_ref");
+        setSearchParams(next, { replace: true });
+        setVerifyingPayment(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, user?.id]);
+
+  const fundWallet = async () => {
+    const amt = parseFloat(fundAmount || "0");
+    if (!user) return;
+    if (!amt || amt < 100) {
+      toast.error("Minimum funding amount is ₦100");
+      return;
+    }
+    setFundLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("initialize-api-wallet-payment", {
+        body: { amount: amt, email: user.email },
+      });
+      if (error) throw error;
+      if (data?.authorization_url) {
+        window.location.href = data.authorization_url;
+      } else {
+        throw new Error(data?.error ?? "Failed to initialize payment");
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not start payment");
+    } finally {
+      setFundLoading(false);
+    }
+  };
 
   const requestAccess = async () => {
     if (!businessName.trim() || !reason.trim()) {
@@ -437,35 +500,69 @@ const Developer = () => {
             </TabsContent>
 
             <TabsContent value="wallet" className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-4">
-                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Developer Wallet</p><p className="text-3xl font-bold text-primary">₦{wallet.balance.toLocaleString()}</p></CardContent></Card>
-                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Funded Amount</p><p className="text-2xl font-bold">₦{walletStats.funded.toLocaleString()}</p></CardContent></Card>
-                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Deducted Amount</p><p className="text-2xl font-bold">₦{walletStats.deducted.toLocaleString()}</p></CardContent></Card>
-                <Card><CardContent className="pt-6"><p className="text-xs text-muted-foreground">Transactions</p><p className="text-2xl font-bold">{walletHistory.length}</p></CardContent></Card>
+              {/* Hero card with Fund Wallet CTA */}
+              <Card className="overflow-hidden border-0 bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 text-white shadow-xl">
+                <CardContent className="pt-6 pb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-white/80">Developer Wallet Balance</p>
+                    <p className="text-4xl font-bold mt-1">₦{wallet.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    <p className="text-xs text-white/80 mt-2">Used to pay for API calls. Charges are deducted automatically.</p>
+                  </div>
+                  <Button
+                    size="lg"
+                    onClick={() => { setFundAmount(""); setFundOpen(true); }}
+                    disabled={verifyingPayment}
+                    className="bg-white text-green-700 hover:bg-white/90 font-bold gap-2 shadow-lg"
+                  >
+                    {verifyingPayment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    {verifyingPayment ? "Verifying…" : "Fund Wallet"}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
+                <Card><CardContent className="pt-6 flex items-center gap-3"><ArrowDownCircle className="h-5 w-5 text-green-600" /><div><p className="text-xs text-muted-foreground">Total Funded</p><p className="text-xl font-bold">₦{walletStats.funded.toLocaleString()}</p></div></CardContent></Card>
+                <Card><CardContent className="pt-6 flex items-center gap-3"><ArrowUpCircle className="h-5 w-5 text-destructive" /><div><p className="text-xs text-muted-foreground">Total Deducted</p><p className="text-xl font-bold">₦{walletStats.deducted.toLocaleString()}</p></div></CardContent></Card>
+                <Card><CardContent className="pt-6 flex items-center gap-3"><Activity className="h-5 w-5 text-primary" /><div><p className="text-xs text-muted-foreground">Transactions</p><p className="text-xl font-bold">{walletHistory.length}</p></div></CardContent></Card>
               </div>
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Developer Wallet History</CardTitle>
-                  <CardDescription>Funding and deduction activity for API usage.</CardDescription>
+                  <CardTitle className="text-lg">Wallet History</CardTitle>
+                  <CardDescription>Funding deposits and per-call API charges.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {walletHistory.length === 0 && <p className="text-sm text-muted-foreground">No wallet transactions yet.</p>}
-                  {walletHistory.map((row) => (
-                    <div key={row.id} className="flex items-center justify-between rounded-lg border p-3 gap-3 flex-wrap">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant={row.entry_type === "credit" ? "secondary" : "outline"}>{row.entry_type === "credit" ? "Funded" : "Deducted"}</Badge>
-                          <span className="font-semibold">₦{Number(row.amount).toLocaleString()}</span>
+                  {walletHistory.length === 0 && <p className="text-sm text-muted-foreground py-6 text-center">No wallet transactions yet.</p>}
+                  {walletHistory.map((row) => {
+                    const meta = (row.metadata ?? {}) as Record<string, any>;
+                    const service = meta.service_type ? String(meta.service_type) : meta.type === "paystack_funding" ? "Paystack funding" : null;
+                    const channel = meta.channel ? String(meta.channel) : null;
+                    const isCredit = row.entry_type === "credit";
+                    return (
+                      <div key={row.id} className="flex items-start justify-between rounded-lg border p-3 gap-3 flex-wrap">
+                        <div className="min-w-0 flex items-start gap-3">
+                          <div className={`mt-0.5 h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${isCredit ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                            {isCredit ? <ArrowDownCircle className="h-5 w-5" /> : <ArrowUpCircle className="h-5 w-5" />}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant={isCredit ? "secondary" : "outline"}>{isCredit ? "Funded" : "Deducted"}</Badge>
+                              <span className="font-semibold">₦{Number(row.amount).toLocaleString()}</span>
+                              {service && <Badge variant="outline" className="capitalize text-[10px]">{service}</Badge>}
+                              {channel && <Badge variant="outline" className="capitalize text-[10px]">{channel}</Badge>}
+                              <Badge variant="secondary" className="bg-green-100 text-green-700 text-[10px]">Success</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1 break-all">Ref: {row.reference ?? "—"}</p>
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">{row.reference ?? "No reference"}</p>
+                        <p className="text-xs text-muted-foreground shrink-0">{new Date(row.created_at).toLocaleString()}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground">{new Date(row.created_at).toLocaleString()}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </CardContent>
               </Card>
             </TabsContent>
+
 
             <TabsContent value="docs" className="space-y-4">
               <Card>
@@ -529,6 +626,60 @@ const Developer = () => {
           </Tabs>
         )}
       </main>
+
+      {/* Fund Developer Wallet dialog (Paystack) */}
+      <Dialog open={fundOpen} onOpenChange={(open) => { if (!fundLoading) setFundOpen(open); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-green-600" />Fund Developer Wallet</DialogTitle>
+            <DialogDescription>Pay securely with Paystack. Card, bank transfer, and USSD supported. Minimum ₦100.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="fund-amount">Amount (NGN)</Label>
+              <div className="relative mt-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted-foreground">₦</span>
+                <Input
+                  id="fund-amount"
+                  type="number"
+                  inputMode="numeric"
+                  min={100}
+                  value={fundAmount}
+                  onChange={(e) => setFundAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="pl-8 h-12 text-lg font-bold"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[1000, 2000, 5000, 10000, 20000, 50000].map((amt) => (
+                <Button
+                  key={amt}
+                  type="button"
+                  variant={String(amt) === fundAmount ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFundAmount(String(amt))}
+                  className="font-semibold"
+                >
+                  ₦{amt.toLocaleString()}
+                </Button>
+              ))}
+            </div>
+            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+              <p className="flex items-center gap-1.5"><CheckCircle2 className="h-3 w-3 text-green-600" /> Funds credit instantly after Paystack confirms</p>
+              <p className="flex items-center gap-1.5"><CheckCircle2 className="h-3 w-3 text-green-600" /> Each successful API call deducts the plan price automatically</p>
+              <p className="flex items-center gap-1.5"><ShieldAlert className="h-3 w-3 text-amber-600" /> If balance is low, API requests are blocked until you top up</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFundOpen(false)} disabled={fundLoading}>Cancel</Button>
+            <Button onClick={fundWallet} disabled={fundLoading || !fundAmount} className="gap-2 bg-green-600 hover:bg-green-700">
+              {fundLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+              {fundLoading ? "Redirecting…" : `Pay ₦${(parseFloat(fundAmount || "0") || 0).toLocaleString()}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!newKey} onOpenChange={(open) => { if (!open) setNewKey(null); }}>
         <DialogContent>
