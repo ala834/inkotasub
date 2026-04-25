@@ -359,7 +359,7 @@ const TransactionResultScreen = ({
               transition={{ delay: 0.7 }}
               className="space-y-3"
             >
-              {success && (
+              {effectiveSuccess && (
                 <div className="flex gap-3">
                   <Button
                     variant="outline"
@@ -369,7 +369,7 @@ const TransactionResultScreen = ({
                     <Share2 className="h-4 w-4" />
                     Share
                   </Button>
-                  {receiptId && (
+                  {effectiveReceiptId && (
                     <Button
                       variant="outline"
                       onClick={handleViewReceipt}
@@ -397,7 +397,7 @@ const TransactionResultScreen = ({
                 className="w-full h-12 rounded-xl gradient-primary text-primary-foreground font-semibold"
               >
                 <Home className="h-4 w-4 mr-2" />
-                {pending ? "Check Transaction History" : success ? "Back to Dashboard" : "Try Again"}
+                {effectivePending ? "Check Transaction History" : effectiveSuccess ? "Back to Dashboard" : "Try Again"}
               </Button>
             </motion.div>
           </motion.div>
