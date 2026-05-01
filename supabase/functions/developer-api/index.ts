@@ -517,12 +517,12 @@ async function buyElectricity(admin: any, userId: string, body: any): Promise<{ 
       if (resp.status === 202 || data?.pending) {
         return { status: 202, body: { success: false, pending: true, reference, message: "Processing — will be confirmed shortly." } };
       }
-      await refundApiWallet(admin, userId, amount, reference, { service: "electricity", reason: data.error });
+      await refundApiWallet(admin, userId, totalDebit, reference, { service: "electricity", reason: data.error });
       return { status: 502, body: { success: false, error: data.error ?? "Service temporarily unavailable, please try again.", reference, refunded: true } };
     }
     return { status: 200, body: { success: true, reference, disco, meter, amount, token: data.token, units: data.units } };
   } catch (err) {
-    await refundApiWallet(admin, userId, amount, reference, { service: "electricity", reason: String(err) });
+    await refundApiWallet(admin, userId, totalDebit, reference, { service: "electricity", reason: String(err) });
     return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   }
 }
