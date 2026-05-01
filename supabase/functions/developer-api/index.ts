@@ -212,6 +212,14 @@ async function listServicePlans(admin: any, url: URL): Promise<{ status: number;
 }
 
 // ---- Wallet helpers ----
+async function getApiServiceCharge(admin: any): Promise<number> {
+  try {
+    const { data } = await admin.from("app_settings").select("value").eq("key", "api_service_charge").maybeSingle();
+    const n = Number(data?.value ?? 0);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch { return 0; }
+}
+
 async function debitApiWallet(admin: any, userId: string, amount: number, reference: string, metadata: any) {
   const { data: balanceBefore } = await admin.rpc("get_api_wallet_balance", { p_user_id: userId });
   const { data: newBalance, error } = await admin.rpc("atomic_api_wallet_debit", { p_user_id: userId, p_amount: amount });
