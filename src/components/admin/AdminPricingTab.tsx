@@ -47,6 +47,10 @@ const AdminPricingTab = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<PricingConfig | null>(null);
+
+  // API service charge state
+  const [apiCharge, setApiCharge] = useState<string>("0");
+  const [apiChargeSaving, setApiChargeSaving] = useState(false);
   
   // Form state
   const [serviceType, setServiceType] = useState("airtime");
@@ -59,7 +63,33 @@ const AdminPricingTab = () => {
 
   useEffect(() => {
     fetchPricingConfigs();
+    fetchApiCharge();
   }, []);
+
+  const fetchApiCharge = async () => {
+    const { data } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "api_service_charge")
+      .maybeSingle();
+    if (data?.value !== undefined && data?.value !== null) setApiCharge(String(data.value));
+  };
+
+  const saveApiCharge = async () => {
+    const n = Number(apiCharge);
+    if (!Number.isFinite(n) || n < 0) {
+      toast.error("Enter a valid amount (₦0 or more)");
+      return;
+    }
+    setApiChargeSaving(true);
+    const { error } = await supabase
+      .from("app_settings")
+      .upsert({ key: "api_service_charge", value: String(n), description: "Flat ₦ surcharge added to every developer API transaction." }, { onConflict: "key" });
+    setApiChargeSaving(false);
+    if (error) toast.error("Failed to update API charge");
+    else toast.success(`API service charge set to ₦${n.toLocaleString()}`);
+  };
+
 
   const fetchPricingConfigs = async () => {
     setIsLoading(true);
