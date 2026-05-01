@@ -382,8 +382,10 @@ async function buyData(admin: any, userId: string, body: any): Promise<{ status:
   }
 
   const reference = `api_data_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await debitApiWallet(admin, userId, amount, reference, {
-    service: "data", network, phone: phone.intl, plan_id: planId, amount, provider_hint: resolvedProvider,
+  const serviceCharge = await getApiServiceCharge(admin);
+  const totalDebit = amount + serviceCharge;
+  await debitApiWallet(admin, userId, totalDebit, reference, {
+    service: "data", network, phone: phone.intl, plan_id: planId, amount, service_charge: serviceCharge, provider_hint: resolvedProvider,
   });
 
   // Forward to internal purchase-data — pass smart-routing hints
