@@ -191,7 +191,7 @@ const Auth = () => {
           <h1 className="text-2xl font-bold text-white">
             {isLogin && loginReady && !locked
               ? <>Welcome back{profile?.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""} 👋</>
-              : <>INKOTA<span className="text-white/80">SUB</span></>
+              : <>Inkota<span className="text-white/80">sub</span></>
             }
           </h1>
           <p className="text-white/70 text-sm mt-1">

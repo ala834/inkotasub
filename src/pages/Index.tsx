@@ -32,7 +32,7 @@ const Index = () => {
         <div className="flex items-center gap-2">
           <AppLogo className="w-10 h-10" />
           <span className="font-display font-bold text-xl text-foreground">
-            INKOTA<span className="text-primary">SUB</span>
+            Inkota<span className="text-primary">sub</span>
           </span>
         </div>
       </header>
