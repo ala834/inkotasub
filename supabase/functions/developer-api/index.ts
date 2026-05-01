@@ -483,13 +483,13 @@ async function buyCable(admin: any, userId: string, body: any): Promise<{ status
         return { status: 202, body: { success: false, pending: true, reference, message: "Processing — will be confirmed shortly." } };
       }
       await recordPlanResult(admin, devPlan, false, data?.error);
-      await refundApiWallet(admin, userId, amount, reference, { service: "cable", reason: data.error });
+      await refundApiWallet(admin, userId, totalDebit, reference, { service: "cable", reason: data.error });
       return { status: 502, body: { success: false, error: data.error ?? "Service temporarily unavailable, please try again.", reference, refunded: true } };
     }
     await recordPlanResult(admin, devPlan, true);
     return { status: 200, body: { success: true, reference, provider, smartcard, plan_id: planId, amount } };
   } catch (err) {
-    await refundApiWallet(admin, userId, amount, reference, { service: "cable", reason: String(err) });
+    await refundApiWallet(admin, userId, totalDebit, reference, { service: "cable", reason: String(err) });
     return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   }
 }
