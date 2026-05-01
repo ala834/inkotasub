@@ -433,10 +433,10 @@ async function buyData(admin: any, userId: string, body: any): Promise<{ status:
     }
 
     await recordPlanResult(admin, planRowForTracking, false, data?.error);
-    await refundApiWallet(admin, userId, amount, reference, { service: "data", reason: data?.error });
+    await refundApiWallet(admin, userId, totalDebit, reference, { service: "data", reason: data?.error });
     return { status: 502, body: { success: false, error: data?.error ?? "Service temporarily unavailable, please try again.", reference, refunded: true } };
   } catch (err) {
-    await refundApiWallet(admin, userId, amount, reference, { service: "data", reason: String(err) });
+    await refundApiWallet(admin, userId, totalDebit, reference, { service: "data", reason: String(err) });
     return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   }
 }
