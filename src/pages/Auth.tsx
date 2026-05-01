@@ -182,7 +182,7 @@ const Auth = () => {
         <div className="flex flex-col items-center relative z-10">
           <motion.img
             src={inkotaLogo}
-            alt="INKOTA SUB"
+            alt="Inkotasub"
             className="w-16 h-16 object-contain mb-3 rounded-2xl shadow-lg"
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -191,7 +191,7 @@ const Auth = () => {
           <h1 className="text-2xl font-bold text-white">
             {isLogin && loginReady && !locked
               ? <>Welcome back{profile?.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""} 👋</>
-              : <>INKOTA<span className="text-white/80">SUB</span></>
+              : <>Inkota<span className="text-white/80">sub</span></>
             }
           </h1>
           <p className="text-white/70 text-sm mt-1">

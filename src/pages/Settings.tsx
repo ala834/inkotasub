@@ -244,7 +244,7 @@ const Settings = () => {
       title: "About",
       items: [
         { icon: SettingsIcon, label: "App Version", description: "v1.0.0", iconColor: "text-gray-500 bg-gray-100" },
-        { icon: Building2, label: "Company", description: "INKOTA SUB Technologies", iconColor: "text-gray-500 bg-gray-100" },
+        { icon: Building2, label: "Company", description: "Inkotasub Technologies", iconColor: "text-gray-500 bg-gray-100" },
         { icon: Phone, label: "Contact", description: supportSettings.support_phone, iconColor: "text-gray-500 bg-gray-100" },
       ],
     },
@@ -351,7 +351,7 @@ const Settings = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        <p className="text-xs text-gray-400 text-center pb-4">INKOTA SUB v1.0.0</p>
+        <p className="text-xs text-gray-400 text-center pb-4">Inkotasub v1.0.0</p>
       </main>
 
       {/* Change Password Dialog */}

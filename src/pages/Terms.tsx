@@ -40,7 +40,7 @@ const Terms = () => {
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">1. Acceptance of Terms</h2>
               <p className="text-muted-foreground leading-relaxed">
-                By creating an account or using INKOTA SUB services, you agree to be bound by these Terms 
+                By creating an account or using Inkotasub services, you agree to be bound by these Terms 
                 and Conditions. If you do not agree to these terms, please do not use our services. These 
                 terms apply to all users of our VTU (Virtual Top-Up) platform in Nigeria.
               </p>
@@ -49,7 +49,7 @@ const Terms = () => {
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">2. Services Provided</h2>
               <p className="text-muted-foreground leading-relaxed">
-                INKOTA SUB provides the following digital services:
+                Inkotasub provides the following digital services:
               </p>
               <ul className="list-disc pl-6 text-muted-foreground space-y-2">
                 <li><strong>Airtime Purchase:</strong> Buy MTN, Glo, Airtel, and 9mobile airtime</li>
@@ -64,7 +64,7 @@ const Terms = () => {
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">3. User Responsibilities</h2>
               <p className="text-muted-foreground leading-relaxed">
-                As a user of INKOTA SUB, you agree to:
+                As a user of Inkotasub, you agree to:
               </p>
               <ul className="list-disc pl-6 text-muted-foreground space-y-2">
                 <li>Provide accurate and complete registration information</li>
@@ -80,7 +80,7 @@ const Terms = () => {
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">4. Account Registration</h2>
               <p className="text-muted-foreground leading-relaxed">
-                To use INKOTA SUB services, you must:
+                To use Inkotasub services, you must:
               </p>
               <ul className="list-disc pl-6 text-muted-foreground space-y-2">
                 <li>Be at least 18 years of age</li>
@@ -97,7 +97,7 @@ const Terms = () => {
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">5. Payments and Transactions</h2>
               <p className="text-muted-foreground leading-relaxed">
-                All transactions on INKOTA SUB are processed in Nigerian Naira (₦). By making a purchase:
+                All transactions on Inkotasub are processed in Nigerian Naira (₦). By making a purchase:
               </p>
               <ul className="list-disc pl-6 text-muted-foreground space-y-2">
                 <li>You authorize us to deduct the transaction amount from your wallet balance</li>
@@ -111,7 +111,7 @@ const Terms = () => {
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">6. Wallet Funding</h2>
               <p className="text-muted-foreground leading-relaxed">
-                You can fund your INKOTA SUB wallet through:
+                You can fund your Inkotasub wallet through:
               </p>
               <ul className="list-disc pl-6 text-muted-foreground space-y-2">
                 <li>Bank transfer to your unique virtual account number</li>
@@ -140,7 +140,7 @@ const Terms = () => {
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">8. Limitation of Liability</h2>
               <p className="text-muted-foreground leading-relaxed">
-                INKOTA SUB shall not be liable for:
+                Inkotasub shall not be liable for:
               </p>
               <ul className="list-disc pl-6 text-muted-foreground space-y-2">
                 <li>Transactions made to incorrect recipient details provided by the user</li>
@@ -154,7 +154,7 @@ const Terms = () => {
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">9. Intellectual Property</h2>
               <p className="text-muted-foreground leading-relaxed">
-                All content, trademarks, logos, and intellectual property on INKOTA SUB are owned by us 
+                All content, trademarks, logos, and intellectual property on Inkotasub are owned by us 
                 or our licensors. You may not copy, reproduce, or distribute any content without our 
                 express written permission.
               </p>
@@ -183,7 +183,7 @@ const Terms = () => {
                 For questions about these Terms and Conditions, please contact us:
               </p>
               <div className="bg-muted/50 rounded-xl p-4 text-muted-foreground">
-                <p><strong>INKOTA SUB Technologies</strong></p>
+                <p><strong>Inkotasub Technologies</strong></p>
                 <p>Email: inkotasub123@gmail.com</p>
                 <p>Phone: +234 903 422 6643</p>
                 <p>Address: Lagos, Nigeria</p>

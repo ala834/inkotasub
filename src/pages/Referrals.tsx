@@ -46,7 +46,7 @@ const Referrals = () => {
   const shareReferralLink = () => {
     const referralLink = `${window.location.origin}/auth?ref=${profile?.referral_code}`;
     if (navigator.share) {
-      navigator.share({ title: "Join INKOTA SUB", text: `Use my referral code ${profile?.referral_code} to sign up and we both earn rewards!`, url: referralLink });
+      navigator.share({ title: "Join Inkotasub", text: `Use my referral code ${profile?.referral_code} to sign up and we both earn rewards!`, url: referralLink });
     } else { navigator.clipboard.writeText(referralLink); toast.success("Referral link copied!"); }
   };
 

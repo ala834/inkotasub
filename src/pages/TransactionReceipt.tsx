@@ -166,7 +166,7 @@ const TransactionReceipt = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `INKOTA-Receipt-${transaction!.reference || transaction!.id}.png`;
+    a.download = `Inkotasub-Receipt-${transaction!.reference || transaction!.id}.png`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("Receipt downloaded!", { id: "download" });
@@ -177,11 +177,11 @@ const TransactionReceipt = () => {
     const blob = await generateReceiptImage();
 
     if (blob && navigator.share && navigator.canShare?.({ files: [new File([blob], "receipt.png", { type: "image/png" })] })) {
-      const file = new File([blob], `INKOTA-Receipt-${transaction!.reference || transaction!.id}.png`, { type: "image/png" });
+      const file = new File([blob], `Inkotasub-Receipt-${transaction!.reference || transaction!.id}.png`, { type: "image/png" });
       try {
         await navigator.share({
           title: "Transaction Receipt",
-          text: `INKOTA SUB Receipt - ${formatCurrency(transaction!.amount)}`,
+          text: `Inkotasub Receipt - ${formatCurrency(transaction!.amount)}`,
           files: [file],
         });
         toast.dismiss("share");
@@ -194,14 +194,14 @@ const TransactionReceipt = () => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `INKOTA-Receipt-${transaction!.reference || transaction!.id}.png`;
+        a.download = `Inkotasub-Receipt-${transaction!.reference || transaction!.id}.png`;
         a.click();
         URL.revokeObjectURL(url);
         toast.success("Receipt downloaded — share it from your gallery!", { id: "share" });
       } else {
         // Text fallback
         const text = [
-          "INKOTA SUB - Transaction Receipt",
+          "Inkotasub - Transaction Receipt",
           `Amount: ${formatCurrency(transaction!.amount)}`,
           `Status: ${transaction!.status.toUpperCase()}`,
           `Service: ${getServiceName()}`,
@@ -483,7 +483,7 @@ const TransactionReceipt = () => {
 
         {/* Branding - visible on screen */}
         <p className="text-center text-xs text-muted-foreground mt-6">
-          INKOTA SUB LTD
+          Inkotasub Ltd
         </p>
 
         {/* Watermark - hidden on screen, shown during image capture */}
@@ -492,9 +492,9 @@ const TransactionReceipt = () => {
           className="items-center justify-center gap-2 mt-6 pb-2"
           style={{ display: "none" }}
         >
-          <img src={inkotaLogo} alt="INKOTA SUB" className="w-8 h-8 rounded-lg" />
+          <img src={inkotaLogo} alt="Inkotasub" className="w-8 h-8 rounded-lg" />
           <div className="text-center">
-            <p className="text-sm font-bold text-foreground">INKOTA SUB LTD</p>
+            <p className="text-sm font-bold text-foreground">Inkotasub Ltd</p>
             <p className="text-[10px] text-muted-foreground">www.inkotasub.com • Reliable VTU Services</p>
           </div>
         </div>
@@ -511,7 +511,7 @@ const TransactionReceipt = () => {
           >
             <img src={inkotaLogo} alt="" className="w-16 h-16 rounded-xl" />
             <p className="text-2xl font-extrabold tracking-widest text-foreground whitespace-nowrap">
-              INKOTA SUB LTD
+              Inkotasub Ltd
             </p>
             <p className="text-xs font-semibold tracking-wider text-foreground whitespace-nowrap">
               www.inkotasub.com

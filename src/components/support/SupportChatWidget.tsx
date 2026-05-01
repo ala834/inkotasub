@@ -276,7 +276,7 @@ const SupportChatWidget = () => {
       setMessages([{
         id: "greeting",
         role: "assistant",
-        content: "Hi! 👋 I'm INKOTA's AI assistant. I can help with questions about airtime, data, wallet, payments, and more. How can I help you today?",
+        content: "Hi! 👋 I'm Inkotasub's AI assistant. I can help with questions about airtime, data, wallet, payments, and more. How can I help you today?",
         timestamp: new Date(),
         isAI: true,
       }]);

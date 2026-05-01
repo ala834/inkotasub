@@ -52,7 +52,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
             <AppLogo className="w-8 h-8" />
             <div className="flex flex-col">
               <span className="font-display font-bold text-lg text-foreground leading-tight">
-                INKOTA<span className="text-primary">SUB</span>
+                Inkota<span className="text-primary">sub</span>
               </span>
               {profile?.username && (
                 <span className="text-xs text-muted-foreground leading-tight">@{profile.username}</span>

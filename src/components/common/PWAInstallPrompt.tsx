@@ -73,7 +73,7 @@ const PWAInstallPrompt = () => {
           <AppLogo className="w-12 h-12" />
           <div>
             <h3 className="font-display font-bold text-foreground text-sm">
-              Install INKOTA SUB
+              Install Inkotasub
             </h3>
             <p className="text-xs text-muted-foreground">
               Add to home screen for the best experience

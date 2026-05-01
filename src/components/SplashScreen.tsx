@@ -50,7 +50,7 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.5 }}
           >
-            INKOTA<span className="text-amber-400">SUB</span>
+            Inkota<span className="text-amber-400">sub</span>
           </motion.h1>
 
           {/* Tagline */}

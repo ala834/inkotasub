@@ -85,7 +85,7 @@ export async function authenticateWithBiometric(
     const { NativeBiometric } = await import("capacitor-native-biometric");
     await NativeBiometric.verifyIdentity({
       reason,
-      title: "INKOTA SUB",
+      title: "Inkotasub",
       subtitle: reason,
       description: "Use your fingerprint to continue",
       useFallback: false,

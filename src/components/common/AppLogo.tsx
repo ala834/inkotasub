@@ -6,7 +6,7 @@ interface AppLogoProps {
   alt?: string;
 }
 
-const AppLogo = ({ className = "w-8 h-8", alt = "INKOTA SUB" }: AppLogoProps) => {
+const AppLogo = ({ className = "w-8 h-8", alt = "Inkotasub" }: AppLogoProps) => {
   const [hasError, setHasError] = useState(false);
 
   const handleError = useCallback(() => {
@@ -20,7 +20,7 @@ const AppLogo = ({ className = "w-8 h-8", alt = "INKOTA SUB" }: AppLogoProps) =>
         role="img"
         aria-label={alt}
       >
-        <span className="font-display font-bold text-primary text-xs">AK</span>
+        <span className="font-display font-bold text-primary text-xs">IS</span>
       </div>
     );
   }

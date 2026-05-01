@@ -167,7 +167,7 @@ const TransactionResultScreen = ({
       transactionId ? `Ref: ${transactionId}` : "",
       `Date: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`,
       "",
-      "Powered by INKOTA SUB",
+      "Powered by Inkotasub",
     ]
       .filter(Boolean)
       .join("\n");
