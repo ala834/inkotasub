@@ -467,7 +467,9 @@ async function buyCable(admin: any, userId: string, body: any): Promise<{ status
   }
 
   const reference = `api_cable_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await debitApiWallet(admin, userId, amount, reference, { service: "cable", provider, smartcard, plan_id: planId, amount });
+  const serviceCharge = await getApiServiceCharge(admin);
+  const totalDebit = amount + serviceCharge;
+  await debitApiWallet(admin, userId, totalDebit, reference, { service: "cable", provider, smartcard, plan_id: planId, amount, service_charge: serviceCharge });
 
   try {
     const resp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/purchase-cable`, {
