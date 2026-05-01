@@ -279,7 +279,9 @@ async function buyAirtime(admin: any, userId: string, body: any): Promise<{ stat
   }
 
   const reference = `api_air_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await debitApiWallet(admin, userId, amount, reference, { service: "airtime", network, phone: phone.intl, amount });
+  const serviceCharge = await getApiServiceCharge(admin);
+  const totalDebit = amount + serviceCharge;
+  await debitApiWallet(admin, userId, totalDebit, reference, { service: "airtime", network, phone: phone.intl, amount, service_charge: serviceCharge });
 
   // 9mobile airtime is fragile — explicit chain prefers Subpadi → SMEPlug → ClubKonnect
   const providerChain = network === "9mobile"
