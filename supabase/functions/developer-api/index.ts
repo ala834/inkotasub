@@ -212,6 +212,14 @@ async function listServicePlans(admin: any, url: URL): Promise<{ status: number;
 }
 
 // ---- Wallet helpers ----
+async function getApiServiceCharge(admin: any): Promise<number> {
+  try {
+    const { data } = await admin.from("app_settings").select("value").eq("key", "api_service_charge").maybeSingle();
+    const n = Number(data?.value ?? 0);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch { return 0; }
+}
+
 async function debitApiWallet(admin: any, userId: string, amount: number, reference: string, metadata: any) {
   const { data: balanceBefore } = await admin.rpc("get_api_wallet_balance", { p_user_id: userId });
   const { data: newBalance, error } = await admin.rpc("atomic_api_wallet_debit", { p_user_id: userId, p_amount: amount });
@@ -271,7 +279,9 @@ async function buyAirtime(admin: any, userId: string, body: any): Promise<{ stat
   }
 
   const reference = `api_air_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await debitApiWallet(admin, userId, amount, reference, { service: "airtime", network, phone: phone.intl, amount });
+  const serviceCharge = await getApiServiceCharge(admin);
+  const totalDebit = amount + serviceCharge;
+  await debitApiWallet(admin, userId, totalDebit, reference, { service: "airtime", network, phone: phone.intl, amount, service_charge: serviceCharge });
 
   // 9mobile airtime is fragile — explicit chain prefers Subpadi → SMEPlug → ClubKonnect
   const providerChain = network === "9mobile"
@@ -313,10 +323,10 @@ async function buyAirtime(admin: any, userId: string, body: any): Promise<{ stat
       };
     }
 
-    await refundApiWallet(admin, userId, amount, reference, { service: "airtime", reason: result.message });
+    await refundApiWallet(admin, userId, totalDebit, reference, { service: "airtime", reason: result.message });
     return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   } catch (err) {
-    await refundApiWallet(admin, userId, amount, reference, { service: "airtime", reason: String(err) });
+    await refundApiWallet(admin, userId, totalDebit, reference, { service: "airtime", reason: String(err) });
     return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   }
 }
@@ -372,8 +382,10 @@ async function buyData(admin: any, userId: string, body: any): Promise<{ status:
   }
 
   const reference = `api_data_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await debitApiWallet(admin, userId, amount, reference, {
-    service: "data", network, phone: phone.intl, plan_id: planId, amount, provider_hint: resolvedProvider,
+  const serviceCharge = await getApiServiceCharge(admin);
+  const totalDebit = amount + serviceCharge;
+  await debitApiWallet(admin, userId, totalDebit, reference, {
+    service: "data", network, phone: phone.intl, plan_id: planId, amount, service_charge: serviceCharge, provider_hint: resolvedProvider,
   });
 
   // Forward to internal purchase-data — pass smart-routing hints
@@ -421,10 +433,10 @@ async function buyData(admin: any, userId: string, body: any): Promise<{ status:
     }
 
     await recordPlanResult(admin, planRowForTracking, false, data?.error);
-    await refundApiWallet(admin, userId, amount, reference, { service: "data", reason: data?.error });
+    await refundApiWallet(admin, userId, totalDebit, reference, { service: "data", reason: data?.error });
     return { status: 502, body: { success: false, error: data?.error ?? "Service temporarily unavailable, please try again.", reference, refunded: true } };
   } catch (err) {
-    await refundApiWallet(admin, userId, amount, reference, { service: "data", reason: String(err) });
+    await refundApiWallet(admin, userId, totalDebit, reference, { service: "data", reason: String(err) });
     return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   }
 }
@@ -455,7 +467,9 @@ async function buyCable(admin: any, userId: string, body: any): Promise<{ status
   }
 
   const reference = `api_cable_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await debitApiWallet(admin, userId, amount, reference, { service: "cable", provider, smartcard, plan_id: planId, amount });
+  const serviceCharge = await getApiServiceCharge(admin);
+  const totalDebit = amount + serviceCharge;
+  await debitApiWallet(admin, userId, totalDebit, reference, { service: "cable", provider, smartcard, plan_id: planId, amount, service_charge: serviceCharge });
 
   try {
     const resp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/purchase-cable`, {
@@ -469,13 +483,13 @@ async function buyCable(admin: any, userId: string, body: any): Promise<{ status
         return { status: 202, body: { success: false, pending: true, reference, message: "Processing — will be confirmed shortly." } };
       }
       await recordPlanResult(admin, devPlan, false, data?.error);
-      await refundApiWallet(admin, userId, amount, reference, { service: "cable", reason: data.error });
+      await refundApiWallet(admin, userId, totalDebit, reference, { service: "cable", reason: data.error });
       return { status: 502, body: { success: false, error: data.error ?? "Service temporarily unavailable, please try again.", reference, refunded: true } };
     }
     await recordPlanResult(admin, devPlan, true);
     return { status: 200, body: { success: true, reference, provider, smartcard, plan_id: planId, amount } };
   } catch (err) {
-    await refundApiWallet(admin, userId, amount, reference, { service: "cable", reason: String(err) });
+    await refundApiWallet(admin, userId, totalDebit, reference, { service: "cable", reason: String(err) });
     return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   }
 }
@@ -488,7 +502,9 @@ async function buyElectricity(admin: any, userId: string, body: any): Promise<{ 
   if (!disco || !meter || !amount || amount < 500) return { status: 400, body: { success: false, error: "disco, meter, meter_type, amount (min 500) required" } };
 
   const reference = `api_elec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await debitApiWallet(admin, userId, amount, reference, { service: "electricity", disco, meter, meterType, amount });
+  const serviceCharge = await getApiServiceCharge(admin);
+  const totalDebit = amount + serviceCharge;
+  await debitApiWallet(admin, userId, totalDebit, reference, { service: "electricity", disco, meter, meterType, amount, service_charge: serviceCharge });
 
   try {
     const resp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/purchase-electricity`, {
@@ -501,12 +517,12 @@ async function buyElectricity(admin: any, userId: string, body: any): Promise<{ 
       if (resp.status === 202 || data?.pending) {
         return { status: 202, body: { success: false, pending: true, reference, message: "Processing — will be confirmed shortly." } };
       }
-      await refundApiWallet(admin, userId, amount, reference, { service: "electricity", reason: data.error });
+      await refundApiWallet(admin, userId, totalDebit, reference, { service: "electricity", reason: data.error });
       return { status: 502, body: { success: false, error: data.error ?? "Service temporarily unavailable, please try again.", reference, refunded: true } };
     }
     return { status: 200, body: { success: true, reference, disco, meter, amount, token: data.token, units: data.units } };
   } catch (err) {
-    await refundApiWallet(admin, userId, amount, reference, { service: "electricity", reason: String(err) });
+    await refundApiWallet(admin, userId, totalDebit, reference, { service: "electricity", reason: String(err) });
     return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   }
 }

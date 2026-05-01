@@ -47,6 +47,10 @@ const AdminPricingTab = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<PricingConfig | null>(null);
+
+  // API service charge state
+  const [apiCharge, setApiCharge] = useState<string>("0");
+  const [apiChargeSaving, setApiChargeSaving] = useState(false);
   
   // Form state
   const [serviceType, setServiceType] = useState("airtime");
@@ -59,7 +63,33 @@ const AdminPricingTab = () => {
 
   useEffect(() => {
     fetchPricingConfigs();
+    fetchApiCharge();
   }, []);
+
+  const fetchApiCharge = async () => {
+    const { data } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "api_service_charge")
+      .maybeSingle();
+    if (data?.value !== undefined && data?.value !== null) setApiCharge(String(data.value));
+  };
+
+  const saveApiCharge = async () => {
+    const n = Number(apiCharge);
+    if (!Number.isFinite(n) || n < 0) {
+      toast.error("Enter a valid amount (₦0 or more)");
+      return;
+    }
+    setApiChargeSaving(true);
+    const { error } = await supabase
+      .from("app_settings")
+      .upsert({ key: "api_service_charge", value: String(n), description: "Flat ₦ surcharge added to every developer API transaction." }, { onConflict: "key" });
+    setApiChargeSaving(false);
+    if (error) toast.error("Failed to update API charge");
+    else toast.success(`API service charge set to ₦${n.toLocaleString()}`);
+  };
+
 
   const fetchPricingConfigs = async () => {
     setIsLoading(true);
@@ -179,6 +209,31 @@ const AdminPricingTab = () => {
 
   return (
     <div className="space-y-4">
+      <div className="glass-card rounded-xl p-4 space-y-3 border border-primary/20">
+        <div>
+          <h3 className="font-semibold text-base">Developer API Service Charge</h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Flat ₦ amount added on top of every Developer API transaction (airtime, data, cable, electricity).
+          </p>
+        </div>
+        <div className="flex items-end gap-2">
+          <div className="space-y-1 flex-1 max-w-xs">
+            <Label className="text-xs">Charge (₦)</Label>
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              value={apiCharge}
+              onChange={(e) => setApiCharge(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+          <Button onClick={saveApiCharge} disabled={apiChargeSaving} size="sm">
+            {apiChargeSaving ? "Saving..." : "Save"}
+          </Button>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-lg">Pricing Configuration</h3>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
