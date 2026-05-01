@@ -20,7 +20,7 @@ const AppLogo = ({ className = "w-8 h-8", alt = "Inkotasub" }: AppLogoProps) => 
         role="img"
         aria-label={alt}
       >
-        <span className="font-display font-bold text-primary text-xs">AK</span>
+        <span className="font-display font-bold text-primary text-xs">IS</span>
       </div>
     );
   }
