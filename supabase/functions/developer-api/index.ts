@@ -502,7 +502,9 @@ async function buyElectricity(admin: any, userId: string, body: any): Promise<{ 
   if (!disco || !meter || !amount || amount < 500) return { status: 400, body: { success: false, error: "disco, meter, meter_type, amount (min 500) required" } };
 
   const reference = `api_elec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await debitApiWallet(admin, userId, amount, reference, { service: "electricity", disco, meter, meterType, amount });
+  const serviceCharge = await getApiServiceCharge(admin);
+  const totalDebit = amount + serviceCharge;
+  await debitApiWallet(admin, userId, totalDebit, reference, { service: "electricity", disco, meter, meterType, amount, service_charge: serviceCharge });
 
   try {
     const resp = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/purchase-electricity`, {
