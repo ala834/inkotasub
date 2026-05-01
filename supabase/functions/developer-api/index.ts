@@ -323,10 +323,10 @@ async function buyAirtime(admin: any, userId: string, body: any): Promise<{ stat
       };
     }
 
-    await refundApiWallet(admin, userId, amount, reference, { service: "airtime", reason: result.message });
+    await refundApiWallet(admin, userId, totalDebit, reference, { service: "airtime", reason: result.message });
     return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   } catch (err) {
-    await refundApiWallet(admin, userId, amount, reference, { service: "airtime", reason: String(err) });
+    await refundApiWallet(admin, userId, totalDebit, reference, { service: "airtime", reason: String(err) });
     return { status: 502, body: { success: false, error: "Service temporarily unavailable, please try again.", reference, refunded: true } };
   }
 }
