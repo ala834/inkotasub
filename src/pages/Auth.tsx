@@ -182,7 +182,7 @@ const Auth = () => {
         <div className="flex flex-col items-center relative z-10">
           <motion.img
             src={inkotaLogo}
-            alt="INKOTA SUB"
+            alt="Inkotasub"
             className="w-16 h-16 object-contain mb-3 rounded-2xl shadow-lg"
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}

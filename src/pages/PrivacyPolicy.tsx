@@ -40,7 +40,7 @@ const PrivacyPolicy = () => {
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">1. Introduction</h2>
               <p className="text-muted-foreground leading-relaxed">
-                Welcome to INKOTA SUB ("we", "our", or "us"). We are committed to protecting your personal 
+                Welcome to Inkotasub ("we", "our", or "us"). We are committed to protecting your personal 
                 information and your right to privacy. This Privacy Policy explains how we collect, use, 
                 disclose, and safeguard your information when you use our mobile application and services 
                 for purchasing airtime, data bundles, electricity tokens, cable TV subscriptions, and exam cards.
@@ -68,7 +68,7 @@ const PrivacyPolicy = () => {
               </p>
               <ul className="list-disc pl-6 text-muted-foreground space-y-2">
                 <li>Process your transactions (airtime, data, electricity, cable TV, exam cards)</li>
-                <li>Create and manage your INKOTA SUB account</li>
+                <li>Create and manage your Inkotasub account</li>
                 <li>Provide customer support and respond to your inquiries</li>
                 <li>Send transaction confirmations, receipts, and notifications</li>
                 <li>Improve our services and develop new features</li>
@@ -130,7 +130,7 @@ const PrivacyPolicy = () => {
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">8. Children's Privacy</h2>
               <p className="text-muted-foreground leading-relaxed">
-                INKOTA SUB services are not intended for individuals under the age of 18. We do not 
+                Inkotasub services are not intended for individuals under the age of 18. We do not 
                 knowingly collect personal information from children. If you believe we have collected 
                 information from a minor, please contact us immediately.
               </p>
@@ -152,7 +152,7 @@ const PrivacyPolicy = () => {
                 please contact us at:
               </p>
               <div className="bg-muted/50 rounded-xl p-4 text-muted-foreground">
-                <p><strong>INKOTA SUB Technologies</strong></p>
+                <p><strong>Inkotasub Technologies</strong></p>
                 <p>Email: inkotasub123@gmail.com</p>
                 <p>Phone: +234 903 422 6643</p>
                 <p>Address: Lagos, Nigeria</p>

@@ -40,7 +40,7 @@ const RefundPolicy = () => {
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">1. Overview</h2>
               <p className="text-muted-foreground leading-relaxed">
-                At INKOTA SUB, we strive to provide reliable VTU services. This Refund Policy outlines 
+                At Inkotasub, we strive to provide reliable VTU services. This Refund Policy outlines 
                 the conditions under which refunds may be issued for transactions made on our platform. 
                 Please read this policy carefully before making any purchase.
               </p>
@@ -93,7 +93,7 @@ const RefundPolicy = () => {
                 Approved refunds will be processed as follows:
               </p>
               <ul className="list-disc pl-6 text-muted-foreground space-y-2">
-                <li><strong>Wallet Credit:</strong> Refunds are credited directly to your INKOTA SUB wallet (default method)</li>
+                <li><strong>Wallet Credit:</strong> Refunds are credited directly to your Inkotasub wallet (default method)</li>
                 <li><strong>Processing Time:</strong> Wallet refunds are processed within 24-48 hours of approval</li>
                 <li><strong>Bank Transfer:</strong> Available for amounts above ₦10,000 upon request (may take 3-5 business days)</li>
               </ul>
@@ -171,7 +171,7 @@ const RefundPolicy = () => {
                 For refund requests or questions about this policy, please contact us:
               </p>
               <div className="bg-muted/50 rounded-xl p-4 text-muted-foreground">
-                <p><strong>INKOTA SUB Support Team</strong></p>
+                <p><strong>Inkotasub Support Team</strong></p>
                 <p>Email: inkotasub123@gmail.com</p>
                 <p>WhatsApp: +234 903 422 6643</p>
                 <p>Response Time: 24-48 hours</p>

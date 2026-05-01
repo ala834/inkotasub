@@ -14,9 +14,9 @@ const faqCategories = [
   {
     title: "Getting Started",
     faqs: [
-      { question: "What is INKOTA SUB?", answer: "INKOTA SUB is a Nigerian VTU (Virtual Top-Up) platform that allows you to purchase airtime, data bundles, pay electricity bills, subscribe to cable TV, and buy exam cards (WAEC, NECO, JAMB) instantly from your mobile device." },
+      { question: "What is Inkotasub?", answer: "Inkotasub is a Nigerian VTU (Virtual Top-Up) platform that allows you to purchase airtime, data bundles, pay electricity bills, subscribe to cable TV, and buy exam cards (WAEC, NECO, JAMB) instantly from your mobile device." },
       { question: "How do I create an account?", answer: "Download the app or visit our website, click on 'Sign Up', enter your phone number, and follow the OTP verification process. Once verified, you can set up your transaction PIN and start using our services." },
-      { question: "Is INKOTA SUB free to use?", answer: "Yes, creating an account and using our platform is completely free. You only pay for the services you purchase (airtime, data, electricity, etc.) at competitive rates." },
+      { question: "Is Inkotasub free to use?", answer: "Yes, creating an account and using our platform is completely free. You only pay for the services you purchase (airtime, data, electricity, etc.) at competitive rates." },
       { question: "What networks do you support?", answer: "We support all major Nigerian networks including MTN, Glo, Airtel, and 9mobile for airtime and data services." },
     ]
   },
@@ -24,7 +24,7 @@ const faqCategories = [
     title: "Wallet & Funding",
     faqs: [
       { question: "How do I fund my wallet?", answer: "You can fund your wallet via bank transfer to your unique virtual account number, card payment (Mastercard, Visa, Verve), or USSD. Bank transfers are credited automatically within seconds." },
-      { question: "What is a virtual account?", answer: "Your virtual account is a unique bank account number assigned to you for funding your INKOTA SUB wallet. Any transfer to this account is automatically credited to your wallet instantly." },
+      { question: "What is a virtual account?", answer: "Your virtual account is a unique bank account number assigned to you for funding your Inkotasub wallet. Any transfer to this account is automatically credited to your wallet instantly." },
       { question: "Is there a minimum funding amount?", answer: "Yes, the minimum funding amount is ₦100. There is no maximum limit for wallet funding." },
       { question: "How long does wallet funding take?", answer: "Bank transfers to your virtual account are usually credited within seconds. Card payments are instant. In rare cases, it may take up to 30 minutes during high traffic periods." },
       { question: "Can I withdraw money from my wallet?", answer: "Currently, wallet withdrawals are not supported. Your wallet balance can only be used for purchasing services on our platform. Please fund only the amount you intend to use." },
@@ -67,10 +67,10 @@ const faqCategories = [
   {
     title: "Security & Account",
     faqs: [
-      { question: "What is a transaction PIN?", answer: "Your transaction PIN is a 4-digit code used to authorize all purchases on INKOTA SUB. Keep it confidential and never share it with anyone." },
+      { question: "What is a transaction PIN?", answer: "Your transaction PIN is a 4-digit code used to authorize all purchases on Inkotasub. Keep it confidential and never share it with anyone." },
       { question: "What happens if I forget my PIN?", answer: "Go to Settings > Security > Change Transaction PIN. You may need to verify your identity through OTP before resetting your PIN." },
       { question: "What if I enter the wrong PIN multiple times?", answer: "After 5 failed PIN attempts, your account will be temporarily locked for 30 minutes for security purposes. Contact support if you need immediate assistance." },
-      { question: "Is my data safe with INKOTA SUB?", answer: "Yes, we use industry-standard encryption (SSL/TLS) and secure hashing (bcrypt) for all sensitive data. Your information is protected according to our Privacy Policy." },
+      { question: "Is my data safe with Inkotasub?", answer: "Yes, we use industry-standard encryption (SSL/TLS) and secure hashing (bcrypt) for all sensitive data. Your information is protected according to our Privacy Policy." },
     ]
   },
   {
