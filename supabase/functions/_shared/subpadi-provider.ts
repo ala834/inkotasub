@@ -198,12 +198,14 @@ export async function subpadiPurchaseData(
   if (!networkId) return { success: false, message: "Invalid network", rawResponse: null };
 
   try {
+    const localPhone = toLocalPhone(phoneNumber);
+    console.log(`[Subpadi] Data → phone normalized ${phoneNumber} → ${localPhone}`);
     const response = await fetchWithRetry(`${SUBPADI_BASE_URL}/data/`, {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify({
         network: networkId,
-        mobile_number: phoneNumber,
+        mobile_number: localPhone,
         plan: parseInt(planId, 10),
         Ported_number: true,
       }),
