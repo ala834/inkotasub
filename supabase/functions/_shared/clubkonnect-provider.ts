@@ -2,7 +2,15 @@
 // Base URL: https://www.clubkonnect.com/
 // Auth: UserID + APIKey as query parameters (HTTPS GET API)
 
+import { normalizePhone } from "./phone-utils.ts";
+
 const CLUBKONNECT_BASE_URL = "https://www.clubkonnect.com";
+
+function toLocalPhone(input: string): string {
+  const norm = normalizePhone(input);
+  if (!norm) throw new Error(`Invalid Nigerian phone number: ${input}`);
+  return norm.local;
+}
 const CLUBKONNECT_TIMEOUT_MS = 30000;
 const CLUBKONNECT_MAX_RETRIES = 2;
 
