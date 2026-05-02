@@ -160,14 +160,15 @@ export async function clubkonnectPurchaseData(
   if (!networkCode) return { success: false, message: "Invalid network for ClubKonnect", rawResponse: null };
 
   try {
+    const localPhone = toLocalPhone(phoneNumber);
     const requestId = generateRequestId();
     const url = buildUrl("APIDatabundleV1.asp", {
       MobileNetwork: networkCode,
       DataPlan: planId,
-      MobileNumber: phoneNumber,
+      MobileNumber: localPhone,
       RequestID: requestId,
     });
-    console.log("ClubKonnect Data Request - network:", network, "plan:", planId, "phone:", phoneNumber);
+    console.log(`[ClubKonnect] Data → phone normalized ${phoneNumber} → ${localPhone}, network:${network}, plan:${planId}`);
     const response = await fetchWithRetry(url);
     const text = await response.text();
     let data: any;
