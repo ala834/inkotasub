@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Bell, User, Eye, EyeOff, Plus, ArrowUpRight, ChevronRight, Shield, LogOut } from "lucide-react";
+import { Bell, User, Eye, EyeOff, Plus, ArrowUpRight, ChevronRight, Shield, LogOut, Phone, AlertCircle } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import BottomNav from "@/components/layout/BottomNav";
 import ServicesGrid from "@/components/services/ServicesGrid";
@@ -181,6 +181,25 @@ const Dashboard = () => {
 
       {/* Content area with negative margin to overlap header */}
       <main className="px-4 -mt-6 max-w-lg mx-auto space-y-5 relative z-10">
+        {/* Missing phone prompt for legacy users */}
+        {profile && !profile.phone_number && (
+          <motion.button
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={() => navigate("/profile")}
+            className="w-full text-left bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3 active:bg-amber-100 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <Phone className="h-5 w-5 text-amber-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-900">Please update your phone number</p>
+              <p className="text-xs text-amber-700 mt-0.5">Required for transactions and account recovery.</p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-amber-600 flex-shrink-0" />
+          </motion.button>
+        )}
+
         {/* Promo Banner */}
         <PromoBanner />
 

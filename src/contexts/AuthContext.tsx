@@ -25,7 +25,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   adminRole: AdminRole;
-  signUp: (email: string, password: string, fullName?: string, username?: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, fullName?: string, username?: string, phoneNumber?: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -264,18 +264,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName?: string, username?: string) => {
+  const signUp = async (email: string, password: string, fullName?: string, username?: string, phoneNumber?: string) => {
     const redirectUrl = `${window.location.origin}/`;
-    
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: redirectUrl,
-        data: { full_name: fullName, username: username?.toLowerCase() },
+        data: {
+          full_name: fullName,
+          username: username?.toLowerCase(),
+          phone_number: phoneNumber || undefined,
+        },
       },
     });
-    
+
     return { error };
   };
 

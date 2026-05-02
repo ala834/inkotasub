@@ -11,6 +11,7 @@ import { useBiometric } from "@/hooks/useBiometric";
 import { storeCredentials } from "@/lib/biometric";
 import { cn } from "@/lib/utils";
 import inkotaLogo from "@/assets/inkota-logo.png";
+import { normalizeNigerianPhone } from "@/lib/phone";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
@@ -103,7 +104,8 @@ const Auth = () => {
       try { emailSchema.parse(formData.email); } catch (e) { if (e instanceof z.ZodError) newErrors.email = e.errors[0].message; }
       try { usernameSchema.parse(formData.username); } catch (e) { if (e instanceof z.ZodError) newErrors.username = e.errors[0].message; }
       if (!formData.fullName.trim()) newErrors.fullName = "Full name is required";
-      if (!formData.phoneNumber.trim() || formData.phoneNumber.replace(/\D/g, "").length < 10) newErrors.phoneNumber = "Please enter a valid phone number";
+      if (!formData.phoneNumber.trim()) newErrors.phoneNumber = "Phone number is required";
+      else if (!normalizeNigerianPhone(formData.phoneNumber)) newErrors.phoneNumber = "Invalid phone number. Use 11 digits starting with 0 (e.g. 08012345678).";
       if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = "Passwords do not match";
     }
     try { passwordSchema.parse(formData.password); } catch (e) { if (e instanceof z.ZodError) newErrors.password = e.errors[0].message; }
@@ -134,22 +136,26 @@ const Auth = () => {
         toast.success("Welcome back! 👋");
         await storeCredentials(emailToUse, formData.password);
       } else {
-        if (formData.phoneNumber) {
-          const { data: existingPhone } = await supabase.from("profiles").select("id").eq("phone_number", formData.phoneNumber.replace(/\D/g, "").replace(/^(\d{10})$/, "0$1")).maybeSingle();
-          if (existingPhone) { toast.error("This phone number is already in use."); setLoading(false); return; }
+        const normPhone = normalizeNigerianPhone(formData.phoneNumber);
+        if (!normPhone) {
+          toast.error("Invalid phone number");
+          setErrors(prev => ({ ...prev, phoneNumber: "Invalid phone number" }));
+          setLoading(false);
+          return;
         }
+        const { data: existingPhone } = await supabase.from("profiles").select("id").eq("phone_number", normPhone.local).maybeSingle();
+        if (existingPhone) { toast.error("This phone number is already in use."); setLoading(false); return; }
         const normalizedUsername = formData.username.trim().toLowerCase();
         const { data: existingUsername } = await supabase.from("profiles").select("id").eq("username", normalizedUsername).maybeSingle();
         if (existingUsername) { toast.error("This username is already taken."); setLoading(false); return; }
         localStorage.setItem("pendingUsername", normalizedUsername);
-        const { error } = await signUp(formData.email, formData.password, formData.fullName, normalizedUsername);
+        const { error } = await signUp(formData.email, formData.password, formData.fullName, normalizedUsername, normPhone.local);
         if (error) {
           if (error.message.includes("already registered") || error.message.includes("already been registered")) toast.error("This email is already registered. Please login instead.");
           else if (error.message === "Failed to fetch" || error.message.includes("NetworkError")) toast.error("Network error. Please check your connection.");
           else toast.error(error.message || "Signup failed");
           return;
         }
-        if (formData.phoneNumber) localStorage.setItem("pendingPhoneNumber", formData.phoneNumber);
         if (formData.referralCode) localStorage.setItem("pendingReferralCode", formData.referralCode.toUpperCase());
         supabase.functions.invoke("send-welcome-email", { body: { email: formData.email, fullName: formData.fullName } }).catch(err => console.error("Welcome email error:", err));
         toast.success("Account created! Please check your email to verify your address, then login.");

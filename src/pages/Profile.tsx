@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import KYCBadge from "@/components/common/KYCBadge";
 import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/layout/BottomNav";
+import { normalizeNigerianPhone } from "@/lib/phone";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -40,10 +41,29 @@ const Profile = () => {
 
   const handleSave = async () => {
     if (!user) return;
+    if (!formData.fullName.trim()) { toast.error("Full name is required"); return; }
+    const norm = normalizeNigerianPhone(formData.phoneNumber);
+    if (!norm) {
+      toast.error("Invalid phone number. Use 11 digits starting with 0 (e.g. 08012345678).");
+      return;
+    }
     setIsLoading(true);
     try {
-      const { error } = await supabase.from("profiles").update({ full_name: formData.fullName, phone_number: formData.phoneNumber }).eq("user_id", user.id);
+      // Reject duplicate phone numbers across accounts
+      const { data: dup } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("phone_number", norm.local)
+        .neq("user_id", user.id)
+        .maybeSingle();
+      if (dup) { toast.error("This phone number is already in use."); setIsLoading(false); return; }
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({ full_name: formData.fullName, phone_number: norm.local })
+        .eq("user_id", user.id);
       if (error) throw error;
+      setFormData(prev => ({ ...prev, phoneNumber: norm.local }));
       await refreshProfile();
       toast.success("Profile updated!");
     } catch { toast.error("Failed to update profile"); }
