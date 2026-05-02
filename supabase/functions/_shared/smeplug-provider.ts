@@ -133,7 +133,9 @@ export async function smeplugPurchaseAirtime(
   if (!networkId) return { success: false, message: "Invalid network for SMEPlug", rawResponse: null };
 
   try {
-    const body = { network_id: networkId, phone, amount };
+    const localPhone = toLocalPhone(phone);
+    const body = { network_id: networkId, phone: localPhone, amount };
+    console.log(`[SMEPlug] Airtime → phone normalized ${phone} → ${localPhone}`);
     console.log("SMEPlug Airtime Request:", JSON.stringify(body));
     const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/airtime/purchase`, {
       method: "POST",
