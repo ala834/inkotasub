@@ -160,13 +160,15 @@ export async function subpadiPurchaseAirtime(
   if (!networkId) return { success: false, message: "Invalid network", rawResponse: null };
 
   try {
+    const localPhone = toLocalPhone(phoneNumber);
+    console.log(`[Subpadi] Airtime → phone normalized ${phoneNumber} → ${localPhone}`);
     const response = await fetchWithRetry(`${SUBPADI_BASE_URL}/topup/`, {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify({
         network: networkId,
         amount: String(amount),
-        mobile_number: phoneNumber,
+        mobile_number: localPhone,
         Ported_number: true,
         airtime_type: "VTU",
       }),
