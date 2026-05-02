@@ -125,14 +125,15 @@ export async function clubkonnectPurchaseAirtime(
   if (!networkCode) return { success: false, message: "Invalid network for ClubKonnect", rawResponse: null };
 
   try {
+    const localPhone = toLocalPhone(phoneNumber);
     const requestId = generateRequestId();
     const url = buildUrl("APIAirtimeV1.asp", {
       MobileNetwork: networkCode,
       Amount: String(amount),
-      MobileNumber: phoneNumber,
+      MobileNumber: localPhone,
       RequestID: requestId,
     });
-    console.log("ClubKonnect Airtime Request - network:", network, "phone:", phoneNumber, "amount:", amount);
+    console.log(`[ClubKonnect] Airtime → phone normalized ${phoneNumber} → ${localPhone}, network:${network}, amount:${amount}`);
     const response = await fetchWithRetry(url);
     const text = await response.text();
     let data: any;
