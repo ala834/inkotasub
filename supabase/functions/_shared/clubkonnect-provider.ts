@@ -2,7 +2,15 @@
 // Base URL: https://www.clubkonnect.com/
 // Auth: UserID + APIKey as query parameters (HTTPS GET API)
 
+import { normalizePhone } from "./phone-utils.ts";
+
 const CLUBKONNECT_BASE_URL = "https://www.clubkonnect.com";
+
+function toLocalPhone(input: string): string {
+  const norm = normalizePhone(input);
+  if (!norm) throw new Error(`Invalid Nigerian phone number: ${input}`);
+  return norm.local;
+}
 const CLUBKONNECT_TIMEOUT_MS = 30000;
 const CLUBKONNECT_MAX_RETRIES = 2;
 
@@ -117,14 +125,15 @@ export async function clubkonnectPurchaseAirtime(
   if (!networkCode) return { success: false, message: "Invalid network for ClubKonnect", rawResponse: null };
 
   try {
+    const localPhone = toLocalPhone(phoneNumber);
     const requestId = generateRequestId();
     const url = buildUrl("APIAirtimeV1.asp", {
       MobileNetwork: networkCode,
       Amount: String(amount),
-      MobileNumber: phoneNumber,
+      MobileNumber: localPhone,
       RequestID: requestId,
     });
-    console.log("ClubKonnect Airtime Request - network:", network, "phone:", phoneNumber, "amount:", amount);
+    console.log(`[ClubKonnect] Airtime → phone normalized ${phoneNumber} → ${localPhone}, network:${network}, amount:${amount}`);
     const response = await fetchWithRetry(url);
     const text = await response.text();
     let data: any;
@@ -151,14 +160,15 @@ export async function clubkonnectPurchaseData(
   if (!networkCode) return { success: false, message: "Invalid network for ClubKonnect", rawResponse: null };
 
   try {
+    const localPhone = toLocalPhone(phoneNumber);
     const requestId = generateRequestId();
     const url = buildUrl("APIDatabundleV1.asp", {
       MobileNetwork: networkCode,
       DataPlan: planId,
-      MobileNumber: phoneNumber,
+      MobileNumber: localPhone,
       RequestID: requestId,
     });
-    console.log("ClubKonnect Data Request - network:", network, "plan:", planId, "phone:", phoneNumber);
+    console.log(`[ClubKonnect] Data → phone normalized ${phoneNumber} → ${localPhone}, network:${network}, plan:${planId}`);
     const response = await fetchWithRetry(url);
     const text = await response.text();
     let data: any;

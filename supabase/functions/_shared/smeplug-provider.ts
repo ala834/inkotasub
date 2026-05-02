@@ -2,7 +2,19 @@
 // Base URL: https://smeplug.ng/api/v1
 // Auth: Authorization: Bearer {SMEPLUG_API_KEY}
 
+import { normalizePhone } from "./phone-utils.ts";
+
 const SMEPLUG_BASE_URL = "https://smeplug.ng/api/v1";
+
+// Normalize Nigerian phone to local 11-digit (0XXXXXXXXXX) format for SMEPlug.
+// Throws if invalid.
+function toLocalPhone(input: string): string {
+  const norm = normalizePhone(input);
+  if (!norm) {
+    throw new Error(`Invalid Nigerian phone number: ${input}`);
+  }
+  return norm.local;
+}
 const SMEPLUG_TIMEOUT_MS = 30000;
 const SMEPLUG_MAX_RETRIES = 2;
 
@@ -121,7 +133,9 @@ export async function smeplugPurchaseAirtime(
   if (!networkId) return { success: false, message: "Invalid network for SMEPlug", rawResponse: null };
 
   try {
-    const body = { network_id: networkId, phone, amount };
+    const localPhone = toLocalPhone(phone);
+    const body = { network_id: networkId, phone: localPhone, amount };
+    console.log(`[SMEPlug] Airtime → phone normalized ${phone} → ${localPhone}`);
     console.log("SMEPlug Airtime Request:", JSON.stringify(body));
     const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/airtime/purchase`, {
       method: "POST",
@@ -151,7 +165,9 @@ export async function smeplugPurchaseData(
   if (!networkId) return { success: false, message: "Invalid network for SMEPlug", rawResponse: null };
 
   try {
-    const body = { network_id: networkId, plan_id: planId, phone };
+    const localPhone = toLocalPhone(phone);
+    const body = { network_id: networkId, plan_id: planId, phone: localPhone };
+    console.log(`[SMEPlug] Data → phone normalized ${phone} → ${localPhone}`);
     console.log("SMEPlug Data Request:", JSON.stringify(body));
     const response = await fetchWithRetry(`${SMEPLUG_BASE_URL}/data/purchase`, {
       method: "POST",
