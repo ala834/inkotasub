@@ -2,7 +2,16 @@
 // Base URL: https://subpadi.com/api/
 // Auth: Authorization: Token {SUBPADI_API_TOKEN}
 
+import { normalizePhone } from "./phone-utils.ts";
+
 const SUBPADI_BASE_URL = "https://subpadi.com/api";
+
+// Normalize Nigerian phone to local 11-digit (0XXXXXXXXXX) format. Throws if invalid.
+function toLocalPhone(input: string): string {
+  const norm = normalizePhone(input);
+  if (!norm) throw new Error(`Invalid Nigerian phone number: ${input}`);
+  return norm.local;
+}
 const SUBPADI_TIMEOUT_MS = 30000; // 30 seconds
 const SUBPADI_MAX_RETRIES = 2;
 
