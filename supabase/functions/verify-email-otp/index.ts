@@ -106,6 +106,29 @@ serve(async (req) => {
       .update({ is_verified: true })
       .eq("id", otpRecord.id);
 
+    // For signup verification: mark the profile + auth user as confirmed
+    if (purpose === "verification") {
+      try {
+        const { data: usersList } = await supabaseAdmin.auth.admin.listUsers();
+        const matchedUser = usersList?.users?.find(
+          (u) => u.email?.toLowerCase() === emailLower
+        );
+        if (matchedUser) {
+          await supabaseAdmin
+            .from("profiles")
+            .update({ email_verified: true })
+            .eq("user_id", matchedUser.id);
+          if (!matchedUser.email_confirmed_at) {
+            await supabaseAdmin.auth.admin.updateUserById(matchedUser.id, {
+              email_confirm: true,
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Failed to mark profile verified:", e);
+      }
+    }
+
     // Log successful verification
     await supabaseAdmin.from("auth_events").insert({
       event_type: "email_otp_verified",
