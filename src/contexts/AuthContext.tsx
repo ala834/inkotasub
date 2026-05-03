@@ -13,6 +13,7 @@ interface Profile {
   referral_code: string | null;
   has_transaction_pin: boolean;
   username: string | null;
+  email_verified?: boolean;
 }
 
 type AdminRole = 'super_admin' | 'sub_admin' | null;
