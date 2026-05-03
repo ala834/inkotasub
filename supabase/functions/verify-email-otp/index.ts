@@ -21,7 +21,7 @@ serve(async (req) => {
     const { email, code, purpose } = await req.json() as {
       email: string;
       code: string;
-      purpose: "verification" | "login" | "reset_pin";
+      purpose: "verification" | "login" | "reset_pin" | "signup";
     };
 
     const emailLower = email?.trim()?.toLowerCase();
