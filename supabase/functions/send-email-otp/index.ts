@@ -31,7 +31,7 @@ serve(async (req) => {
 
     const { email, purpose } = await req.json() as {
       email: string;
-      purpose: "verification" | "login" | "reset_pin";
+      purpose: "verification" | "login" | "reset_pin" | "signup";
     };
 
     // Validate email
@@ -43,7 +43,8 @@ serve(async (req) => {
       );
     }
 
-    // For signup verification, check if email already exists
+    // For signup verification (link-flow), block if email already exists.
+    // For "signup" purpose (post-signup OTP), the user has just been created, so skip this check.
     if (purpose === "verification") {
       const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers();
       const emailExists = existingUser?.users?.some(
