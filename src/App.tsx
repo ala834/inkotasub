@@ -14,6 +14,7 @@ import PushNotificationInit from "@/components/common/PushNotificationInit";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
+import VerifyEmailOTP from "./pages/VerifyEmailOTP";
 
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
