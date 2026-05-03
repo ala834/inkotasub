@@ -13,6 +13,7 @@ interface Profile {
   referral_code: string | null;
   has_transaction_pin: boolean;
   username: string | null;
+  email_verified?: boolean;
 }
 
 type AdminRole = 'super_admin' | 'sub_admin' | null;
@@ -45,7 +46,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("id, user_id, full_name, phone_number, avatar_url, referral_code, has_transaction_pin, is_agent, kyc_level, daily_transaction_limit, suspended_at, created_at, updated_at, username")
+      .select("id, user_id, full_name, phone_number, avatar_url, referral_code, has_transaction_pin, is_agent, kyc_level, daily_transaction_limit, suspended_at, created_at, updated_at, username, email_verified")
       .eq("user_id", userId)
       .single();
     

@@ -14,6 +14,7 @@ import PushNotificationInit from "@/components/common/PushNotificationInit";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
+import VerifyEmailOTP from "./pages/VerifyEmailOTP";
 
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
@@ -76,6 +77,7 @@ const App = () => {
                   : <Onboarding />
               } />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/verify-email" element={<VerifyEmailOTP />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

@@ -910,6 +910,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           daily_transaction_limit: number | null
+          email_verified: boolean
           failed_pin_attempts: number | null
           full_name: string | null
           has_transaction_pin: boolean
@@ -929,6 +930,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           daily_transaction_limit?: number | null
+          email_verified?: boolean
           failed_pin_attempts?: number | null
           full_name?: string | null
           has_transaction_pin?: boolean
@@ -948,6 +950,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           daily_transaction_limit?: number | null
+          email_verified?: boolean
           failed_pin_attempts?: number | null
           full_name?: string | null
           has_transaction_pin?: boolean

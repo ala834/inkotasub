@@ -157,10 +157,21 @@ const Auth = () => {
           return;
         }
         if (formData.referralCode) localStorage.setItem("pendingReferralCode", formData.referralCode.toUpperCase());
+        // Send 6-digit OTP to user's email and redirect to OTP verification page.
+        const { data: otpData, error: otpError } = await supabase.functions.invoke("send-email-otp", {
+          body: { email: formData.email, purpose: "signup" },
+        });
+        if (otpError || !otpData?.success) {
+          toast.error(otpData?.error || "Account created but failed to send verification code. Please request a new code.");
+        } else {
+          toast.success("We sent a 6-digit code to your email");
+        }
+        // Fire welcome email in background (non-blocking)
         supabase.functions.invoke("send-welcome-email", { body: { email: formData.email, fullName: formData.fullName } }).catch(err => console.error("Welcome email error:", err));
-        toast.success("Account created! Please check your email to verify your address, then login.");
-        setIsLogin(true);
-        setFormData(prev => ({ ...prev, password: "", confirmPassword: "" }));
+        // Sign out the just-created session so the user must verify before being routed in.
+        try { await supabase.auth.signOut(); } catch {}
+        navigate("/verify-email", { state: { email: formData.email, password: formData.password } });
+        return;
       }
     } catch (err: any) {
       toast.error(err?.message || "An unexpected error occurred.");
