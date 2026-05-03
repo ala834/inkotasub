@@ -107,7 +107,7 @@ serve(async (req) => {
       .eq("id", otpRecord.id);
 
     // For signup verification: mark the profile + auth user as confirmed
-    if (purpose === "verification") {
+    if (purpose === "verification" || purpose === "signup") {
       try {
         const { data: usersList } = await supabaseAdmin.auth.admin.listUsers();
         const matchedUser = usersList?.users?.find(
