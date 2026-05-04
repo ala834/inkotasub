@@ -25,6 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { ForgotPasscodeDialog } from "@/components/auth/ForgotPasscodeDialog";
 
 interface SettingItem {
   icon: React.ElementType;
@@ -73,10 +74,6 @@ const Settings = () => {
   const [maskedEmail, setMaskedEmail] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpResendCooldown, setOtpResendCooldown] = useState(0);
-  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [supportSettings, setSupportSettings] = useState({
     support_email: "inkotasub123@gmail.com",
@@ -104,16 +101,8 @@ const Settings = () => {
     toast.success(`${value ? "Dark" : "Light"} mode enabled`);
   };
 
-  const handleChangePassword = async () => {
-    if (newPassword !== confirmPassword) { toast.error("Passwords do not match"); return; }
-    if (newPassword.length < 6) { toast.error("Password must be at least 6 characters"); return; }
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
-      toast.success("Password updated successfully");
-      setChangePasswordOpen(false); setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
-    } catch (error: any) { toast.error(error.message || "Failed to update password"); }
-  };
+  const [forgotPasscodeOpen, setForgotPasscodeOpen] = useState(false);
+
 
   const handleSendPinChangeOtp = async () => {
     if (!user?.email) { toast.error("No email found"); return; }
@@ -185,7 +174,7 @@ const Settings = () => {
       title: "Account",
       items: [
         { icon: User, label: "Edit Profile", description: "Name, email, and phone", action: () => navigate("/profile"), iconColor: "text-blue-500 bg-blue-50" },
-        { icon: Lock, label: "Change Password", description: "Update login password", action: () => setChangePasswordOpen(true), iconColor: "text-purple-500 bg-purple-50" },
+        { icon: Lock, label: "Change Passcode", description: "Update your 6-digit login passcode", action: () => setForgotPasscodeOpen(true), iconColor: "text-purple-500 bg-purple-50" },
         { icon: Shield, label: "Transaction PIN", description: profile?.has_transaction_pin ? "Change your PIN" : "Set up your PIN", action: () => handleOpenChangePinDialog(), iconColor: "text-green-500 bg-green-50" },
         { icon: Fingerprint, label: "Biometric Login", description: biometricAvailable ? (biometricLoginEnabled ? "Active" : "Enable fingerprint") : "Not available", toggle: biometricAvailable, value: biometricLoginEnabled, onToggle: async v => { if (v) setBiometricSetupOpen(true); else { await disableBiometricLogin(); toast.success("Biometric disabled"); } }, iconColor: "text-emerald-500 bg-emerald-50" },
         { icon: Fingerprint, label: "Fingerprint for Transactions", description: biometricAvailable ? (biometricTransactionEnabled ? "Active" : "Use fingerprint for PIN") : "Not available", toggle: biometricAvailable, value: biometricTransactionEnabled, onToggle: async v => { const r = await toggleTransactionBiometric(v); if (r?.success) toast.success(v ? "Enabled" : "Disabled"); else if (r?.error) toast.error(r.error); }, iconColor: "text-teal-500 bg-teal-50" },
@@ -354,29 +343,8 @@ const Settings = () => {
         <p className="text-xs text-gray-400 text-center pb-4">Inkotasub v1.0.0</p>
       </main>
 
-      {/* Change Password Dialog */}
-      <Dialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen}>
-        <DialogContent className="rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>Change Password</DialogTitle>
-            <DialogDescription>Enter your new password (min 6 characters).</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-1.5">
-              <Label>New Password</Label>
-              <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Enter new password" className="h-12 rounded-xl" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Confirm Password</Label>
-              <Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirm new password" className="h-12 rounded-xl" />
-            </div>
-          </div>
-          <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <Button onClick={handleChangePassword} className="w-full rounded-xl bg-gradient-to-r from-green-600 to-green-500 text-white">Update Password</Button>
-            <Button variant="outline" onClick={() => setChangePasswordOpen(false)} className="w-full rounded-xl">Cancel</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Change Passcode (uses Forgot Passcode OTP flow) */}
+      <ForgotPasscodeDialog open={forgotPasscodeOpen} onOpenChange={setForgotPasscodeOpen} prefilledEmail={user?.email || ""} />
 
       {/* Change PIN Dialog */}
       <Dialog open={changePinOpen} onOpenChange={open => { if (!open) resetPinDialog(); }}>
@@ -475,8 +443,8 @@ const Settings = () => {
               <Input type="email" value={biometricEmail} onChange={e => setBiometricEmail(e.target.value)} placeholder="Your login email" className="h-12 rounded-xl" />
             </div>
             <div className="space-y-1.5">
-              <Label>Password</Label>
-              <Input type="password" value={biometricPassword} onChange={e => setBiometricPassword(e.target.value)} placeholder="Your login password" className="h-12 rounded-xl" />
+              <Label>Passcode</Label>
+              <Input type="password" inputMode="numeric" maxLength={6} value={biometricPassword} onChange={e => setBiometricPassword(e.target.value.replace(/\D/g, ""))} placeholder="Your 6-digit passcode" className="h-12 rounded-xl text-center tracking-[0.4em] font-mono" />
             </div>
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-col">

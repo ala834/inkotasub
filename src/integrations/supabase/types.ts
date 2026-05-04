@@ -911,12 +911,15 @@ export type Database = {
           created_at: string
           daily_transaction_limit: number | null
           email_verified: boolean
+          failed_login_attempts: number
           failed_pin_attempts: number | null
           full_name: string | null
           has_transaction_pin: boolean
           id: string
           is_agent: boolean | null
           kyc_level: Database["public"]["Enums"]["kyc_level"] | null
+          login_locked_until: string | null
+          passcode_set: boolean
           phone_number: string | null
           pin_locked_until: string | null
           referral_code: string
@@ -931,12 +934,15 @@ export type Database = {
           created_at?: string
           daily_transaction_limit?: number | null
           email_verified?: boolean
+          failed_login_attempts?: number
           failed_pin_attempts?: number | null
           full_name?: string | null
           has_transaction_pin?: boolean
           id?: string
           is_agent?: boolean | null
           kyc_level?: Database["public"]["Enums"]["kyc_level"] | null
+          login_locked_until?: string | null
+          passcode_set?: boolean
           phone_number?: string | null
           pin_locked_until?: string | null
           referral_code?: string
@@ -951,12 +957,15 @@ export type Database = {
           created_at?: string
           daily_transaction_limit?: number | null
           email_verified?: boolean
+          failed_login_attempts?: number
           failed_pin_attempts?: number | null
           full_name?: string | null
           has_transaction_pin?: boolean
           id?: string
           is_agent?: boolean | null
           kyc_level?: Database["public"]["Enums"]["kyc_level"] | null
+          login_locked_until?: string | null
+          passcode_set?: boolean
           phone_number?: string | null
           pin_locked_until?: string | null
           referral_code?: string
