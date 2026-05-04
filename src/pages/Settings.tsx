@@ -25,6 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { ForgotPasscodeDialog } from "@/components/auth/ForgotPasscodeDialog";
 
 interface SettingItem {
   icon: React.ElementType;
@@ -73,10 +74,6 @@ const Settings = () => {
   const [maskedEmail, setMaskedEmail] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpResendCooldown, setOtpResendCooldown] = useState(0);
-  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
 
   const [supportSettings, setSupportSettings] = useState({
     support_email: "inkotasub123@gmail.com",
