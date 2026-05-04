@@ -443,8 +443,8 @@ const Settings = () => {
               <Input type="email" value={biometricEmail} onChange={e => setBiometricEmail(e.target.value)} placeholder="Your login email" className="h-12 rounded-xl" />
             </div>
             <div className="space-y-1.5">
-              <Label>Password</Label>
-              <Input type="password" value={biometricPassword} onChange={e => setBiometricPassword(e.target.value)} placeholder="Your login password" className="h-12 rounded-xl" />
+              <Label>Passcode</Label>
+              <Input type="password" inputMode="numeric" maxLength={6} value={biometricPassword} onChange={e => setBiometricPassword(e.target.value.replace(/\D/g, ""))} placeholder="Your 6-digit passcode" className="h-12 rounded-xl text-center tracking-[0.4em] font-mono" />
             </div>
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-col">
