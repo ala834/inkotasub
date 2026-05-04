@@ -31,7 +31,7 @@ serve(async (req) => {
 
     const { email, purpose } = await req.json() as {
       email: string;
-      purpose: "verification" | "login" | "reset_pin" | "signup";
+      purpose: "verification" | "login" | "reset_pin" | "signup" | "reset_passcode";
     };
 
     // Validate email
@@ -87,14 +87,21 @@ serve(async (req) => {
 
     // Customize email content based on purpose
     const isPinChange = purpose === "reset_pin";
+    const isPasscodeReset = purpose === "reset_passcode";
     const emailSubject = isPinChange
       ? "Transaction PIN Change OTP - INKOTA SUB"
+      : isPasscodeReset
+      ? "Reset your INKOTA SUB login passcode"
       : "Verify your INKOTA SUB account";
     const emailHeading = isPinChange
       ? "Change Transaction PIN"
+      : isPasscodeReset
+      ? "Reset Login Passcode"
       : "Verify your email";
     const emailBody = isPinChange
       ? `Use the code below to verify your identity before changing your transaction PIN. This code expires in ${expiryMinutes} minutes.`
+      : isPasscodeReset
+      ? `Use the code below to verify your identity. After verifying, you'll create a new 6-digit login passcode. This code expires in ${expiryMinutes} minutes.`
       : `Use the code below to verify your INKOTA SUB account. This code expires in ${expiryMinutes} minutes.`;
 
     const htmlContent = `

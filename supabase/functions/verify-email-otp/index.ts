@@ -21,7 +21,7 @@ serve(async (req) => {
     const { email, code, purpose } = await req.json() as {
       email: string;
       code: string;
-      purpose: "verification" | "login" | "reset_pin" | "signup";
+      purpose: "verification" | "login" | "reset_pin" | "signup" | "reset_passcode";
     };
 
     const emailLower = email?.trim()?.toLowerCase();
@@ -139,7 +139,12 @@ serve(async (req) => {
 
     // Generate verification token
     const verificationToken = crypto.randomUUID();
-    const tokenPurpose = purpose === "reset_pin" ? "reset_pin_token" : "email_verification_token";
+    const tokenPurpose =
+      purpose === "reset_pin"
+        ? "reset_pin_token"
+        : purpose === "reset_passcode"
+        ? "reset_passcode_token"
+        : "email_verification_token";
 
     await supabaseAdmin.from("otp_codes").insert({
       email: emailLower,
