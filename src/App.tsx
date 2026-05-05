@@ -36,7 +36,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import RefundPolicy from "./pages/RefundPolicy";
 import FAQ from "./pages/FAQ";
-import ResetPassword from "./pages/ResetPassword";
+
 import MyDevices from "./pages/MyDevices";
 import KYCVerification from "./pages/KYCVerification";
 import BulkAirtime from "./pages/BulkAirtime";
