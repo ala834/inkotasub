@@ -92,8 +92,8 @@ export const ForgotPasscodeDialog = ({ open, onOpenChange, prefilledEmail }: Pro
   };
 
   const submitPasscode = async () => {
-    if (newPasscode.length !== 6) {
-      toast.error("Passcode must be 6 digits");
+    if (newPasscode.length < 4 || newPasscode.length > 6 || !/^\d+$/.test(newPasscode)) {
+      toast.error("Passcode must be 4 to 6 digits");
       return;
     }
     if (newPasscode !== confirmPasscode) {
