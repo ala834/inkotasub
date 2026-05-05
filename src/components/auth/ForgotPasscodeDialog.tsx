@@ -202,23 +202,28 @@ export const ForgotPasscodeDialog = ({ open, onOpenChange, prefilledEmail }: Pro
           <>
             <DialogHeader>
               <DialogTitle className="text-center">
-                {newPasscode.length < 6 ? "Create New Passcode" : "Confirm Passcode"}
+                {newPasscode.length < 4 ? "Create New Passcode" : "Confirm Passcode"}
               </DialogTitle>
               <DialogDescription className="text-center text-xs">
-                Choose a 6-digit passcode. Don't share it.
+                Choose a 4 to 6 digit passcode. Don't share it.
               </DialogDescription>
             </DialogHeader>
             <div className="py-2">
-              {newPasscode.length < 6 ? (
-                <PasscodeInput value={newPasscode} onChange={setNewPasscode} autoFocus />
+              {newPasscode.length < 4 || (newPasscode.length < 6 && confirmPasscode.length === 0) ? (
+                <PasscodeInput value={newPasscode} onChange={setNewPasscode} length={6} autoFocus />
               ) : (
-                <PasscodeInput value={confirmPasscode} onChange={setConfirmPasscode} autoFocus />
+                <PasscodeInput
+                  value={confirmPasscode}
+                  onChange={setConfirmPasscode}
+                  length={newPasscode.length}
+                  autoFocus
+                />
               )}
             </div>
-            {newPasscode.length === 6 && (
+            {newPasscode.length >= 4 && (
               <Button
                 onClick={submitPasscode}
-                disabled={loading || confirmPasscode.length !== 6}
+                disabled={loading || confirmPasscode.length !== newPasscode.length}
                 className="w-full h-12 rounded-xl bg-gradient-to-r from-green-600 to-green-500 text-white"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Set Passcode"}
