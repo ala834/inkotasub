@@ -88,19 +88,8 @@ const Auth = () => {
 
   const validateLogin = () => {
     const e: Record<string, string> = {};
-    if (loginWithEmail) {
-      try {
-        emailSchema.parse(formData.email);
-      } catch (err: any) {
-        e.email = err.errors[0].message;
-      }
-    } else {
-      try {
-        usernameSchema.parse(formData.username);
-      } catch (err: any) {
-        e.username = err.errors[0].message;
-      }
-    }
+    const id = formData.username.trim();
+    if (!id) e.username = "Enter email, phone or username";
     if (formData.passcode.length !== 6) e.passcode = "Enter your 6-digit passcode";
     setErrors(e);
     return !Object.keys(e).length;
@@ -130,17 +119,15 @@ const Auth = () => {
     if (!validateLogin()) return;
     setLoading(true);
     try {
-      let emailToUse = formData.email;
-      if (!loginWithEmail) {
-        const { data, error: lookupError } = await supabase.functions.invoke("lookup-username", {
-          body: { username: formData.username },
-        });
-        if (lookupError || !data?.success) {
-          toast.error("Username not found");
-          return;
-        }
-        emailToUse = data.email;
+      const identifier = formData.username.trim();
+      const { data, error: lookupError } = await supabase.functions.invoke("lookup-username", {
+        body: { identifier },
+      });
+      if (lookupError || !data?.success) {
+        toast.error(data?.error || "Account not found");
+        return;
       }
+      const emailToUse = data.email as string;
 
       // Check passcode lockout
       const { data: lockData } = await supabase.functions.invoke("passcode-auth", {
@@ -349,42 +336,20 @@ const Auth = () => {
               }}
               className="space-y-4"
             >
-              {loginWithEmail ? (
-                <InputField
-                  icon={Mail}
-                  id="loginEmail"
-                  label="Email Address"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={formData.email}
-                  onChange={(e: any) => setFormData({ ...formData, email: e.target.value })}
-                  error={errors.email}
-                />
-              ) : (
-                <InputField
-                  icon={AtSign}
-                  id="loginUsername"
-                  label="Username"
-                  placeholder="Enter your username"
-                  value={formData.username}
-                  onChange={(e: any) =>
-                    setFormData({ ...formData, username: e.target.value.replace(/\s/g, "").toLowerCase() })
-                  }
-                  error={errors.username}
-                />
-              )}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginWithEmail(!loginWithEmail);
-                    setErrors({});
-                  }}
-                  className="text-xs text-green-600 font-medium active:text-green-700"
-                >
-                  {loginWithEmail ? "Use username instead" : "Use email instead"}
-                </button>
-              </div>
+              <InputField
+                icon={AtSign}
+                id="loginIdentifier"
+                label="Email, Phone or Username"
+                placeholder="you@example.com / 0801... / username"
+                value={formData.username}
+                onChange={(e: any) =>
+                  setFormData({ ...formData, username: e.target.value.replace(/\s/g, "") })
+                }
+                error={errors.username}
+                inputMode="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
 
               <div className="pt-2">
                 <p className="text-center text-xs font-medium text-gray-500 mb-3">Enter your 6-digit passcode</p>
