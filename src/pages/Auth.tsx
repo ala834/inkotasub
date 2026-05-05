@@ -574,14 +574,15 @@ const Auth = () => {
                   </button>
                   <div className="text-center">
                     <h2 className="text-lg font-bold text-gray-900">Confirm Passcode</h2>
-                    <p className="text-xs text-gray-500 mt-1">Re-enter your 6-digit passcode.</p>
+                    <p className="text-xs text-gray-500 mt-1">Re-enter your passcode ({formData.passcode.length} digits).</p>
                   </div>
                   <PasscodeInput
                     value={formData.confirmPasscode}
                     onChange={(v) => setFormData({ ...formData, confirmPasscode: v })}
                     autoFocus
+                    length={formData.passcode.length || 6}
                     error={
-                      formData.confirmPasscode.length === 6 &&
+                      formData.confirmPasscode.length === formData.passcode.length &&
                       formData.confirmPasscode !== formData.passcode
                     }
                   />
@@ -589,7 +590,7 @@ const Auth = () => {
                     whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={handleSignupSubmit}
-                    disabled={loading || formData.confirmPasscode.length !== 6}
+                    disabled={loading || formData.confirmPasscode.length !== formData.passcode.length}
                     className="w-full h-12 rounded-2xl bg-gradient-to-r from-green-600 to-green-500 text-white font-semibold text-sm disabled:opacity-50 flex items-center justify-center"
                   >
                     {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Create Account"}
