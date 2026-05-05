@@ -90,7 +90,9 @@ const Auth = () => {
     const e: Record<string, string> = {};
     const id = formData.username.trim();
     if (!id) e.username = "Enter email, phone or username";
-    if (formData.passcode.length !== 6) e.passcode = "Enter your 6-digit passcode";
+    if (!formData.passcode) e.passcode = "Enter your passcode";
+    else if (formData.passcode.length < 4) e.passcode = "Passcode must be at least 4 digits";
+    else if (formData.passcode.length > 6) e.passcode = "Passcode must be at most 6 digits";
     setErrors(e);
     return !Object.keys(e).length;
   };
@@ -141,7 +143,7 @@ const Auth = () => {
 
       // Legacy users (no passcode set yet) → force reset flow
       if (lockData?.passcode_set === false) {
-        toast.message("Welcome back! Please create a 6-digit passcode to continue.", {
+        toast.message("Welcome back! Please create a 4–6 digit passcode to continue.", {
           description: "We'll send a code to your email to verify your identity.",
         });
         setShowForgot(true);
@@ -177,13 +179,14 @@ const Auth = () => {
   };
 
   const handleSignupSubmit = async () => {
-    if (formData.passcode !== formData.confirmPasscode) {
-      toast.error("Passcodes do not match");
-      setFormData((p) => ({ ...p, confirmPasscode: "" }));
+    const pin = formData.passcode;
+    if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
+      toast.error("Passcode must be 4 to 6 digits");
       return;
     }
-    if (formData.passcode.length !== 6) {
-      toast.error("Passcode must be 6 digits");
+    if (pin !== formData.confirmPasscode) {
+      toast.error("Passcodes do not match");
+      setFormData((p) => ({ ...p, confirmPasscode: "" }));
       return;
     }
     setLoading(true);
@@ -352,13 +355,17 @@ const Auth = () => {
               />
 
               <div className="pt-2">
-                <p className="text-center text-xs font-medium text-gray-500 mb-3">Enter your 6-digit passcode</p>
+                <p className="text-center text-xs font-medium text-gray-500 mb-3">Enter your passcode (4–6 digits)</p>
                 <PasscodeInput
                   value={formData.passcode}
                   onChange={(v) => setFormData({ ...formData, passcode: v })}
                   error={!!errors.passcode}
+                  length={6}
                   showKeypad
                 />
+                {errors.passcode && (
+                  <p className="text-xs text-red-500 text-center mt-2">{errors.passcode}</p>
+                )}
               </div>
 
               <div className="flex justify-end">
@@ -374,7 +381,7 @@ const Auth = () => {
               <motion.button
                 whileTap={{ scale: 0.98 }}
                 type="submit"
-                disabled={loading || formData.passcode.length !== 6}
+                disabled={loading || formData.passcode.length < 4 || formData.passcode.length > 6}
                 className="w-full h-12 rounded-2xl bg-gradient-to-r from-green-600 to-green-500 text-white font-semibold text-sm shadow-lg shadow-green-500/25 active:from-green-700 active:to-green-600 disabled:opacity-50 flex items-center justify-center"
               >
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Login"}
@@ -524,15 +531,16 @@ const Auth = () => {
                   <div className="text-center">
                     <h2 className="text-lg font-bold text-gray-900">Create Your Passcode</h2>
                     <p className="text-xs text-gray-500 mt-1">
-                      Choose a 6-digit code to secure your account.
+                      Choose a 4 to 6 digit code to secure your account.
                     </p>
                   </div>
                   <PasscodeInput
                     value={formData.passcode}
                     onChange={(v) => setFormData({ ...formData, passcode: v })}
                     autoFocus
+                    length={6}
                   />
-                  {formData.passcode.length === 6 && (
+                  {formData.passcode.length >= 4 && (
                     <motion.button
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -566,14 +574,15 @@ const Auth = () => {
                   </button>
                   <div className="text-center">
                     <h2 className="text-lg font-bold text-gray-900">Confirm Passcode</h2>
-                    <p className="text-xs text-gray-500 mt-1">Re-enter your 6-digit passcode.</p>
+                    <p className="text-xs text-gray-500 mt-1">Re-enter your passcode ({formData.passcode.length} digits).</p>
                   </div>
                   <PasscodeInput
                     value={formData.confirmPasscode}
                     onChange={(v) => setFormData({ ...formData, confirmPasscode: v })}
                     autoFocus
+                    length={formData.passcode.length || 6}
                     error={
-                      formData.confirmPasscode.length === 6 &&
+                      formData.confirmPasscode.length === formData.passcode.length &&
                       formData.confirmPasscode !== formData.passcode
                     }
                   />
@@ -581,7 +590,7 @@ const Auth = () => {
                     whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={handleSignupSubmit}
-                    disabled={loading || formData.confirmPasscode.length !== 6}
+                    disabled={loading || formData.confirmPasscode.length !== formData.passcode.length}
                     className="w-full h-12 rounded-2xl bg-gradient-to-r from-green-600 to-green-500 text-white font-semibold text-sm disabled:opacity-50 flex items-center justify-center"
                   >
                     {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Create Account"}

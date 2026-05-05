@@ -101,8 +101,8 @@ serve(async (req) => {
     if (action === "reset_passcode") {
       const { verification_token, new_passcode } = body;
       if (!verification_token) return json({ success: false, error: "verification_token required" }, 400);
-      if (!/^\d{6}$/.test(new_passcode || ""))
-        return json({ success: false, error: "Passcode must be exactly 6 digits" }, 400);
+      if (!/^\d{4,6}$/.test(new_passcode || ""))
+        return json({ success: false, error: "Passcode must be 4 to 6 digits" }, 400);
       if (!matchedUser) return json({ success: false, error: "Account not found" }, 404);
 
       // Validate token (issued by verify-email-otp for purpose=reset_passcode → token purpose=reset_passcode_token)
@@ -122,8 +122,11 @@ serve(async (req) => {
 
       await admin.from("otp_codes").update({ is_verified: true }).eq("id", token.id);
 
+      // Wrap PIN with the same prefix used by the client (src/lib/passcode.ts).
+      // Keep these in sync — Supabase Auth requires ≥6 char passwords.
+      const wrappedPasscode = `inkpin_v1_${new_passcode}`;
       const { error: updateErr } = await admin.auth.admin.updateUserById(matchedUser.id, {
-        password: new_passcode,
+        password: wrappedPasscode,
         email_confirm: true,
       });
       if (updateErr) return json({ success: false, error: updateErr.message }, 500);

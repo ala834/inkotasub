@@ -92,8 +92,8 @@ export const ForgotPasscodeDialog = ({ open, onOpenChange, prefilledEmail }: Pro
   };
 
   const submitPasscode = async () => {
-    if (newPasscode.length !== 6) {
-      toast.error("Passcode must be 6 digits");
+    if (newPasscode.length < 4 || newPasscode.length > 6 || !/^\d+$/.test(newPasscode)) {
+      toast.error("Passcode must be 4 to 6 digits");
       return;
     }
     if (newPasscode !== confirmPasscode) {
@@ -202,23 +202,38 @@ export const ForgotPasscodeDialog = ({ open, onOpenChange, prefilledEmail }: Pro
           <>
             <DialogHeader>
               <DialogTitle className="text-center">
-                {newPasscode.length < 6 ? "Create New Passcode" : "Confirm Passcode"}
+                {newPasscode.length < 4 ? "Create New Passcode" : "Confirm Passcode"}
               </DialogTitle>
               <DialogDescription className="text-center text-xs">
-                Choose a 6-digit passcode. Don't share it.
+                Choose a 4 to 6 digit passcode. Don't share it.
               </DialogDescription>
             </DialogHeader>
-            <div className="py-2">
-              {newPasscode.length < 6 ? (
-                <PasscodeInput value={newPasscode} onChange={setNewPasscode} autoFocus />
-              ) : (
-                <PasscodeInput value={confirmPasscode} onChange={setConfirmPasscode} autoFocus />
+            <div className="py-2 space-y-3">
+              <PasscodeInput
+                value={newPasscode}
+                onChange={(v) => {
+                  setNewPasscode(v);
+                  if (v.length < confirmPasscode.length) setConfirmPasscode("");
+                }}
+                length={6}
+                autoFocus
+              />
+              {newPasscode.length >= 4 && (
+                <>
+                  <p className="text-center text-xs text-gray-500 pt-2">Confirm passcode</p>
+                  <PasscodeInput
+                    value={confirmPasscode}
+                    onChange={setConfirmPasscode}
+                    length={newPasscode.length}
+                    showKeypad={false}
+                  />
+                </>
               )}
             </div>
-            {newPasscode.length === 6 && (
+            {newPasscode.length >= 4 && (
               <Button
                 onClick={submitPasscode}
-                disabled={loading || confirmPasscode.length !== 6}
+                disabled={loading || confirmPasscode.length !== newPasscode.length}
                 className="w-full h-12 rounded-xl bg-gradient-to-r from-green-600 to-green-500 text-white"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Set Passcode"}
