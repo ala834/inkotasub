@@ -267,10 +267,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUp = async (email: string, password: string, fullName?: string, username?: string, phoneNumber?: string) => {
     const redirectUrl = `${window.location.origin}/`;
+    const { wrapPasscode } = await import("@/lib/passcode");
 
     const { error } = await supabase.auth.signUp({
       email,
-      password,
+      password: wrapPasscode(password),
       options: {
         emailRedirectTo: redirectUrl,
         data: {
@@ -285,11 +286,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
+    const { wrapPasscode } = await import("@/lib/passcode");
     const { error } = await supabase.auth.signInWithPassword({
       email,
-      password,
+      password: wrapPasscode(password),
     });
-    
+
     return { error };
   };
 
