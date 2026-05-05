@@ -36,7 +36,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import RefundPolicy from "./pages/RefundPolicy";
 import FAQ from "./pages/FAQ";
-import ResetPassword from "./pages/ResetPassword";
+
 import MyDevices from "./pages/MyDevices";
 import KYCVerification from "./pages/KYCVerification";
 import BulkAirtime from "./pages/BulkAirtime";
@@ -78,7 +78,7 @@ const App = () => {
               } />
               <Route path="/auth" element={<Auth />} />
               <Route path="/verify-email" element={<VerifyEmailOTP />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
+              
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
