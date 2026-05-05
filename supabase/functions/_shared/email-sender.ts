@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_DIRECT_URL = "https://api.resend.com/emails";
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
-const DEFAULT_FROM = "INKOTA SUB <noreply@notify.inkotasub.com>";
+const DEFAULT_FROM = "INKOTA SUB <noreply@inkotasub.com>";
 
 interface SendEmailOptions {
   to: string | string[];
