@@ -78,7 +78,7 @@ const App = () => {
               } />
               <Route path="/auth" element={<Auth />} />
               <Route path="/verify-email" element={<VerifyEmailOTP />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
+              
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
