@@ -531,15 +531,16 @@ const Auth = () => {
                   <div className="text-center">
                     <h2 className="text-lg font-bold text-gray-900">Create Your Passcode</h2>
                     <p className="text-xs text-gray-500 mt-1">
-                      Choose a 6-digit code to secure your account.
+                      Choose a 4 to 6 digit code to secure your account.
                     </p>
                   </div>
                   <PasscodeInput
                     value={formData.passcode}
                     onChange={(v) => setFormData({ ...formData, passcode: v })}
                     autoFocus
+                    length={6}
                   />
-                  {formData.passcode.length === 6 && (
+                  {formData.passcode.length >= 4 && (
                     <motion.button
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
