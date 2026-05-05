@@ -179,13 +179,14 @@ const Auth = () => {
   };
 
   const handleSignupSubmit = async () => {
-    if (formData.passcode !== formData.confirmPasscode) {
-      toast.error("Passcodes do not match");
-      setFormData((p) => ({ ...p, confirmPasscode: "" }));
+    const pin = formData.passcode;
+    if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
+      toast.error("Passcode must be 4 to 6 digits");
       return;
     }
-    if (formData.passcode.length !== 6) {
-      toast.error("Passcode must be 6 digits");
+    if (pin !== formData.confirmPasscode) {
+      toast.error("Passcodes do not match");
+      setFormData((p) => ({ ...p, confirmPasscode: "" }));
       return;
     }
     setLoading(true);
