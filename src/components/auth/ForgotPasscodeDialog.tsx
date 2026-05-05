@@ -208,16 +208,26 @@ export const ForgotPasscodeDialog = ({ open, onOpenChange, prefilledEmail }: Pro
                 Choose a 4 to 6 digit passcode. Don't share it.
               </DialogDescription>
             </DialogHeader>
-            <div className="py-2">
-              {newPasscode.length < 4 || (newPasscode.length < 6 && confirmPasscode.length === 0) ? (
-                <PasscodeInput value={newPasscode} onChange={setNewPasscode} length={6} autoFocus />
-              ) : (
-                <PasscodeInput
-                  value={confirmPasscode}
-                  onChange={setConfirmPasscode}
-                  length={newPasscode.length}
-                  autoFocus
-                />
+            <div className="py-2 space-y-3">
+              <PasscodeInput
+                value={newPasscode}
+                onChange={(v) => {
+                  setNewPasscode(v);
+                  if (v.length < confirmPasscode.length) setConfirmPasscode("");
+                }}
+                length={6}
+                autoFocus
+              />
+              {newPasscode.length >= 4 && (
+                <>
+                  <p className="text-center text-xs text-gray-500 pt-2">Confirm passcode</p>
+                  <PasscodeInput
+                    value={confirmPasscode}
+                    onChange={setConfirmPasscode}
+                    length={newPasscode.length}
+                    showKeypad={false}
+                  />
+                </>
               )}
             </div>
             {newPasscode.length >= 4 && (
