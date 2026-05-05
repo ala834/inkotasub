@@ -119,17 +119,15 @@ const Auth = () => {
     if (!validateLogin()) return;
     setLoading(true);
     try {
-      let emailToUse = formData.email;
-      if (!loginWithEmail) {
-        const { data, error: lookupError } = await supabase.functions.invoke("lookup-username", {
-          body: { username: formData.username },
-        });
-        if (lookupError || !data?.success) {
-          toast.error("Username not found");
-          return;
-        }
-        emailToUse = data.email;
+      const identifier = formData.username.trim();
+      const { data, error: lookupError } = await supabase.functions.invoke("lookup-username", {
+        body: { identifier },
+      });
+      if (lookupError || !data?.success) {
+        toast.error(data?.error || "Account not found");
+        return;
       }
+      const emailToUse = data.email as string;
 
       // Check passcode lockout
       const { data: lockData } = await supabase.functions.invoke("passcode-auth", {
