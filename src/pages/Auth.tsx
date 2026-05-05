@@ -336,42 +336,20 @@ const Auth = () => {
               }}
               className="space-y-4"
             >
-              {loginWithEmail ? (
-                <InputField
-                  icon={Mail}
-                  id="loginEmail"
-                  label="Email Address"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={formData.email}
-                  onChange={(e: any) => setFormData({ ...formData, email: e.target.value })}
-                  error={errors.email}
-                />
-              ) : (
-                <InputField
-                  icon={AtSign}
-                  id="loginUsername"
-                  label="Username"
-                  placeholder="Enter your username"
-                  value={formData.username}
-                  onChange={(e: any) =>
-                    setFormData({ ...formData, username: e.target.value.replace(/\s/g, "").toLowerCase() })
-                  }
-                  error={errors.username}
-                />
-              )}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginWithEmail(!loginWithEmail);
-                    setErrors({});
-                  }}
-                  className="text-xs text-green-600 font-medium active:text-green-700"
-                >
-                  {loginWithEmail ? "Use username instead" : "Use email instead"}
-                </button>
-              </div>
+              <InputField
+                icon={AtSign}
+                id="loginIdentifier"
+                label="Email, Phone or Username"
+                placeholder="you@example.com / 0801... / username"
+                value={formData.username}
+                onChange={(e: any) =>
+                  setFormData({ ...formData, username: e.target.value.replace(/\s/g, "") })
+                }
+                error={errors.username}
+                inputMode="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
 
               <div className="pt-2">
                 <p className="text-center text-xs font-medium text-gray-500 mb-3">Enter your 6-digit passcode</p>
