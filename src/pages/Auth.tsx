@@ -143,7 +143,7 @@ const Auth = () => {
 
       // Legacy users (no passcode set yet) → force reset flow
       if (lockData?.passcode_set === false) {
-        toast.message("Welcome back! Please create a 6-digit passcode to continue.", {
+        toast.message("Welcome back! Please create a 4–6 digit passcode to continue.", {
           description: "We'll send a code to your email to verify your identity.",
         });
         setShowForgot(true);
