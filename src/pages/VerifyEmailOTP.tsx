@@ -78,7 +78,8 @@ const VerifyEmailOTP = () => {
       toast.success("Email verified! Logging you in...");
       // Auto-login if we have password, otherwise send to auth
       if (password) {
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        const { wrapPasscode } = await import("@/lib/passcode");
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: wrapPasscode(password) });
         if (signInError) {
           toast.error("Verified. Please login to continue.");
           navigate("/auth", { replace: true });
