@@ -355,13 +355,17 @@ const Auth = () => {
               />
 
               <div className="pt-2">
-                <p className="text-center text-xs font-medium text-gray-500 mb-3">Enter your 6-digit passcode</p>
+                <p className="text-center text-xs font-medium text-gray-500 mb-3">Enter your passcode (4–6 digits)</p>
                 <PasscodeInput
                   value={formData.passcode}
                   onChange={(v) => setFormData({ ...formData, passcode: v })}
                   error={!!errors.passcode}
+                  length={6}
                   showKeypad
                 />
+                {errors.passcode && (
+                  <p className="text-xs text-red-500 text-center mt-2">{errors.passcode}</p>
+                )}
               </div>
 
               <div className="flex justify-end">
