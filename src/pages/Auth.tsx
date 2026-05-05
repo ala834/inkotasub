@@ -88,19 +88,8 @@ const Auth = () => {
 
   const validateLogin = () => {
     const e: Record<string, string> = {};
-    if (loginWithEmail) {
-      try {
-        emailSchema.parse(formData.email);
-      } catch (err: any) {
-        e.email = err.errors[0].message;
-      }
-    } else {
-      try {
-        usernameSchema.parse(formData.username);
-      } catch (err: any) {
-        e.username = err.errors[0].message;
-      }
-    }
+    const id = formData.username.trim();
+    if (!id) e.username = "Enter email, phone or username";
     if (formData.passcode.length !== 6) e.passcode = "Enter your 6-digit passcode";
     setErrors(e);
     return !Object.keys(e).length;
