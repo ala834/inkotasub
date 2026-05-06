@@ -132,24 +132,28 @@ serve(async (req) => {
     const flowpayPlanId = flowpayManualPlan?.api_plan_id || String(planId);
     const flowpayAmount = flowpayManualPlan?.price ? Number(flowpayManualPlan.price) : sellingPrice;
 
-    const providerChain = networkUpper === "AIRTEL"
-      ? ["subpadi", "flowpay", "smeplug"]
-      : undefined;
-
-    // 9mobile is unreliable on Flowpay — force away from Flowpay if it was selected
-    let effectivePreferredProvider = selectedPlanProvider;
-    if (networkUpper === "9MOBILE" && effectivePreferredProvider === "flowpay") {
-      console.log(`[purchase-data] 9mobile detected with Flowpay plan — switching preferred provider to subpadi`);
-      effectivePreferredProvider = "subpadi";
+    // Data plans are provider-specific — plan IDs DO NOT map across providers.
+    // Switching providers automatically would deliver the wrong bundle (e.g. 1GB → 3.7GB).
+    // Therefore: lock the request to the resolved plan provider only. NO automatic fallback.
+    if (!selectedPlanProvider) {
+      console.error(`[purchase-data] Could not resolve provider for ${networkUpper} plan ${planId}`);
+      // Refund handled by finalizeTransaction via failed providerResult
+      const providerResult: ProviderResult = {
+        success: false, indeterminate: false,
+        message: "Service temporarily unavailable",
+        providerUsed: "unknown", fallbackAttempted: false, rawResponse: null,
+        providerStatus: 'failed', providerMessage: "Plan-provider mapping not found",
+      };
+      return await finalizeTransaction(ctx, lockResult, providerResult);
     }
 
-    // Provider call with fallback
+    // Single-provider chain — strict, no fallback
     const result = await executeWithFallback(
       () => subpadiPurchaseData(networkUpper, providerPhone, String(planId), sellingPrice),
       () => smeplugPurchaseData(networkUpper, providerPhone, String(planId)),
       'data',
       networkUpper,
-      providerChain ? { providerChain } : (effectivePreferredProvider ? { preferredProvider: effectivePreferredProvider } : undefined),
+      { providerChain: [selectedPlanProvider], disableFallback: true },
       () => clubkonnectPurchaseData(networkUpper, providerPhone, String(planId)),
       () => renderPurchaseData(networkUpper, providerPhone, String(planId), sellingPrice),
       () => flowpayPurchaseData(networkUpper, providerPhone, flowpayPlanId, flowpayAmount),
