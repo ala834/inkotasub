@@ -120,9 +120,17 @@ const App = () => {
           </BrowserRouter>
         </TooltipProvider>
         </AppSettingsProvider>
+        </AppLockProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
+};
+
+const AppLockOverlay = () => {
+  const { user } = useAuth();
+  const { locked } = useAppLock();
+  if (!user || !locked) return null;
+  return <AppLockScreen />;
 };
 
 export default App;
