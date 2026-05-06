@@ -4,9 +4,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppSettingsProvider } from "@/contexts/AppSettingsContext";
+import { AppLockProvider, useAppLock } from "@/contexts/AppLockContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppLockScreen from "@/components/AppLockScreen";
 import SplashScreen from "@/components/SplashScreen";
 import PWAInstallPrompt from "@/components/common/PWAInstallPrompt";
 import OfflineFallback from "@/components/common/OfflineFallback";
@@ -61,6 +63,7 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <AppLockProvider>
         <AppSettingsProvider>
         <TooltipProvider>
           <Toaster />
@@ -69,6 +72,7 @@ const App = () => {
           <PWAInstallPrompt />
           <OfflineFallback />
           <PushNotificationInit />
+          <AppLockOverlay />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={
@@ -116,9 +120,17 @@ const App = () => {
           </BrowserRouter>
         </TooltipProvider>
         </AppSettingsProvider>
+        </AppLockProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
+};
+
+const AppLockOverlay = () => {
+  const { user } = useAuth();
+  const { locked } = useAppLock();
+  if (!user || !locked) return null;
+  return <AppLockScreen />;
 };
 
 export default App;
