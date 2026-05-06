@@ -168,8 +168,8 @@ serve(async (req) => {
       } else if (/cannot purchase this bundle for other users/i.test(result.message)) {
         userMessage = "This data plan is restricted to self-recharge only and cannot be purchased for other numbers. Please choose a different plan.";
       } else {
-        console.error(`[purchase-data] All providers failed for ${networkUpper} ${normalizedPhone} plan=${planId}: ${result.message}`);
-        userMessage = "Service temporarily unavailable, please try again.";
+        console.error(`[purchase-data] Provider ${selectedPlanProvider} failed for ${networkUpper} ${normalizedPhone} plan=${planId}: ${result.message}`);
+        userMessage = "Service temporarily unavailable";
       }
     }
 
