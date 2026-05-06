@@ -79,6 +79,24 @@ const Auth = () => {
     if (user && !isLoading) navigate(isAdmin ? "/admin" : "/dashboard");
   }, [user, isLoading, isAdmin, navigate]);
 
+  // Auto-submit login when passcode length is exactly 4 or 6.
+  // At length 4 we wait briefly to let users continue typing toward 6 digits.
+  useEffect(() => {
+    if (!isLogin) return;
+    if (loading) return;
+    const len = formData.passcode.length;
+    if (len !== 4 && len !== 6) return;
+    if (!formData.username.trim()) return;
+    const delay = len === 6 ? 0 : 1200;
+    const t = setTimeout(() => {
+      if (formData.passcode.length === 4 || formData.passcode.length === 6) {
+        handleLogin();
+      }
+    }, delay);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.passcode, isLogin]);
+
   const switchTab = (login: boolean) => {
     setIsLogin(login);
     setErrors({});
@@ -90,9 +108,9 @@ const Auth = () => {
     const e: Record<string, string> = {};
     const id = formData.username.trim();
     if (!id) e.username = "Enter email, phone or username";
+    const len = formData.passcode.length;
     if (!formData.passcode) e.passcode = "Enter your passcode";
-    else if (formData.passcode.length < 4) e.passcode = "Passcode must be at least 4 digits";
-    else if (formData.passcode.length > 6) e.passcode = "Passcode must be at most 6 digits";
+    else if (len !== 4 && len !== 6) e.passcode = "Passcode must be 4 or 6 digits";
     setErrors(e);
     return !Object.keys(e).length;
   };
@@ -355,10 +373,14 @@ const Auth = () => {
               />
 
               <div className="pt-2">
-                <p className="text-center text-xs font-medium text-gray-500 mb-3">Enter your passcode (4–6 digits)</p>
+                <p className="text-center text-xs font-medium text-gray-500 mb-3">Enter your passcode (4 or 6 digits)</p>
                 <PasscodeInput
                   value={formData.passcode}
-                  onChange={(v) => setFormData({ ...formData, passcode: v })}
+                  onChange={(v) => {
+                    setFormData({ ...formData, passcode: v });
+                    // Clear error while user is typing — never show "incorrect" mid-input
+                    if (errors.passcode) setErrors((p) => ({ ...p, passcode: "" }));
+                  }}
                   error={!!errors.passcode}
                   length={6}
                   showKeypad
@@ -381,7 +403,7 @@ const Auth = () => {
               <motion.button
                 whileTap={{ scale: 0.98 }}
                 type="submit"
-                disabled={loading || formData.passcode.length < 4 || formData.passcode.length > 6}
+                disabled={loading || (formData.passcode.length !== 4 && formData.passcode.length !== 6)}
                 className="w-full h-12 rounded-2xl bg-gradient-to-r from-green-600 to-green-500 text-white font-semibold text-sm shadow-lg shadow-green-500/25 active:from-green-700 active:to-green-600 disabled:opacity-50 flex items-center justify-center"
               >
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Login"}
