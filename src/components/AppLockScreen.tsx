@@ -44,15 +44,17 @@ const AppLockScreen = () => {
     }
   };
 
-  // auto-submit when full length reached
+  // Only validate at exact lengths 4 or 6. At length 4, wait long enough
+  // for the user to keep typing toward 6 digits before auto-submitting.
   useEffect(() => {
-    if (pin.length >= 4 && pin.length <= 6 && !verifying) {
-      // give the user a brief moment in case they keep typing toward 5/6 digits
-      const t = setTimeout(() => {
-        if (pin.length >= 4) verify(pin);
-      }, pin.length === 6 ? 0 : 450);
-      return () => clearTimeout(t);
-    }
+    if (verifying) return;
+    if (pin.length !== 4 && pin.length !== 6) return;
+    const delay = pin.length === 6 ? 0 : 1200;
+    const t = setTimeout(() => {
+      // Re-check length at fire time in case user kept typing
+      if (pin.length === 4 || pin.length === 6) verify(pin);
+    }, delay);
+    return () => clearTimeout(t);
   }, [pin]);
 
   const handleBiometric = async () => {
