@@ -355,10 +355,14 @@ const Auth = () => {
               />
 
               <div className="pt-2">
-                <p className="text-center text-xs font-medium text-gray-500 mb-3">Enter your passcode (4–6 digits)</p>
+                <p className="text-center text-xs font-medium text-gray-500 mb-3">Enter your passcode (4 or 6 digits)</p>
                 <PasscodeInput
                   value={formData.passcode}
-                  onChange={(v) => setFormData({ ...formData, passcode: v })}
+                  onChange={(v) => {
+                    setFormData({ ...formData, passcode: v });
+                    // Clear error while user is typing — never show "incorrect" mid-input
+                    if (errors.passcode) setErrors((p) => ({ ...p, passcode: "" }));
+                  }}
                   error={!!errors.passcode}
                   length={6}
                   showKeypad
