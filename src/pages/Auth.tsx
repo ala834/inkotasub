@@ -90,9 +90,9 @@ const Auth = () => {
     const e: Record<string, string> = {};
     const id = formData.username.trim();
     if (!id) e.username = "Enter email, phone or username";
+    const len = formData.passcode.length;
     if (!formData.passcode) e.passcode = "Enter your passcode";
-    else if (formData.passcode.length < 4) e.passcode = "Passcode must be at least 4 digits";
-    else if (formData.passcode.length > 6) e.passcode = "Passcode must be at most 6 digits";
+    else if (len !== 4 && len !== 6) e.passcode = "Passcode must be 4 or 6 digits";
     setErrors(e);
     return !Object.keys(e).length;
   };
