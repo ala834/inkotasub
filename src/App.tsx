@@ -63,6 +63,7 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <AppLockProvider>
         <AppSettingsProvider>
         <TooltipProvider>
           <Toaster />
@@ -71,6 +72,7 @@ const App = () => {
           <PWAInstallPrompt />
           <OfflineFallback />
           <PushNotificationInit />
+          <AppLockOverlay />
           <BrowserRouter>
             <Routes>
               <Route path="/" element={
