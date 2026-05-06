@@ -385,7 +385,7 @@ const Auth = () => {
               <motion.button
                 whileTap={{ scale: 0.98 }}
                 type="submit"
-                disabled={loading || formData.passcode.length < 4 || formData.passcode.length > 6}
+                disabled={loading || (formData.passcode.length !== 4 && formData.passcode.length !== 6)}
                 className="w-full h-12 rounded-2xl bg-gradient-to-r from-green-600 to-green-500 text-white font-semibold text-sm shadow-lg shadow-green-500/25 active:from-green-700 active:to-green-600 disabled:opacity-50 flex items-center justify-center"
               >
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Login"}
