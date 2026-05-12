@@ -105,7 +105,7 @@ const TransactionConfirmationDialog = ({
             <Button
               onClick={onConfirm}
               disabled={isLoading}
-              className="flex-1 h-12 rounded-xl gradient-primary text-primary-foreground font-semibold"
+              className="flex-1 h-12 rounded-xl green-primary text-primary-foreground font-semibold"
             >
               {isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
