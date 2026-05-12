@@ -58,9 +58,9 @@ const OfflineFallback = () => {
         <Button
           onClick={handleRetry}
           disabled={isRetrying}
-          className="gradient-primary text-primary-foreground rounded-xl h-12 px-8"
+          className="white green-primary text-primary-foreground rounded-xl h-12 px-8"
         >
-          <RefreshCw className={`mr-2 h-4 w-4 ${isRetrying ? "animate-spin" : ""}`} />
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRetrying ? "animate-spin" : ""}`} />
           {isRetrying ? "Checking…" : "Try Again"}
         </Button>
       </div>
