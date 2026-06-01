@@ -23,7 +23,9 @@ import {
   Mail,
   TestTube,
   Code,
+  Bell,
 } from "lucide-react";
+import AdminPushNotificationsTab from "@/components/admin/AdminPushNotificationsTab";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
@@ -76,6 +78,7 @@ const allTabs: TabDef[] = [
   { value: "webhooks", label: "Webhooks", icon: Webhook, superOnly: true },
   { value: "activity", label: "Activity Log", icon: ClipboardList },
   { value: "devices", label: "Devices", icon: Shield, superOnly: true },
+  { value: "push", label: "Push (OneSignal)", icon: Bell, superOnly: true },
   { value: "kyc", label: "KYC", icon: ShieldCheck, superOnly: true },
   { value: "referrals", label: "Referrals", icon: Gift },
   { value: "pricing", label: "Pricing", icon: DollarSign, superOnly: true },
@@ -184,6 +187,7 @@ const AdminDashboard = () => {
           {isSuperAdmin && <TabsContent value="webhooks"><AdminWebhooksTab /></TabsContent>}
           <TabsContent value="activity"><AdminActivityLogTab /></TabsContent>
           {isSuperAdmin && <TabsContent value="devices"><AdminDevicesTab /></TabsContent>}
+          {isSuperAdmin && <TabsContent value="push"><AdminPushNotificationsTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="kyc"><AdminKYCTab /></TabsContent>}
           <TabsContent value="referrals"><AdminReferralsTab /></TabsContent>
           {isSuperAdmin && <TabsContent value="pricing"><AdminPricingTab /></TabsContent>}
