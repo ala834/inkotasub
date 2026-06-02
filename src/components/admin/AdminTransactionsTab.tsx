@@ -229,6 +229,26 @@ const AdminTransactionsTab = () => {
                 </div>
               </div>
 
+              {(tx.status === "pending" || tx.status === "failed") && (
+                <div className="mt-3 pt-3 border-t border-border/50 flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-lg gap-1.5"
+                    onClick={() => reprocessTransaction(tx.id)}
+                    disabled={reprocessingId === tx.id}
+                  >
+                    {reprocessingId === tx.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    )}
+                    Reprocess
+                  </Button>
+                </div>
+              )}
+
+
               {/* Profit Section - Only show for successful VTU transactions with profit */}
               {tx.profit !== null && tx.status === "success" && (
                 <div className="mt-3 pt-3 border-t border-border/50">
