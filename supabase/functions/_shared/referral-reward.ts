@@ -1,89 +1,112 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const FIRST_TXN_BONUS = 50;
+const DEFAULT_BONUS = 50;
 
 /**
- * Check if the user was referred and hasn't received first-transaction bonus yet.
- * If so, credit referrer ₦50 and update referral status.
+ * Award the referrer ₦50 when the referred user completes their FIRST successful wallet funding.
+ * - Idempotent: only fires if referral.status is still "pending"/"signup_rewarded".
+ * - Reward only the referrer. Referred user gets nothing.
+ * - Triggered exclusively by wallet funding flows (paystack-webhook, verify-payment).
  */
-export async function checkAndRewardFirstTransaction(userId: string) {
+export async function rewardReferralOnFirstFunding(
+  userId: string,
+  bonusAmount: number = DEFAULT_BONUS,
+) {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const adminSupabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const admin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // Check if this user has a referral in signup_rewarded status
-    const { data: referral } = await adminSupabase
-      .from("referrals")
-      .select("*")
-      .eq("referred_id", userId)
-      .eq("status", "signup_rewarded")
-      .single();
-
-    if (!referral) return;
-
-    // Check if user has any prior successful transactions (this should be their first)
-    const { count } = await adminSupabase
+    // Only on the very first successful credit (wallet funding)
+    const { count: successfulCredits } = await admin
       .from("transactions")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
-      .eq("type", "debit")
+      .eq("type", "credit")
       .eq("status", "success");
 
-    // Only reward on the very first successful debit transaction
-    if ((count || 0) > 1) {
-      // Already had transactions before, just mark as fully rewarded
-      await adminSupabase
+    if ((successfulCredits ?? 0) !== 1) return;
+
+    // Find pending referral (not yet rewarded)
+    const { data: referral } = await admin
+      .from("referrals")
+      .select("*")
+      .eq("referred_id", userId)
+      .in("status", ["pending", "signup_rewarded"])
+      .maybeSingle();
+
+    if (!referral) return;
+
+    // Atomic claim — prevent double reward by gating on status
+    const { data: claimed, error: claimErr } = await admin
+      .from("referrals")
+      .update({ status: "processing" })
+      .eq("id", referral.id)
+      .in("status", ["pending", "signup_rewarded"])
+      .select()
+      .maybeSingle();
+
+    if (claimErr || !claimed) return;
+
+    const { data: balBefore } = await admin.rpc("get_wallet_balance", {
+      p_user_id: referral.referrer_id,
+    });
+    const refBalBefore = parseFloat(balBefore ?? "0");
+
+    const { data: newBal, error: creditErr } = await admin.rpc("atomic_wallet_credit", {
+      p_user_id: referral.referrer_id,
+      p_amount: bonusAmount,
+    });
+
+    if (creditErr) {
+      // Roll status back so we can retry later
+      await admin
         .from("referrals")
-        .update({ status: "fully_rewarded" })
+        .update({ status: referral.status })
         .eq("id", referral.id);
+      console.error("Referral credit failed:", creditErr);
       return;
     }
 
-    // Credit referrer wallet
-    const { data: wallet } = await adminSupabase
-      .from("wallets")
-      .select("balance, ledger_balance")
-      .eq("user_id", referral.referrer_id)
-      .single();
+    const refBalAfter = parseFloat(newBal);
 
-    if (!wallet) return;
-
-    const newBalance = Number(wallet.balance) + FIRST_TXN_BONUS;
-    const newLedger = Number(wallet.ledger_balance) + FIRST_TXN_BONUS;
-    const totalReward = Number(referral.reward_amount || 0) + FIRST_TXN_BONUS;
-
-    await adminSupabase
-      .from("wallets")
-      .update({ balance: newBalance, ledger_balance: newLedger })
-      .eq("user_id", referral.referrer_id);
-
-    await adminSupabase
-      .from("referrals")
-      .update({ reward_amount: totalReward, status: "fully_rewarded" })
-      .eq("id", referral.id);
-
-    await adminSupabase.from("transactions").insert({
+    await admin.from("transactions").insert({
       user_id: referral.referrer_id,
       type: "credit",
-      amount: FIRST_TXN_BONUS,
-      balance_before: Number(wallet.balance),
-      balance_after: newBalance,
+      amount: bonusAmount,
+      balance_before: refBalBefore,
+      balance_after: refBalAfter,
       status: "success",
-      description: "Referral first transaction bonus",
-      reference: `REF-FIRSTTXN-${Date.now()}`,
-      metadata: { type: "referral_first_txn_bonus", referred_user: userId },
+      reference: `REF-BONUS-${referral.id}`,
+      description: "Referral reward — first wallet funding",
+      metadata: { type: "referral_bonus", referred_user: userId, referral_id: referral.id },
     });
 
-    await adminSupabase.from("notifications").insert({
+    await admin
+      .from("referrals")
+      .update({
+        rewarded: true,
+        reward_amount: bonusAmount,
+        status: "fully_rewarded",
+      })
+      .eq("id", referral.id);
+
+    await admin.from("notifications").insert({
       user_id: referral.referrer_id,
-      title: "Bonus Earned! 💰",
-      message: `You earned an additional ₦${FIRST_TXN_BONUS} because your referred user completed their first transaction!`,
-      type: "referral",
+      title: "Referral Bonus! 🎉",
+      message: `You earned ₦${bonusAmount} — your referred user funded their wallet for the first time!`,
+      type: "success",
     });
 
-    console.log(`First-txn referral bonus credited to ${referral.referrer_id}`);
-  } catch (error) {
-    console.error("Error in checkAndRewardFirstTransaction:", error);
-    // Don't throw - this shouldn't block the main transaction
+    console.log(`Referral bonus ₦${bonusAmount} → ${referral.referrer_id} (referred ${userId})`);
+  } catch (err) {
+    console.error("rewardReferralOnFirstFunding error:", err);
   }
+}
+
+/**
+ * @deprecated Referral reward is now tied to first wallet funding only.
+ * Kept as a no-op so existing imports don't break.
+ */
+export async function checkAndRewardFirstTransaction(_userId: string) {
+  return;
 }

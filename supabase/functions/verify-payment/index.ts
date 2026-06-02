@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { rewardReferralOnFirstFunding } from "../_shared/referral-reward.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -205,6 +206,10 @@ serve(async (req) => {
     });
 
     console.log("Payment verified and credited:", reference, "net:", netAmount, "charge:", depositCharge);
+
+    // Award referrer ₦50 on first wallet funding (idempotent — safe alongside webhook)
+    await rewardReferralOnFirstFunding(userId, settings.referral_bonus_amount);
+
 
     // Send receipt email (fire-and-forget)
     try {

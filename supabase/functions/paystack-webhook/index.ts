@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { rewardReferralOnFirstFunding } from "../_shared/referral-reward.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -124,73 +125,8 @@ async function processWalletCredit(
     type: "success",
   });
 
-  // Auto-process referral reward on first deposit
-  const referralBonus = settings.referral_bonus_amount;
-
-  const { count: successfulCredits } = await supabase
-    .from("transactions")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("type", "credit")
-    .eq("status", "success");
-
-  console.log("User successful credits count:", successfulCredits);
-
-  // If this is the first successful deposit, check for pending referral
-  if (successfulCredits === 1) {
-    const { data: pendingReferral } = await supabase
-      .from("referrals")
-      .select("*")
-      .eq("referred_id", userId)
-      .in("status", ["pending", "signup_rewarded"])
-      .single();
-
-    if (pendingReferral) {
-      console.log("Processing referral bonus for user:", userId, "amount:", referralBonus);
-
-      // Get referrer balance
-      const { data: referrerBalanceBefore } = await supabase.rpc("get_wallet_balance", { p_user_id: pendingReferral.referrer_id });
-
-      if (referrerBalanceBefore !== null) {
-        const refBalBefore = parseFloat(referrerBalanceBefore);
-
-        const { data: referrerNewBal, error: refCreditErr } = await supabase.rpc("atomic_wallet_credit", {
-          p_user_id: pendingReferral.referrer_id,
-          p_amount: referralBonus,
-        });
-
-        if (!refCreditErr) {
-          const refBalAfter = parseFloat(referrerNewBal);
-
-          await supabase.from("transactions").insert({
-            user_id: pendingReferral.referrer_id,
-            type: "credit",
-            amount: referralBonus,
-            balance_before: refBalBefore,
-            balance_after: refBalAfter,
-            status: "success",
-            reference: `REF-BONUS-${Date.now()}`,
-            description: "Referral reward",
-            metadata: { type: "referral_bonus", referred_user: userId },
-          });
-
-          await supabase
-            .from("referrals")
-            .update({ rewarded: true, reward_amount: referralBonus, status: "fully_rewarded" })
-            .eq("id", pendingReferral.id);
-
-          await supabase.from("notifications").insert({
-            user_id: pendingReferral.referrer_id,
-            title: "Referral Bonus! 🎉",
-            message: `You earned ₦${referralBonus} because your referred user funded their wallet!`,
-            type: "success",
-          });
-
-          console.log(`Referral bonus processed: ${pendingReferral.referrer_id} earned ₦${referralBonus}`);
-        }
-      }
-    }
-  }
+  // Award referrer ₦50 on the user's FIRST successful wallet funding (idempotent)
+  await rewardReferralOnFirstFunding(userId, settings.referral_bonus_amount);
 
   // Mark webhook as processed
   await supabase
