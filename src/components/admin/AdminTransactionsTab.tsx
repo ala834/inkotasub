@@ -32,10 +32,46 @@ const AdminTransactionsTab = () => {
   const [transactions, setTransactions] = useState<TransactionWithProfit[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
+  const [reprocessingId, setReprocessingId] = useState<string | null>(null);
+  const [isReconcilingAll, setIsReconcilingAll] = useState(false);
 
   useEffect(() => {
     fetchTransactions();
   }, [statusFilter]);
+
+  const reprocessTransaction = async (id: string) => {
+    setReprocessingId(id);
+    try {
+      const { data, error } = await supabase.functions.invoke("reconcile-transactions", {
+        body: { transaction_id: id },
+      });
+      if (error) throw error;
+      const detail = data?.details?.[0];
+      toast.success(detail ? `${detail.action.replace(/_/g, " ")}: ${detail.reason}` : "Reprocessed");
+      await fetchTransactions();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to reprocess");
+    } finally {
+      setReprocessingId(null);
+    }
+  };
+
+  const reconcileAllPending = async () => {
+    setIsReconcilingAll(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("reconcile-transactions", {
+        body: { min_age_minutes: 0, force_fail_after_minutes: 15 },
+      });
+      if (error) throw error;
+      toast.success(`Reconciled ${data?.reconciled ?? 0}, refunded ${data?.refunded ?? 0}`);
+      await fetchTransactions();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to reconcile");
+    } finally {
+      setIsReconcilingAll(false);
+    }
+  };
+
 
   const fetchTransactions = async () => {
     setIsLoading(true);
