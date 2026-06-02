@@ -145,17 +145,29 @@ const AdminTransactionsTab = () => {
 
   return (
     <div className="space-y-4">
-      <Select value={statusFilter} onValueChange={setStatusFilter}>
-        <SelectTrigger className="h-12 rounded-xl">
-          <SelectValue placeholder="Filter by status" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Transactions</SelectItem>
-          <SelectItem value="success">Successful</SelectItem>
-          <SelectItem value="pending">Pending</SelectItem>
-          <SelectItem value="failed">Failed</SelectItem>
-        </SelectContent>
-      </Select>
+      <div className="flex gap-2">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="h-12 rounded-xl flex-1">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Transactions</SelectItem>
+            <SelectItem value="success">Successful</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="failed">Failed</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          variant="outline"
+          className="h-12 rounded-xl gap-2"
+          onClick={reconcileAllPending}
+          disabled={isReconcilingAll}
+        >
+          {isReconcilingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          Reconcile all
+        </Button>
+      </div>
+
 
       {isLoading ? (
         <div className="flex justify-center py-8">
