@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, ArrowUpRight, ArrowDownLeft, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, ArrowUpRight, ArrowDownLeft, TrendingUp, RefreshCw, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -30,10 +32,46 @@ const AdminTransactionsTab = () => {
   const [transactions, setTransactions] = useState<TransactionWithProfit[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
+  const [reprocessingId, setReprocessingId] = useState<string | null>(null);
+  const [isReconcilingAll, setIsReconcilingAll] = useState(false);
 
   useEffect(() => {
     fetchTransactions();
   }, [statusFilter]);
+
+  const reprocessTransaction = async (id: string) => {
+    setReprocessingId(id);
+    try {
+      const { data, error } = await supabase.functions.invoke("reconcile-transactions", {
+        body: { transaction_id: id },
+      });
+      if (error) throw error;
+      const detail = data?.details?.[0];
+      toast.success(detail ? `${detail.action.replace(/_/g, " ")}: ${detail.reason}` : "Reprocessed");
+      await fetchTransactions();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to reprocess");
+    } finally {
+      setReprocessingId(null);
+    }
+  };
+
+  const reconcileAllPending = async () => {
+    setIsReconcilingAll(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("reconcile-transactions", {
+        body: { min_age_minutes: 0, force_fail_after_minutes: 15 },
+      });
+      if (error) throw error;
+      toast.success(`Reconciled ${data?.reconciled ?? 0}, refunded ${data?.refunded ?? 0}`);
+      await fetchTransactions();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to reconcile");
+    } finally {
+      setIsReconcilingAll(false);
+    }
+  };
+
 
   const fetchTransactions = async () => {
     setIsLoading(true);
@@ -107,17 +145,29 @@ const AdminTransactionsTab = () => {
 
   return (
     <div className="space-y-4">
-      <Select value={statusFilter} onValueChange={setStatusFilter}>
-        <SelectTrigger className="h-12 rounded-xl">
-          <SelectValue placeholder="Filter by status" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Transactions</SelectItem>
-          <SelectItem value="success">Successful</SelectItem>
-          <SelectItem value="pending">Pending</SelectItem>
-          <SelectItem value="failed">Failed</SelectItem>
-        </SelectContent>
-      </Select>
+      <div className="flex gap-2">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="h-12 rounded-xl flex-1">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Transactions</SelectItem>
+            <SelectItem value="success">Successful</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="failed">Failed</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          variant="outline"
+          className="h-12 rounded-xl gap-2"
+          onClick={reconcileAllPending}
+          disabled={isReconcilingAll}
+        >
+          {isReconcilingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          Reconcile all
+        </Button>
+      </div>
+
 
       {isLoading ? (
         <div className="flex justify-center py-8">
@@ -178,6 +228,26 @@ const AdminTransactionsTab = () => {
                   </span>
                 </div>
               </div>
+
+              {(tx.status === "pending" || tx.status === "failed") && (
+                <div className="mt-3 pt-3 border-t border-border/50 flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-lg gap-1.5"
+                    onClick={() => reprocessTransaction(tx.id)}
+                    disabled={reprocessingId === tx.id}
+                  >
+                    {reprocessingId === tx.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    )}
+                    Reprocess
+                  </Button>
+                </div>
+              )}
+
 
               {/* Profit Section - Only show for successful VTU transactions with profit */}
               {tx.profit !== null && tx.status === "success" && (
