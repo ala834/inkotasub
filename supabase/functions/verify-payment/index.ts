@@ -207,6 +207,10 @@ serve(async (req) => {
 
     console.log("Payment verified and credited:", reference, "net:", netAmount, "charge:", depositCharge);
 
+    // Award referrer ₦50 on first wallet funding (idempotent — safe alongside webhook)
+    await rewardReferralOnFirstFunding(userId, settings.referral_bonus_amount);
+
+
     // Send receipt email (fire-and-forget)
     try {
       await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-receipt-email`, {
