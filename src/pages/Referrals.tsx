@@ -92,9 +92,9 @@ const Referrals = () => {
           className="grid grid-cols-3 gap-2"
         >
           {[
-            { icon: Users, value: referrals.length, label: "Referrals", color: "from-blue-500 to-blue-600" },
+            { icon: Users, value: referrals.length, label: "Referrals", color: "from-emerald-500 to-teal-600" },
             { icon: Wallet, value: fmt(totalEarnings), label: "Earnings", color: "from-green-500 to-emerald-500" },
-            { icon: TrendingUp, value: fullyRewarded, label: "Completed", color: "from-amber-500 to-orange-500" },
+            { icon: TrendingUp, value: fullyRewarded, label: "Completed", color: "from-teal-500 to-emerald-600" },
           ].map((stat, i) => (
             <div key={i} className="bg-white rounded-2xl p-3 shadow-sm text-center">
               <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center mx-auto mb-2`}>

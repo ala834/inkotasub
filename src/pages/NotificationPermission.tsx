@@ -37,19 +37,19 @@ const REASONS = [
     icon: ShieldCheck,
     title: "Security updates",
     desc: "Login attempts on new devices, PIN changes, and suspicious activity warnings.",
-    color: "text-blue-600 bg-blue-500/10",
+    color: "text-emerald-600 bg-emerald-500/10",
   },
   {
     icon: Zap,
     title: "Service status",
     desc: "Know when a network or biller is down — and the moment it comes back online.",
-    color: "text-amber-600 bg-amber-500/10",
+    color: "text-emerald-600 bg-emerald-500/10",
   },
   {
     icon: Megaphone,
     title: "Promos & rewards",
     desc: "Referral bonuses, cashback, and limited-time data offers (you can opt out anytime).",
-    color: "text-purple-600 bg-purple-500/10",
+    color: "text-emerald-600 bg-emerald-500/10",
   },
 ];
 
