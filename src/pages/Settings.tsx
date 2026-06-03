@@ -173,57 +173,57 @@ const Settings = () => {
     {
       title: "Account",
       items: [
-        { icon: User, label: "Edit Profile", description: "Name, email, and phone", action: () => navigate("/profile"), iconColor: "text-blue-500 bg-blue-50" },
-        { icon: Lock, label: "Change Passcode", description: "Update your 6-digit login passcode", action: () => setForgotPasscodeOpen(true), iconColor: "text-purple-500 bg-purple-50" },
-        { icon: Shield, label: "Transaction PIN", description: profile?.has_transaction_pin ? "Change your PIN" : "Set up your PIN", action: () => handleOpenChangePinDialog(), iconColor: "text-green-500 bg-green-50" },
-        { icon: Fingerprint, label: "Biometric Login", description: biometricAvailable ? (biometricLoginEnabled ? "Active" : "Enable fingerprint") : "Not available", toggle: biometricAvailable, value: biometricLoginEnabled, onToggle: async v => { if (v) setBiometricSetupOpen(true); else { await disableBiometricLogin(); toast.success("Biometric disabled"); } }, iconColor: "text-emerald-500 bg-emerald-50" },
-        { icon: Fingerprint, label: "Fingerprint for Transactions", description: biometricAvailable ? (biometricTransactionEnabled ? "Active" : "Use fingerprint for PIN") : "Not available", toggle: biometricAvailable, value: biometricTransactionEnabled, onToggle: async v => { const r = await toggleTransactionBiometric(v); if (r?.success) toast.success(v ? "Enabled" : "Disabled"); else if (r?.error) toast.error(r.error); }, iconColor: "text-teal-500 bg-teal-50" },
+        { icon: User, label: "Edit Profile", description: "Name, email, and phone", action: () => navigate("/profile"), iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: Lock, label: "Change Passcode", description: "Update your 6-digit login passcode", action: () => setForgotPasscodeOpen(true), iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: Shield, label: "Transaction PIN", description: profile?.has_transaction_pin ? "Change your PIN" : "Set up your PIN", action: () => handleOpenChangePinDialog(), iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: Fingerprint, label: "Biometric Login", description: biometricAvailable ? (biometricLoginEnabled ? "Active" : "Enable fingerprint") : "Not available", toggle: biometricAvailable, value: biometricLoginEnabled, onToggle: async v => { if (v) setBiometricSetupOpen(true); else { await disableBiometricLogin(); toast.success("Biometric disabled"); } }, iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: Fingerprint, label: "Fingerprint for Transactions", description: biometricAvailable ? (biometricTransactionEnabled ? "Active" : "Use fingerprint for PIN") : "Not available", toggle: biometricAvailable, value: biometricTransactionEnabled, onToggle: async v => { const r = await toggleTransactionBiometric(v); if (r?.success) toast.success(v ? "Enabled" : "Disabled"); else if (r?.error) toast.error(r.error); }, iconColor: "text-emerald-600 bg-emerald-50" },
       ],
     },
     {
       title: "Wallet & Payments",
       items: [
-        { icon: Wallet, label: "Wallet Balance", description: formatCurrency(wallet?.balance || 0), action: () => navigate("/fund-wallet"), iconColor: "text-green-600 bg-green-50" },
-        { icon: Building2, label: "Virtual Account", description: virtualAccount?.account_number || "Not linked", action: () => navigate("/fund-wallet"), iconColor: "text-indigo-500 bg-indigo-50" },
-        { icon: History, label: "Transaction History", description: "View all transactions", action: () => navigate("/history"), iconColor: "text-blue-500 bg-blue-50" },
-        { icon: Bell, label: "Auto-Funding Alerts", toggle: true, value: autoFundingNotifications, onToggle: v => { setAutoFundingNotifications(v); toast.success(v ? "Enabled" : "Disabled"); }, iconColor: "text-amber-500 bg-amber-50" },
+        { icon: Wallet, label: "Wallet Balance", description: formatCurrency(wallet?.balance || 0), action: () => navigate("/fund-wallet"), iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: Building2, label: "Virtual Account", description: virtualAccount?.account_number || "Not linked", action: () => navigate("/fund-wallet"), iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: History, label: "Transaction History", description: "View all transactions", action: () => navigate("/history"), iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: Bell, label: "Auto-Funding Alerts", toggle: true, value: autoFundingNotifications, onToggle: v => { setAutoFundingNotifications(v); toast.success(v ? "Enabled" : "Disabled"); }, iconColor: "text-emerald-600 bg-emerald-50" },
       ],
     },
     {
       title: "Security",
       items: [
-        { icon: Smartphone, label: "My Devices", description: "Manage linked devices", action: () => navigate("/my-devices"), iconColor: "text-slate-600 bg-slate-50" },
-        { icon: Shield, label: "Two-Factor Auth", badge: "Coming Soon", iconColor: "text-orange-500 bg-orange-50" },
-        { icon: LogOut, label: "Logout All Devices", description: "End all sessions", action: async () => { await supabase.auth.signOut({ scope: "global" }); navigate("/auth"); toast.success("Logged out from all devices"); }, iconColor: "text-red-500 bg-red-50" },
+        { icon: Smartphone, label: "My Devices", description: "Manage linked devices", action: () => navigate("/my-devices"), iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: Shield, label: "Two-Factor Auth", badge: "Coming Soon", iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: LogOut, label: "Logout All Devices", description: "End all sessions", action: async () => { await supabase.auth.signOut({ scope: "global" }); navigate("/auth"); toast.success("Logged out from all devices"); }, iconColor: "text-red-600 bg-red-50" },
       ],
     },
     {
       title: "Notifications",
       items: [
-        { icon: Bell, label: "Push Notifications", toggle: true, value: pushNotifications, onToggle: async v => { if (v && "Notification" in window) { const p = await Notification.requestPermission(); if (p !== "granted") { toast.error("Enable in browser settings"); return; } } setPushNotifications(v); toast.success(v ? "Enabled" : "Disabled"); }, iconColor: "text-green-500 bg-green-50" },
-        { icon: Mail, label: "Email Alerts", toggle: true, value: emailAlerts, onToggle: v => { setEmailAlerts(v); toast.success(v ? "Enabled" : "Disabled"); }, iconColor: "text-blue-500 bg-blue-50" },
-        { icon: CreditCard, label: "Transaction Alerts", toggle: true, value: transactionAlerts, onToggle: v => { setTransactionAlerts(v); toast.success(v ? "Enabled" : "Disabled"); }, iconColor: "text-purple-500 bg-purple-50" },
+        { icon: Bell, label: "Push Notifications", toggle: true, value: pushNotifications, onToggle: async v => { if (v && "Notification" in window) { const p = await Notification.requestPermission(); if (p !== "granted") { toast.error("Enable in browser settings"); return; } } setPushNotifications(v); toast.success(v ? "Enabled" : "Disabled"); }, iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: Mail, label: "Email Alerts", toggle: true, value: emailAlerts, onToggle: v => { setEmailAlerts(v); toast.success(v ? "Enabled" : "Disabled"); }, iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: CreditCard, label: "Transaction Alerts", toggle: true, value: transactionAlerts, onToggle: v => { setTransactionAlerts(v); toast.success(v ? "Enabled" : "Disabled"); }, iconColor: "text-emerald-600 bg-emerald-50" },
       ],
     },
     {
       title: "Preferences",
       items: [
-        { icon: darkMode ? Moon : Sun, label: "Dark Mode", toggle: true, value: darkMode, onToggle: handleDarkModeToggle, iconColor: darkMode ? "text-yellow-500 bg-yellow-50" : "text-gray-600 bg-gray-100" },
-        { icon: Globe, label: "Language", description: "English", badge: "Default", iconColor: "text-cyan-500 bg-cyan-50" },
-        { icon: CreditCard, label: "Currency", description: "₦ NGN", badge: "Default", iconColor: "text-green-500 bg-green-50" },
+        { icon: darkMode ? Moon : Sun, label: "Dark Mode", toggle: true, value: darkMode, onToggle: handleDarkModeToggle, iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: Globe, label: "Language", description: "English", badge: "Default", iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: CreditCard, label: "Currency", description: "₦ NGN", badge: "Default", iconColor: "text-emerald-600 bg-emerald-50" },
       ],
     },
     {
       title: "Advanced",
       items: [
-        { icon: Code2, label: "Developer API", description: "Access API keys and developer tools", action: () => navigate("/developer"), iconColor: "text-violet-500 bg-violet-50" },
+        { icon: Code2, label: "Developer API", description: "Access API keys and developer tools", action: () => navigate("/developer"), iconColor: "text-emerald-600 bg-emerald-50" },
       ],
     },
     {
       title: "Support & Legal",
       items: [
-        { icon: MessageCircle, label: "Contact Support", description: supportSettings.support_email, action: () => navigate("/support"), iconColor: "text-green-500 bg-green-50" },
-        { icon: HelpCircle, label: "FAQ", action: () => navigate("/faq"), iconColor: "text-blue-500 bg-blue-50" },
+        { icon: MessageCircle, label: "Contact Support", description: supportSettings.support_email, action: () => navigate("/support"), iconColor: "text-emerald-600 bg-emerald-50" },
+        { icon: HelpCircle, label: "FAQ", action: () => navigate("/faq"), iconColor: "text-emerald-600 bg-emerald-50" },
         { icon: FileText, label: "Privacy Policy", action: () => navigate("/privacy-policy"), iconColor: "text-gray-500 bg-gray-100" },
         { icon: FileText, label: "Terms & Conditions", action: () => navigate("/terms"), iconColor: "text-gray-500 bg-gray-100" },
         { icon: FileText, label: "Refund Policy", action: () => navigate("/refund-policy"), iconColor: "text-gray-500 bg-gray-100" },
