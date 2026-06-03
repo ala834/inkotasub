@@ -61,6 +61,12 @@ serve(async (req) => {
     }
 
     if (action === "record_failure") {
+      // Rate-limit by email and IP to prevent attackers from locking arbitrary accounts.
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+      const emailRl = checkRateLimit(emailLower, "passcode-auth:record_failure:email", { maxRequests: 6, windowMs: 10 * 60_000 });
+      if (!emailRl.allowed) return rateLimitResponse(emailRl.retryAfterMs!, corsHeaders);
+      const ipRl = checkRateLimit(ip, "passcode-auth:record_failure:ip", { maxRequests: 30, windowMs: 10 * 60_000 });
+      if (!ipRl.allowed) return rateLimitResponse(ipRl.retryAfterMs!, corsHeaders);
       if (!matchedUser) return json({ success: true });
       const { data: profile } = await admin
         .from("profiles")
