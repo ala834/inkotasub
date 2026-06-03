@@ -161,6 +161,6 @@ serve(async (req) => {
     return json({ success: false, error: "Unknown action" }, 400);
   } catch (err: any) {
     console.error("passcode-auth error:", err);
-    return json({ success: false, error: err?.message || "Internal error" }, 500);
+    return json({ success: false, error: "Internal server error" }, 500);
   }
 });
