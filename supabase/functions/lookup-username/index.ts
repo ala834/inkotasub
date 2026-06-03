@@ -27,6 +27,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    // Per-IP rate limiting to deter user/email enumeration.
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const rl = checkRateLimit(ip, "lookup-username", { maxRequests: 10, windowMs: 60_000 });
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs!, corsHeaders);
+
     const body = await req.json();
     // Accept either { username } (legacy) or { identifier }
     const raw = (body.identifier ?? body.username ?? "").toString().trim();
