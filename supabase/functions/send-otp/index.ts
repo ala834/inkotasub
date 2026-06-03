@@ -48,7 +48,10 @@ function validatePhoneNumber(phone: string): { valid: boolean; formatted: string
 
 // Generate 6-digit OTP
 function generateOTP(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  const bytes = new Uint8Array(4);
+  crypto.getRandomValues(bytes);
+  const num = (new DataView(bytes.buffer).getUint32(0) % 900000) + 100000;
+  return num.toString();
 }
 
 // Mask phone number for display

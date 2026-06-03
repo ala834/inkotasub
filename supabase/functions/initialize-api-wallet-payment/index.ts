@@ -73,7 +73,7 @@ serve(async (req) => {
         amount: Math.round(Number(amount) * 100),
         email: email ?? user.email,
         reference,
-        callback_url: `${req.headers.get("origin")}/developer?api_wallet_ref=${reference}`,
+        callback_url: `${Deno.env.get("APP_URL") ?? "https://inkotasub.com"}/developer?api_wallet_ref=${reference}`,
         channels: ["card", "bank", "ussd", "bank_transfer"],
         metadata: {
           user_id: userId,
