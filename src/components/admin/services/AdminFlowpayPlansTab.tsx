@@ -17,7 +17,7 @@ import {
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Plus, Pencil, Trash2, RefreshCw, Database, HeartPulse } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, RefreshCw, Database, HeartPulse, DownloadCloud } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -76,6 +76,24 @@ const AdminFlowpayPlansTab = () => {
   const [form, setForm] = useState<PlanFormState>(emptyForm);
   const [networkFilter, setNetworkFilter] = useState<string>("all");
   const [healthChecking, setHealthChecking] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const runSync = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-flowpay-plans");
+      if (error) throw error;
+      const d = data as { inserted?: number; updated?: number; flowpay_active_plans?: number; previously_missing_count?: number; message?: string };
+      toast.success(
+        `${d.message || "Sync complete"} — ${d.flowpay_active_plans ?? 0} live plans on FlowPay${d.previously_missing_count ? `, ${d.previously_missing_count} new plans imported` : ""}.`
+      );
+      loadPlans();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "FlowPay sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const runHealthCheck = async () => {
     setHealthChecking(true);
@@ -211,6 +229,10 @@ const AdminFlowpayPlansTab = () => {
                   {NETWORKS.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Button variant="outline" size="sm" onClick={runSync} disabled={syncing}>
+                <DownloadCloud className={`h-4 w-4 mr-2 ${syncing ? "animate-pulse" : ""}`} />
+                Sync from FlowPay
+              </Button>
               <Button variant="outline" size="sm" onClick={runHealthCheck} disabled={healthChecking}>
                 <HeartPulse className={`h-4 w-4 mr-2 ${healthChecking ? "animate-pulse" : ""}`} />
                 Health-check
