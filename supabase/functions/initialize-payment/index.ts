@@ -66,7 +66,7 @@ serve(async (req) => {
           amount: Math.round(amount * 100), // Paystack expects amount in kobo
           email,
           reference,
-          callback_url: `${req.headers.get("origin")}/payment-callback`,
+          callback_url: `${Deno.env.get("APP_URL") ?? "https://inkotasub.com"}/payment-callback`,
           channels,
           metadata: {
             user_id: userId,
