@@ -5,6 +5,7 @@
 //   - reset_passcode: verifies email OTP token, sets new passcode, marks passcode_set=true
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,6 +61,12 @@ serve(async (req) => {
     }
 
     if (action === "record_failure") {
+      // Rate-limit by email and IP to prevent attackers from locking arbitrary accounts.
+      const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+      const emailRl = checkRateLimit(emailLower, "passcode-auth:record_failure:email", { maxRequests: 6, windowMs: 10 * 60_000 });
+      if (!emailRl.allowed) return rateLimitResponse(emailRl.retryAfterMs!, corsHeaders);
+      const ipRl = checkRateLimit(ip, "passcode-auth:record_failure:ip", { maxRequests: 30, windowMs: 10 * 60_000 });
+      if (!ipRl.allowed) return rateLimitResponse(ipRl.retryAfterMs!, corsHeaders);
       if (!matchedUser) return json({ success: true });
       const { data: profile } = await admin
         .from("profiles")
@@ -154,6 +161,6 @@ serve(async (req) => {
     return json({ success: false, error: "Unknown action" }, 400);
   } catch (err: any) {
     console.error("passcode-auth error:", err);
-    return json({ success: false, error: err?.message || "Internal error" }, 500);
+    return json({ success: false, error: "Internal server error" }, 500);
   }
 });

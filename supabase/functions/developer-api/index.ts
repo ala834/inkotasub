@@ -150,7 +150,7 @@ serve(async (req) => {
     }
   } catch (err) {
     console.error("developer-api error:", err);
-    response = { status: 500, body: { success: false, error: err instanceof Error ? err.message : "Internal error" } };
+    response = { status: 500, body: { success: false, error: "Internal error" } };
   }
 
   await logRequest(admin, {

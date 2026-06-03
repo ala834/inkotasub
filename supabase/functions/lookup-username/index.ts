@@ -1,6 +1,7 @@
 // Resolves a login identifier (username, email, or Nigerian phone number) to the
 // account's email address. Used by the passcode login flow.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +27,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    // Per-IP rate limiting to deter user/email enumeration.
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const rl = checkRateLimit(ip, "lookup-username", { maxRequests: 10, windowMs: 60_000 });
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs!, corsHeaders);
+
     const body = await req.json();
     // Accept either { username } (legacy) or { identifier }
     const raw = (body.identifier ?? body.username ?? "").toString().trim();
