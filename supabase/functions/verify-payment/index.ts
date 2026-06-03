@@ -251,7 +251,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         status: "failed",
-        message: error instanceof Error ? error.message : "Verification failed",
+        message: "Verification failed",
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
