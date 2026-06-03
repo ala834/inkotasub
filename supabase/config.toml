@@ -85,6 +85,9 @@ verify_jwt = false
 [functions.sync-flowpay-health]
 verify_jwt = false
 
+[functions.sync-flowpay-plans]
+verify_jwt = false
+
 [functions.developer-api]
 verify_jwt = false
 

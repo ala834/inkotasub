@@ -211,13 +211,13 @@ serve(async (req) => {
 
       // 3. Merge enabled Flowpay manual plans (admin-managed, always available; skip unstable)
       try {
+        // Show every admin-enabled Flowpay plan (no failure_count filtering)
         const { data: flowpayPlans } = await adminSupabase
           .from("flowpay_manual_plans")
           .select("*")
           .eq("network", networkUpper)
           .eq("is_enabled", true)
-          .eq("permanently_disabled", false)
-          .lt("failure_count", 2);
+          .eq("permanently_disabled", false);
         if (flowpayPlans && flowpayPlans.length > 0) {
           const mapped = flowpayPlans.map((p: any) => ({
             id: p.id, // DB id; purchase-data resolves to api_plan_id server-side
