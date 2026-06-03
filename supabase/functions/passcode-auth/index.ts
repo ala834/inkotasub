@@ -5,6 +5,7 @@
 //   - reset_passcode: verifies email OTP token, sets new passcode, marks passcode_set=true
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
