@@ -335,6 +335,42 @@ export type Database = {
         }
         Relationships: []
       }
+      cashback_transactions: {
+        Row: {
+          admin_id: string
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at: string
+          id: string
+          reason: string
+          reference: string
+          user_id: string
+        }
+        Insert: {
+          admin_id: string
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at?: string
+          id?: string
+          reason: string
+          reference: string
+          user_id: string
+        }
+        Update: {
+          admin_id?: string
+          amount?: number
+          balance_after?: number
+          balance_before?: number
+          created_at?: string
+          id?: string
+          reason?: string
+          reference?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       developer_api_plans: {
         Row: {
           auto_hide_on_failure: boolean
