@@ -51,6 +51,7 @@ import EmailSettings from "./pages/EmailSettings";
 import EmailTesting from "./pages/EmailTesting";
 import Developer from "./pages/Developer";
 import NotificationPermission from "./pages/NotificationPermission";
+import Cashback from "./pages/Cashback";
 
 const queryClient = new QueryClient();
 
@@ -107,6 +108,7 @@ const App = () => {
               <Route path="/calculator" element={<ProtectedRoute><ProfitCalculator /></ProtectedRoute>} />
               <Route path="/developer" element={<ProtectedRoute><Developer /></ProtectedRoute>} />
               <Route path="/notifications/permission" element={<ProtectedRoute><NotificationPermission /></ProtectedRoute>} />
+              <Route path="/cashback" element={<ProtectedRoute><Cashback /></ProtectedRoute>} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/refund-policy" element={<RefundPolicy />} />
