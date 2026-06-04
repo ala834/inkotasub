@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransferConfirmationDialog from "@/components/transfer/TransferConfirmationDialog";
+import OfflineServiceGuard from "@/components/common/OfflineServiceGuard";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 const TRANSFER_FEE = 10;
 const QUICK_AMOUNTS = [500, 1000, 2000, 5000, 10000, 20000];
@@ -87,6 +89,9 @@ const Transfer = () => {
       setIsLoading(false);
     }
   };
+
+  const __isOnline = useOnlineStatus();
+  if (!__isOnline) return <OfflineServiceGuard title="Transfer" />;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">

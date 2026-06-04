@@ -13,6 +13,8 @@ import TransactionResultScreen from "@/components/common/TransactionResultScreen
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 import { useBeneficiaries } from "@/hooks/useBeneficiaries";
 import BeneficiariesDialog from "@/components/common/BeneficiariesDialog";
+import OfflineServiceGuard from "@/components/common/OfflineServiceGuard";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 const DISCOS = [
   { id: "ikeja", name: "Ikeja Electric", code: "IE" },
@@ -156,6 +158,9 @@ const Electricity = () => {
       setIsLoading(false);
     }
   };
+
+  const __isOnline = useOnlineStatus();
+  if (!__isOnline) return <OfflineServiceGuard title="Electricity" />;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">

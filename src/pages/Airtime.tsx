@@ -16,6 +16,8 @@ import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 import { useBeneficiaries } from "@/hooks/useBeneficiaries";
 
 import { NETWORKS } from "@/components/common/NetworkLogos";
+import OfflineServiceGuard from "@/components/common/OfflineServiceGuard";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 const QUICK_AMOUNTS = [50, 100, 200, 500, 1000, 2000, 5000];
 
@@ -151,6 +153,9 @@ const Airtime = () => {
   };
 
   const contactSupported = typeof window !== "undefined" && "contacts" in navigator && "ContactsManager" in window;
+
+  const __isOnline = useOnlineStatus();
+  if (!__isOnline) return <OfflineServiceGuard title="Airtime" />;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
