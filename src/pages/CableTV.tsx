@@ -17,6 +17,8 @@ import BeneficiariesDialog from "@/components/common/BeneficiariesDialog";
 import dstvLogo from "@/assets/providers/dstv.png";
 import gotvLogo from "@/assets/providers/gotv.png";
 import startimesLogo from "@/assets/providers/startimes.png";
+import OfflineServiceGuard from "@/components/common/OfflineServiceGuard";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 const PROVIDERS = [
   { id: "dstv", name: "DSTV", logo: dstvLogo },
@@ -199,6 +201,9 @@ const CableTV = () => {
   };
 
   const selectedProvider = PROVIDERS.find(p => p.id === provider);
+
+  const __isOnline = useOnlineStatus();
+  if (!__isOnline) return <OfflineServiceGuard title="Cable TV" />;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">

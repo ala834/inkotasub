@@ -27,6 +27,8 @@ interface DataPlan {
 }
 
 import { NETWORKS, getNetworkLogo } from "@/components/common/NetworkLogos";
+import OfflineServiceGuard from "@/components/common/OfflineServiceGuard";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 const PLAN_TYPES = [
   { key: "SME", label: "SME" },
@@ -223,6 +225,9 @@ const Data = () => {
   };
 
   const contactSupported = typeof window !== "undefined" && "contacts" in navigator && "ContactsManager" in window;
+
+  const __isOnline = useOnlineStatus();
+  if (!__isOnline) return <OfflineServiceGuard title="Data" />;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">

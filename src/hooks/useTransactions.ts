@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { readCache, writeCache } from "@/lib/offline-cache";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 export interface Transaction {
   id: string;
@@ -23,14 +25,42 @@ interface UseTransactionsOptions {
   limit?: number;
 }
 
+const cacheKeyFor = (opts: UseTransactionsOptions) =>
+  `transactions:${opts.status || "all"}:${opts.limit || "none"}:${opts.startDate?.toISOString() || ""}:${opts.endDate?.toISOString() || ""}`;
+
 export const useTransactions = (options: UseTransactionsOptions = {}) => {
   const { user } = useAuth();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const isOnline = useOnlineStatus();
+  const cacheKey = cacheKeyFor(options);
+
+  const [transactions, setTransactions] = useState<Transaction[]>(() =>
+    user ? readCache<Transaction[]>(user.id, cacheKey) || [] : []
+  );
+  const [isLoading, setIsLoading] = useState(transactions.length === 0);
+
+  // Re-hydrate when user or query changes
+  useEffect(() => {
+    if (!user) {
+      setTransactions([]);
+      setIsLoading(false);
+      return;
+    }
+    const cached = readCache<Transaction[]>(user.id, cacheKey);
+    if (cached) {
+      setTransactions(cached);
+      setIsLoading(false);
+    }
+  }, [user, cacheKey]);
 
   const fetchTransactions = useCallback(async () => {
     if (!user) {
       setTransactions([]);
+      setIsLoading(false);
+      return;
+    }
+
+    // Offline: keep cached list, do not show forever-loading.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
       setIsLoading(false);
       return;
     }
@@ -57,23 +87,28 @@ export const useTransactions = (options: UseTransactionsOptions = {}) => {
     const { data, error } = await query;
 
     if (!error && data) {
-      setTransactions(
-        data.map((t) => ({
-          ...t,
-          amount: parseFloat(t.amount as unknown as string),
-          balance_before: parseFloat(t.balance_before as unknown as string),
-          balance_after: parseFloat(t.balance_after as unknown as string),
-          type: t.type as "credit" | "debit",
-          status: t.status as "pending" | "success" | "failed",
-        }))
-      );
+      const mapped = data.map((t) => ({
+        ...t,
+        amount: parseFloat(t.amount as unknown as string),
+        balance_before: parseFloat(t.balance_before as unknown as string),
+        balance_after: parseFloat(t.balance_after as unknown as string),
+        type: t.type as "credit" | "debit",
+        status: t.status as "pending" | "success" | "failed",
+      })) as Transaction[];
+      setTransactions(mapped);
+      writeCache(user.id, cacheKey, mapped);
     }
     setIsLoading(false);
-  }, [user, options.startDate, options.endDate, options.status, options.limit]);
+  }, [user, options.startDate, options.endDate, options.status, options.limit, cacheKey]);
 
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
+
+  // Auto-refetch when connection returns
+  useEffect(() => {
+    if (isOnline && user) fetchTransactions();
+  }, [isOnline, user, fetchTransactions]);
 
   // Real-time subscription
   useEffect(() => {
