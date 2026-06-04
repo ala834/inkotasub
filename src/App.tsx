@@ -11,7 +11,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AppLockScreen from "@/components/AppLockScreen";
 import SplashScreen from "@/components/SplashScreen";
 import PWAInstallPrompt from "@/components/common/PWAInstallPrompt";
-import OfflineFallback from "@/components/common/OfflineFallback";
+import OfflineBanner from "@/components/common/OfflineBanner";
 import PushNotificationInit from "@/components/common/PushNotificationInit";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
@@ -71,7 +71,7 @@ const App = () => {
           <Sonner />
           {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
           <PWAInstallPrompt />
-          <OfflineFallback />
+          <OfflineBanner />
           <PushNotificationInit />
           <AppLockOverlay />
           <BrowserRouter>

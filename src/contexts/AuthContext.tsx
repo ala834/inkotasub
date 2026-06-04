@@ -3,6 +3,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Capacitor } from "@capacitor/core";
 import { Device } from "@capacitor/device";
+import { readCache, writeCache } from "@/lib/offline-cache";
 
 interface Profile {
   id: string;
@@ -44,6 +45,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const virtualAccountCreationAttempted = useRef<Set<string>>(new Set());
 
   const fetchProfile = async (userId: string) => {
+    // Hydrate immediately from cache so offline reloads aren't blank.
+    const cached = readCache<Profile>(userId, "profile");
+    if (cached) setProfile(cached);
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
     const { data } = await supabase
       .from("profiles")
       .select("id, user_id, full_name, phone_number, avatar_url, referral_code, has_transaction_pin, is_agent, kyc_level, daily_transaction_limit, suspended_at, created_at, updated_at, username, email_verified")
@@ -52,6 +59,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     if (data) {
       setProfile(data);
+      writeCache(userId, "profile", data);
     }
   };
 
