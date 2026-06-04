@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Bell, User, Eye, EyeOff, Plus, ArrowUpRight, ChevronRight, Shield, LogOut, Phone, AlertCircle } from "lucide-react";
+import { Bell, User, Eye, EyeOff, Plus, ArrowUpRight, ChevronRight, Shield, LogOut, Phone, AlertCircle, Gift } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import BottomNav from "@/components/layout/BottomNav";
 import ServicesGrid from "@/components/services/ServicesGrid";
@@ -19,7 +20,20 @@ const Dashboard = () => {
   const [showPinSetup, setShowPinSetup] = useState(false);
   const [showBalance, setShowBalance] = useState(true);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [totalCashback, setTotalCashback] = useState(0);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from("cashback_transactions")
+        .select("amount")
+        .eq("user_id", user.id);
+      const total = (data || []).reduce((s: number, r: any) => s + Number(r.amount), 0);
+      setTotalCashback(total);
+    })();
+  }, [user]);
 
   useEffect(() => {
     if (profile && !profile.has_transaction_pin) setShowPinSetup(true);
@@ -202,6 +216,21 @@ const Dashboard = () => {
 
         {/* Promo Banner */}
         <PromoBanner />
+
+        {/* Cashback summary */}
+        <button
+          onClick={() => navigate("/cashback")}
+          className="w-full text-left bg-white dark:bg-card rounded-2xl p-4 flex items-center gap-3 border border-border shadow-sm active:bg-gray-50 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center flex-shrink-0">
+            <Gift className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground">Total Cashback Received</p>
+            <p className="text-base font-semibold text-foreground">₦{totalCashback.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+        </button>
 
         {/* Services */}
         <ServicesGrid />
