@@ -215,7 +215,7 @@ const Dashboard = () => {
         )}
 
         {/* Promo Banner */}
-        <PromoBanner />
+        <PromoCarousel />
 
         {/* Cashback summary */}
         <button
