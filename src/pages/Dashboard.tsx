@@ -11,7 +11,7 @@ import NotificationsDropdown from "@/components/notifications/NotificationsDropd
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/hooks/useWallet";
-import PromoBanner from "@/components/common/PromoBanner";
+import PromoCarousel from "@/components/common/PromoCarousel";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -215,7 +215,7 @@ const Dashboard = () => {
         )}
 
         {/* Promo Banner */}
-        <PromoBanner />
+        <PromoCarousel />
 
         {/* Cashback summary */}
         <button

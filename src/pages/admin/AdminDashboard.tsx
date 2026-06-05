@@ -24,6 +24,7 @@ import {
   TestTube,
   Code,
   Bell,
+  Image as ImageIcon,
 } from "lucide-react";
 import AdminPushNotificationsTab from "@/components/admin/AdminPushNotificationsTab";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,7 @@ import AdminEmailTestingTab from "@/components/admin/AdminEmailTestingTab";
 import AdminDeveloperApiTab from "@/components/admin/AdminDeveloperApiTab";
 import AdminDeveloperPlansTab from "@/components/admin/AdminDeveloperPlansTab";
 import AdminCashbackTab from "@/components/admin/AdminCashbackTab";
+import AdminPromoBannersTab from "@/components/admin/AdminPromoBannersTab";
 
 type TabDef = {
   value: string;
@@ -83,6 +85,7 @@ const allTabs: TabDef[] = [
   { value: "kyc", label: "KYC", icon: ShieldCheck, superOnly: true },
   { value: "referrals", label: "Referrals", icon: Gift },
   { value: "cashback", label: "Cashback", icon: Gift, superOnly: true },
+  { value: "promo-banners", label: "Promo Banners", icon: ImageIcon, superOnly: true },
   { value: "pricing", label: "Pricing", icon: DollarSign, superOnly: true },
   { value: "admin-team", label: "Admin Team", icon: UserCog, superOnly: true },
   { value: "email-settings", label: "Email Templates", icon: Mail, superOnly: true },
@@ -193,6 +196,7 @@ const AdminDashboard = () => {
           {isSuperAdmin && <TabsContent value="kyc"><AdminKYCTab /></TabsContent>}
           <TabsContent value="referrals"><AdminReferralsTab /></TabsContent>
           {isSuperAdmin && <TabsContent value="cashback"><AdminCashbackTab /></TabsContent>}
+          {isSuperAdmin && <TabsContent value="promo-banners"><AdminPromoBannersTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="pricing"><AdminPricingTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="admin-team"><AdminManagementTab /></TabsContent>}
           {isSuperAdmin && <TabsContent value="email-settings"><AdminEmailSettingsTab /></TabsContent>}
