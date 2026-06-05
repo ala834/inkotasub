@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Gift, Search, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import AdminCashbackSettingsTab from "./AdminCashbackSettingsTab";
 
 interface UserOption {
   user_id: string;
@@ -111,6 +112,8 @@ const AdminCashbackTab = () => {
 
   return (
     <div className="space-y-6">
+      <AdminCashbackSettingsTab />
+
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Total Cashback Issued</CardTitle></CardHeader>
