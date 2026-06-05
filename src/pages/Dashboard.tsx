@@ -215,10 +215,15 @@ const Dashboard = () => {
             <Gift className="h-5 w-5 text-emerald-600" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground">Total Cashback Received</p>
-            <p className="text-base font-semibold text-foreground">₦{totalCashback.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+            <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">Cashback Balance</p>
+            <p className="text-base font-bold text-emerald-700 dark:text-emerald-200">
+              ₦{(cashbackWallet?.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Earned ₦{(cashbackWallet?.total_earned || 0).toLocaleString()} · Tap to view
+            </p>
           </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+          <ChevronRight className="h-5 w-5 text-emerald-600 flex-shrink-0" />
         </button>
 
         {/* Services */}
