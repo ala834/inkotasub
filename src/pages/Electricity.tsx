@@ -15,6 +15,7 @@ import { useBeneficiaries } from "@/hooks/useBeneficiaries";
 import BeneficiariesDialog from "@/components/common/BeneficiariesDialog";
 import OfflineServiceGuard from "@/components/common/OfflineServiceGuard";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { useCashbackCheckout } from "@/hooks/useCashbackCheckout";
 
 const DISCOS = [
   { id: "ikeja", name: "Ikeja Electric", code: "IE" },
@@ -105,8 +106,12 @@ const Electricity = () => {
     if (validateForm()) setShowConfirmDialog(true);
   };
 
-  const handleConfirmPay = () => {
+  const cashback = useCashbackCheckout("electricity", amountNum);
+
+  const handleConfirmPay = async () => {
     setShowConfirmDialog(false);
+    const ok = await cashback.redeemIfNeeded();
+    if (!ok) return;
     setShowPinDialog(true);
   };
 
@@ -407,6 +412,10 @@ const Electricity = () => {
           { label: "Meter Number", value: meterNumber },
           { label: "Customer", value: customerName },
         ]}
+        cashbackToEarn={cashback.cashbackToEarn}
+        cashbackBalance={cashback.cashbackBalance}
+        useCashback={cashback.useCashback}
+        onToggleUseCashback={cashback.setUseCashback}
       />
 
       <PinEntryDialog

@@ -235,6 +235,16 @@ export async function finalizeTransaction(
       // Referral reward (fire-and-forget)
       checkAndRewardFirstTransaction(userId);
 
+      // Cashback reward (fire-and-forget)
+      adminSupabase
+        .rpc("award_cashback_for_transaction", {
+          p_user_id: userId,
+          p_transaction_id: transactionId,
+          p_service_type: serviceType,
+          p_amount: sellingPrice,
+        })
+        .then(({ error }) => { if (error) console.error("Cashback award error:", error); });
+
       const responseBody: Record<string, unknown> = { success: true, message: getSuccessMessage(serviceType) };
       if (providerResult.token) responseBody.token = providerResult.token;
       if (providerResult.pins && providerResult.pins.length > 0) responseBody.pins = providerResult.pins;

@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/hooks/useWallet";
 import PromoCarousel from "@/components/common/PromoCarousel";
+import { useCashbackWallet } from "@/hooks/useCashback";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -20,20 +21,8 @@ const Dashboard = () => {
   const [showPinSetup, setShowPinSetup] = useState(false);
   const [showBalance, setShowBalance] = useState(true);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [totalCashback, setTotalCashback] = useState(0);
+  const { wallet: cashbackWallet } = useCashbackWallet();
   const profileMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      const { data } = await supabase
-        .from("cashback_transactions")
-        .select("amount")
-        .eq("user_id", user.id);
-      const total = (data || []).reduce((s: number, r: any) => s + Number(r.amount), 0);
-      setTotalCashback(total);
-    })();
-  }, [user]);
 
   useEffect(() => {
     if (profile && !profile.has_transaction_pin) setShowPinSetup(true);
@@ -217,19 +206,24 @@ const Dashboard = () => {
         {/* Promo Banner */}
         <PromoCarousel />
 
-        {/* Cashback summary */}
+        {/* Cashback wallet card */}
         <button
           onClick={() => navigate("/cashback")}
-          className="w-full text-left bg-white dark:bg-card rounded-2xl p-4 flex items-center gap-3 border border-border shadow-sm active:bg-gray-50 transition-colors"
+          className="w-full text-left bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-green-950/40 rounded-2xl p-4 flex items-center gap-3 border border-emerald-200/60 dark:border-emerald-900/60 shadow-sm active:scale-[0.99] transition-transform"
         >
           <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center flex-shrink-0">
             <Gift className="h-5 w-5 text-emerald-600" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground">Total Cashback Received</p>
-            <p className="text-base font-semibold text-foreground">₦{totalCashback.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+            <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">Cashback Balance</p>
+            <p className="text-base font-bold text-emerald-700 dark:text-emerald-200">
+              ₦{(cashbackWallet?.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Earned ₦{(cashbackWallet?.total_earned || 0).toLocaleString()} · Tap to view
+            </p>
           </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+          <ChevronRight className="h-5 w-5 text-emerald-600 flex-shrink-0" />
         </button>
 
         {/* Services */}

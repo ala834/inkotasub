@@ -335,38 +335,107 @@ export type Database = {
         }
         Relationships: []
       }
+      cashback_settings: {
+        Row: {
+          created_at: string
+          id: string
+          is_enabled: boolean
+          max_cashback: number | null
+          percentage: number
+          service_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          max_cashback?: number | null
+          percentage?: number
+          service_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          max_cashback?: number | null
+          percentage?: number
+          service_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cashback_transactions: {
         Row: {
-          admin_id: string
+          admin_id: string | null
           amount: number
           balance_after: number
           balance_before: number
           created_at: string
           id: string
-          reason: string
+          reason: string | null
           reference: string
+          service_type: string | null
+          source_transaction_id: string | null
+          type: string
           user_id: string
         }
         Insert: {
-          admin_id: string
+          admin_id?: string | null
           amount: number
           balance_after: number
           balance_before: number
           created_at?: string
           id?: string
-          reason: string
+          reason?: string | null
           reference: string
+          service_type?: string | null
+          source_transaction_id?: string | null
+          type?: string
           user_id: string
         }
         Update: {
-          admin_id?: string
+          admin_id?: string | null
           amount?: number
           balance_after?: number
           balance_before?: number
           created_at?: string
           id?: string
-          reason?: string
+          reason?: string | null
           reference?: string
+          service_type?: string | null
+          source_transaction_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      cashback_wallets: {
+        Row: {
+          balance: number
+          created_at: string
+          id: string
+          total_earned: number
+          total_spent: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          id?: string
+          total_earned?: number
+          total_spent?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          id?: string
+          total_earned?: number
+          total_spent?: number
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -1735,12 +1804,29 @@ export type Database = {
         Args: { p_amount: number; p_user_id: string }
         Returns: number
       }
+      atomic_cashback_credit: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: number
+      }
+      atomic_cashback_debit: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: number
+      }
       atomic_wallet_credit: {
         Args: { p_amount: number; p_user_id: string }
         Returns: number
       }
       atomic_wallet_debit: {
         Args: { p_amount: number; p_user_id: string }
+        Returns: number
+      }
+      award_cashback_for_transaction: {
+        Args: {
+          p_amount: number
+          p_service_type: string
+          p_transaction_id: string
+          p_user_id: string
+        }
         Returns: number
       }
       delete_email: {
@@ -1780,6 +1866,10 @@ export type Database = {
           msg_id: number
           read_ct: number
         }[]
+      }
+      redeem_cashback_to_wallet: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: Json
       }
       release_advisory_lock: { Args: { lock_key: number }; Returns: boolean }
       try_advisory_lock: { Args: { lock_key: number }; Returns: boolean }

@@ -14,6 +14,7 @@ import TransactionResultScreen from "@/components/common/TransactionResultScreen
 import BeneficiariesDialog from "@/components/common/BeneficiariesDialog";
 import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 import { useBeneficiaries } from "@/hooks/useBeneficiaries";
+import { useCashbackCheckout } from "@/hooks/useCashbackCheckout";
 
 import { NETWORKS } from "@/components/common/NetworkLogos";
 import OfflineServiceGuard from "@/components/common/OfflineServiceGuard";
@@ -74,6 +75,7 @@ const Airtime = () => {
   };
 
   const amountNum = parseFloat(amount || "0");
+  const cashback = useCashbackCheckout("airtime", amountNum);
 
   const validateForm = () => {
     if (!selectedNetwork || !phoneNumber || !amount) {
@@ -99,8 +101,10 @@ const Airtime = () => {
     if (validateForm()) setShowConfirmDialog(true);
   };
 
-  const handleConfirmPay = () => {
+  const handleConfirmPay = async () => {
     setShowConfirmDialog(false);
+    const ok = await cashback.redeemIfNeeded();
+    if (!ok) return;
     setShowPinDialog(true);
   };
 
@@ -338,6 +342,10 @@ const Airtime = () => {
           { label: "Network", value: selectedNetwork?.toUpperCase() || "" },
           { label: "Phone Number", value: phoneNumber },
         ]}
+        cashbackToEarn={cashback.cashbackToEarn}
+        cashbackBalance={cashback.cashbackBalance}
+        useCashback={cashback.useCashback}
+        onToggleUseCashback={cashback.setUseCashback}
       />
 
       <PinEntryDialog
