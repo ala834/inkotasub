@@ -14,6 +14,7 @@ import { parseEdgeFunctionError } from "@/lib/edge-function-errors";
 import PinEntryDialog from "@/components/common/PinEntryDialog";
 import TransactionConfirmationDialog from "@/components/common/TransactionConfirmationDialog";
 import { NETWORKS } from "@/components/common/NetworkLogos";
+import { useCashbackCheckout } from "@/hooks/useCashbackCheckout";
 
 interface RechargeCardPin {
   pin: string;
@@ -60,7 +61,13 @@ const RechargeCard = () => {
   };
 
   const handlePurchaseClick = () => { if (validateForm()) setShowConfirmDialog(true); };
-  const handleConfirmPay = () => { setShowConfirmDialog(false); setShowPinDialog(true); };
+  const cashback = useCashbackCheckout("recharge_card", totalAmount);
+  const handleConfirmPay = async () => {
+    setShowConfirmDialog(false);
+    const ok = await cashback.redeemIfNeeded();
+    if (!ok) return;
+    setShowPinDialog(true);
+  };
 
   const handlePurchaseWithPin = async (pin: string) => {
     if (!selectedNetwork || !selectedAmount) return;
@@ -336,6 +343,10 @@ const RechargeCard = () => {
           { label: "Card Value", value: `₦${(selectedAmount || 0).toLocaleString()}` },
           { label: "Quantity", value: `${quantity}` },
         ]}
+        cashbackToEarn={cashback.cashbackToEarn}
+        cashbackBalance={cashback.cashbackBalance}
+        useCashback={cashback.useCashback}
+        onToggleUseCashback={cashback.setUseCashback}
       />
 
       <PinEntryDialog

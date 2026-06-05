@@ -14,6 +14,7 @@ import { useRecentNumbers } from "@/hooks/useRecentNumbers";
 import { useBeneficiaries } from "@/hooks/useBeneficiaries";
 import BeneficiariesDialog from "@/components/common/BeneficiariesDialog";
 import TransactionResultScreen from "@/components/common/TransactionResultScreen";
+import { useCashbackCheckout } from "@/hooks/useCashbackCheckout";
 
 interface DataPlan {
   id: string;
@@ -171,8 +172,12 @@ const Data = () => {
     if (validateForm()) setShowConfirmDialog(true);
   };
 
-  const handleConfirmPay = () => {
+  const cashback = useCashbackCheckout("data", selectedPlan?.amount || 0);
+
+  const handleConfirmPay = async () => {
     setShowConfirmDialog(false);
+    const ok = await cashback.redeemIfNeeded();
+    if (!ok) return;
     setShowPinDialog(true);
   };
 
@@ -479,6 +484,10 @@ const Data = () => {
           { label: "Plan", value: selectedPlan?.name || "" },
           { label: "Validity", value: selectedPlan?.validity || "" },
         ]}
+        cashbackToEarn={cashback.cashbackToEarn}
+        cashbackBalance={cashback.cashbackBalance}
+        useCashback={cashback.useCashback}
+        onToggleUseCashback={cashback.setUseCashback}
       />
 
       <PinEntryDialog

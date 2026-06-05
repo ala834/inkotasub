@@ -19,6 +19,7 @@ import gotvLogo from "@/assets/providers/gotv.png";
 import startimesLogo from "@/assets/providers/startimes.png";
 import OfflineServiceGuard from "@/components/common/OfflineServiceGuard";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { useCashbackCheckout } from "@/hooks/useCashbackCheckout";
 
 const PROVIDERS = [
   { id: "dstv", name: "DSTV", logo: dstvLogo },
@@ -148,8 +149,12 @@ const CableTV = () => {
     if (validateForm()) setShowConfirmDialog(true);
   };
 
-  const handleConfirmPay = () => {
+  const cashback = useCashbackCheckout("cable", selectedPlan?.amount || 0);
+
+  const handleConfirmPay = async () => {
     setShowConfirmDialog(false);
+    const ok = await cashback.redeemIfNeeded();
+    if (!ok) return;
     setShowPinDialog(true);
   };
 
@@ -438,6 +443,10 @@ const CableTV = () => {
           { label: "Customer", value: customerName },
           { label: "Plan", value: selectedPlan?.name || "" },
         ]}
+        cashbackToEarn={cashback.cashbackToEarn}
+        cashbackBalance={cashback.cashbackBalance}
+        useCashback={cashback.useCashback}
+        onToggleUseCashback={cashback.setUseCashback}
       />
 
       <PinEntryDialog
