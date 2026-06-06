@@ -84,6 +84,7 @@ const Developer = () => {
   const [keyName, setKeyName] = useState("");
   const [creatingKey, setCreatingKey] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
+  const [revealedKeys, setRevealedKeys] = useState<Record<string, boolean>>({});
   const [plans, setPlans] = useState<DeveloperPlan[]>([]);
   const [planSearch, setPlanSearch] = useState("");
   const [networkFilter, setNetworkFilter] = useState<string>("ALL");
