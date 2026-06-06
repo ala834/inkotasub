@@ -51,7 +51,7 @@ serve(async (req) => {
 
     const { data: inserted, error: insertError } = await adminSupabase
       .from("api_keys")
-      .insert({ user_id: user.id, name, key_prefix: prefix, key_hash: keyHash })
+      .insert({ user_id: user.id, name, key_prefix: prefix, key_hash: keyHash, key_plaintext: fullKey })
       .select()
       .single();
     if (insertError) throw insertError;
