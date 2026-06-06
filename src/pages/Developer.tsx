@@ -502,6 +502,9 @@ const Developer = () => {
             </TabsContent>
 
             <TabsContent value="wallet" className="space-y-4">
+              {/* Dedicated virtual account for funding via bank transfer */}
+              <DeveloperVirtualAccountCard />
+
               {/* Hero card with Fund Wallet CTA */}
               <Card className="overflow-hidden border-0 bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 text-white shadow-xl">
                 <CardContent className="pt-6 pb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
