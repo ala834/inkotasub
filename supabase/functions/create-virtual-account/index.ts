@@ -268,8 +268,9 @@ serve(async (req) => {
     // Save virtual account to database
     const { data: savedAccount, error: saveError } = await supabase
       .from("virtual_accounts")
-      .insert({
+      .upsert({
         user_id: user.id,
+        wallet_type: "main",
         account_number: dva.account_number,
         account_name: dva.account_name,
         bank_name: dva.bank.name,
@@ -279,9 +280,10 @@ serve(async (req) => {
         dva_id: dva.id?.toString(),
         is_active: dva.active,
         metadata: { paystack_response: dva },
-      })
+      }, { onConflict: "user_id,wallet_type" })
       .select()
       .single();
+
 
     if (saveError) {
       console.error("Error saving virtual account:", saveError);
