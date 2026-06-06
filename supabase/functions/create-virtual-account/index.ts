@@ -39,23 +39,25 @@ serve(async (req) => {
 
     console.log("Creating virtual account for user:", user.id);
 
-    // Check if user already has a virtual account
+    // Check if user already has a main virtual account
     const { data: existingAccount } = await supabase
       .from("virtual_accounts")
       .select("*")
       .eq("user_id", user.id)
-      .single();
+      .eq("wallet_type", "main")
+      .maybeSingle();
 
     if (existingAccount) {
       console.log("User already has virtual account:", existingAccount.account_number);
-      return new Response(JSON.stringify({ 
-        success: true, 
+      return new Response(JSON.stringify({
+        success: true,
         account: existingAccount,
         message: "Virtual account already exists"
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     // Get user profile for name
     const { data: profile } = await supabase
@@ -228,8 +230,9 @@ serve(async (req) => {
           // Save to database
           const { data: savedAccount, error: saveError } = await supabase
             .from("virtual_accounts")
-            .insert({
+            .upsert({
               user_id: user.id,
+              wallet_type: "main",
               account_number: dva.account_number,
               account_name: dva.account_name,
               bank_name: dva.bank.name,
@@ -238,7 +241,7 @@ serve(async (req) => {
               dva_id: dva.id?.toString(),
               is_active: dva.active,
               metadata: { paystack_response: dva },
-            })
+            }, { onConflict: "user_id,wallet_type" })
             .select()
             .single();
 
@@ -246,6 +249,7 @@ serve(async (req) => {
             console.error("Error saving virtual account:", saveError);
             throw saveError;
           }
+
 
           return new Response(JSON.stringify({ 
             success: true, 
@@ -264,8 +268,9 @@ serve(async (req) => {
     // Save virtual account to database
     const { data: savedAccount, error: saveError } = await supabase
       .from("virtual_accounts")
-      .insert({
+      .upsert({
         user_id: user.id,
+        wallet_type: "main",
         account_number: dva.account_number,
         account_name: dva.account_name,
         bank_name: dva.bank.name,
@@ -275,9 +280,10 @@ serve(async (req) => {
         dva_id: dva.id?.toString(),
         is_active: dva.active,
         metadata: { paystack_response: dva },
-      })
+      }, { onConflict: "user_id,wallet_type" })
       .select()
       .single();
+
 
     if (saveError) {
       console.error("Error saving virtual account:", saveError);
