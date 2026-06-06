@@ -203,32 +203,40 @@ serve(async (req) => {
       let userId: string | null = null;
       let description = "Wallet funding";
 
+      let walletType: "main" | "developer" = "main";
+
       // Handle DVA transfer (dedicated_nuban channel)
       if (channel === "dedicated_nuban") {
         const accountNumber = event.data.authorization?.receiver_bank_account_number;
         const customerEmail = customer?.email;
-        
+
         console.log("DVA transfer received:", { reference, amountInNaira, customerEmail, accountNumber });
 
         if (accountNumber) {
           const { data: virtualAccount } = await supabase
             .from("virtual_accounts")
-            .select("user_id")
+            .select("user_id, wallet_type")
             .eq("account_number", accountNumber)
-            .single();
+            .maybeSingle();
 
           if (virtualAccount) {
             userId = virtualAccount.user_id;
+            walletType = (virtualAccount.wallet_type as "main" | "developer") || "main";
           }
         }
 
         if (!userId && customerEmail) {
+          // Strip +dev for matching the real auth email
+          const realEmail = customerEmail.replace(/\+dev@/, "@");
           const { data: users } = await supabase.auth.admin.listUsers();
-          const user = users.users.find((u: any) => u.email === customerEmail);
+          const user = users.users.find((u: any) => u.email === realEmail || u.email === customerEmail);
           if (user) userId = user.id;
+          if (customerEmail.includes("+dev@")) walletType = "developer";
         }
 
-        description = "Bank transfer funding (DVA)";
+        description = walletType === "developer"
+          ? "Developer Wallet funding (DVA)"
+          : "Bank transfer funding (DVA)";
       } else if (channel === "bank_transfer" || channel === "bank") {
         userId = metadata?.user_id;
         description = "Bank transfer funding";
@@ -243,6 +251,11 @@ serve(async (req) => {
         description = `Wallet funding via ${channel}`;
       }
 
+      // Allow explicit override via metadata
+      if (metadata?.wallet_type === "api_wallet" || metadata?.wallet_type === "developer") {
+        walletType = "developer";
+      }
+
       if (!userId) {
         console.error("Could not find user for transaction:", { reference, channel });
         return new Response(JSON.stringify({ error: "User not found" }), {
@@ -251,8 +264,54 @@ serve(async (req) => {
         });
       }
 
-      await processWalletCredit(supabase, userId, amountInNaira, reference, description);
+      if (walletType === "developer") {
+        // Credit api_wallet (no deposit charge; idempotent via ledger reference)
+        const { data: existingLedger } = await supabase
+          .from("api_wallet_ledger")
+          .select("id")
+          .eq("reference", reference)
+          .eq("entry_type", "credit")
+          .maybeSingle();
+
+        if (!existingLedger) {
+          await supabase
+            .from("api_wallets")
+            .upsert({ user_id: userId, balance: 0 }, { onConflict: "user_id", ignoreDuplicates: true });
+
+          const { data: balBefore } = await supabase.rpc("get_api_wallet_balance", { p_user_id: userId });
+          const before = Number(balBefore ?? 0);
+
+          const { data: newBal, error: creditErr } = await supabase.rpc("atomic_api_wallet_credit", {
+            p_user_id: userId,
+            p_amount: amountInNaira,
+          });
+          if (creditErr) {
+            console.error("API wallet DVA credit error:", creditErr);
+            throw creditErr;
+          }
+
+          await supabase.from("api_wallet_ledger").insert({
+            user_id: userId,
+            entry_type: "credit",
+            amount: amountInNaira,
+            balance_before: before,
+            balance_after: Number(newBal),
+            reference,
+            metadata: { type: "paystack_dva_funding", channel, provider: "paystack" },
+          });
+
+          await supabase.from("notifications").insert({
+            user_id: userId,
+            title: "Developer Wallet Funded",
+            message: `Your Developer Wallet has been credited with ₦${amountInNaira.toLocaleString()} via bank transfer.`,
+            type: "success",
+          });
+        }
+      } else {
+        await processWalletCredit(supabase, userId, amountInNaira, reference, description);
+      }
     }
+
 
     // Handle successful transfer (Payouts/Disbursements)
     if (event.event === "transfer.success") {
