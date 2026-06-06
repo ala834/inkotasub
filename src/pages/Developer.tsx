@@ -362,26 +362,75 @@ const Developer = () => {
               </Card>
 
               <Card>
-                <CardHeader><CardTitle className="text-lg">Your API Keys</CardTitle></CardHeader>
-                <CardContent className="space-y-2">
+                <CardHeader>
+                  <CardTitle className="text-lg">Your API Keys</CardTitle>
+                  <CardDescription>Tap the eye icon to reveal a key, or copy it to your clipboard.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
                   {keys.length === 0 && <p className="text-sm text-muted-foreground">No keys yet.</p>}
-                  {keys.map((k) => (
-                    <div key={k.id} className="flex items-center justify-between p-3 rounded-lg border bg-card gap-3 flex-wrap">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium truncate">{k.name}</span>
-                          <Badge variant={k.is_revoked ? "destructive" : "secondary"}>{k.is_revoked ? "Revoked" : "Active"}</Badge>
-                          <Badge variant="outline">{k.rate_limit_per_min}/min</Badge>
+                  {keys.map((k) => {
+                    const revealed = !!revealedKeys[k.id];
+                    const fullKey = k.key_plaintext;
+                    const masked = `${k.key_prefix}${"•".repeat(20)}`;
+                    const copyKey = async () => {
+                      if (!fullKey) {
+                        toast.error("Full key unavailable for legacy entries. Generate a new key.");
+                        return;
+                      }
+                      try {
+                        await navigator.clipboard.writeText(fullKey);
+                        toast.success("API Key copied successfully");
+                      } catch {
+                        toast.error("Failed to copy");
+                      }
+                    };
+                    return (
+                      <div key={k.id} className="p-3 rounded-lg border bg-card space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap min-w-0">
+                            <span className="font-medium truncate">{k.name}</span>
+                            <Badge variant={k.is_revoked ? "destructive" : "secondary"}>{k.is_revoked ? "Revoked" : "Active"}</Badge>
+                            <Badge variant="outline">{k.rate_limit_per_min}/min</Badge>
+                          </div>
+                          {!k.is_revoked && <Button size="sm" variant="outline" onClick={() => revokeKey(k.id)}>Revoke</Button>}
                         </div>
-                        <code className="text-xs text-muted-foreground">{k.key_prefix}••••••••••••</code>
-                        <p className="text-xs text-muted-foreground mt-1">{k.last_used_at ? `Last used ${new Date(k.last_used_at).toLocaleString()}` : "Never used"}</p>
+                        <div className="flex items-center gap-1 p-2 rounded-md bg-muted/50 border">
+                          <code className="text-xs flex-1 break-all font-mono">
+                            {revealed && fullKey ? fullKey : masked}
+                          </code>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 shrink-0"
+                            title={revealed ? "Hide key" : "View key"}
+                            onClick={() => {
+                              if (!fullKey) {
+                                toast.error("Full key unavailable for legacy entries. Generate a new key.");
+                                return;
+                              }
+                              setRevealedKeys((prev) => ({ ...prev, [k.id]: !prev[k.id] }));
+                            }}
+                          >
+                            {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" title="Copy key" onClick={copyKey}>
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 flex-wrap text-xs text-muted-foreground">
+                          <span>Created {new Date(k.created_at).toLocaleDateString()}</span>
+                          <span>{k.last_used_at ? `Last used ${new Date(k.last_used_at).toLocaleString()}` : "Never used"}</span>
+                        </div>
+                        <Button size="sm" variant="outline" className="w-full gap-2" onClick={copyKey} disabled={!fullKey}>
+                          <Copy className="h-4 w-4" /> Copy API Key
+                        </Button>
                       </div>
-                      {!k.is_revoked && <Button size="sm" variant="outline" onClick={() => revokeKey(k.id)}>Revoke</Button>}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </CardContent>
               </Card>
             </TabsContent>
+
 
             <TabsContent value="services" className="space-y-4">
               <div className="grid gap-3 md:grid-cols-4">
