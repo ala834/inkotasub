@@ -39,23 +39,25 @@ serve(async (req) => {
 
     console.log("Creating virtual account for user:", user.id);
 
-    // Check if user already has a virtual account
+    // Check if user already has a main virtual account
     const { data: existingAccount } = await supabase
       .from("virtual_accounts")
       .select("*")
       .eq("user_id", user.id)
-      .single();
+      .eq("wallet_type", "main")
+      .maybeSingle();
 
     if (existingAccount) {
       console.log("User already has virtual account:", existingAccount.account_number);
-      return new Response(JSON.stringify({ 
-        success: true, 
+      return new Response(JSON.stringify({
+        success: true,
         account: existingAccount,
         message: "Virtual account already exists"
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     // Get user profile for name
     const { data: profile } = await supabase
