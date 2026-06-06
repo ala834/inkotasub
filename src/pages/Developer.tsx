@@ -35,6 +35,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import DeveloperVirtualAccountCard from "@/components/wallet/DeveloperVirtualAccountCard";
+
 
 type AccessRequest = { id: string; status: string; reason: string | null; business_name: string | null; rejection_reason: string | null; created_at: string };
 type ApiKey = { id: string; name: string; key_prefix: string; is_revoked: boolean; last_used_at: string | null; created_at: string; rate_limit_per_min: number };
@@ -500,6 +502,9 @@ const Developer = () => {
             </TabsContent>
 
             <TabsContent value="wallet" className="space-y-4">
+              {/* Dedicated virtual account for funding via bank transfer */}
+              <DeveloperVirtualAccountCard />
+
               {/* Hero card with Fund Wallet CTA */}
               <Card className="overflow-hidden border-0 bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 text-white shadow-xl">
                 <CardContent className="pt-6 pb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
