@@ -39,7 +39,7 @@ import DeveloperVirtualAccountCard from "@/components/wallet/DeveloperVirtualAcc
 
 
 type AccessRequest = { id: string; status: string; reason: string | null; business_name: string | null; rejection_reason: string | null; created_at: string };
-type ApiKey = { id: string; name: string; key_prefix: string; is_revoked: boolean; last_used_at: string | null; created_at: string; rate_limit_per_min: number };
+type ApiKey = { id: string; name: string; key_prefix: string; key_plaintext: string | null; is_revoked: boolean; last_used_at: string | null; created_at: string; rate_limit_per_min: number };
 type ApiWallet = { balance: number };
 type ApiLog = { id: string; endpoint: string; method: string; status_code: number; success: boolean; response_time_ms: number | null; created_at: string };
 type WalletLedgerRow = { id: string; amount: number; entry_type: string; reference: string | null; created_at: string; metadata: Record<string, unknown> | null };
