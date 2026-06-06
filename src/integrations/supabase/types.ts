@@ -1586,6 +1586,7 @@ export type Database = {
           provider: string | null
           updated_at: string
           user_id: string
+          wallet_type: string
         }
         Insert: {
           account_name: string
@@ -1602,6 +1603,7 @@ export type Database = {
           provider?: string | null
           updated_at?: string
           user_id: string
+          wallet_type?: string
         }
         Update: {
           account_name?: string
@@ -1618,6 +1620,7 @@ export type Database = {
           provider?: string | null
           updated_at?: string
           user_id?: string
+          wallet_type?: string
         }
         Relationships: []
       }
