@@ -486,9 +486,15 @@ const Developer = () => {
               </div>
 
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Developer API Service Catalog</CardTitle>
-                  <CardDescription>Live plans managed from the admin dashboard, including provider routing metadata and developer pricing.</CardDescription>
+                <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg">Developer API Service Catalog</CardTitle>
+                    <CardDescription>Auto-loaded when you open the Developer area. Updates live as admins publish new plans.</CardDescription>
+                  </div>
+                  <Button size="sm" variant="outline" className="gap-2 shrink-0" onClick={loadPlans} disabled={plansLoading}>
+                    {plansLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    Refresh
+                  </Button>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex flex-col lg:flex-row gap-2">
@@ -510,8 +516,14 @@ const Developer = () => {
                     </Select>
                   </div>
 
-                  {Object.keys(planGroups).length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-8 text-center">No plans match your filters.</p>
+                  {plansLoading && plans.length === 0 ? (
+                    <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading active developer plans…
+                    </div>
+                  ) : Object.keys(planGroups).length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-8 text-center">
+                      {plans.length === 0 ? "No active developer plans available yet." : "No plans match your filters."}
+                    </p>
                   ) : (
                     Object.entries(planGroups).map(([service, servicePlans]) => (
                       <div key={service} className="rounded-lg border overflow-hidden">
