@@ -13,32 +13,12 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Pencil, Plus, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
 
-type ServiceType = "data" | "airtime" | "cable" | "electricity";
-type ProviderSource = "subpadi" | "flowpay" | "smeplug";
+type ServiceType = "data" | "airtime" | "cable" | "electricity" | "exam_pin" | "recharge_card";
+type ProviderSource = "subpadi" | "flowpay" | "smeplug" | "clubkonnect";
 type NetworkType = "MTN" | "AIRTEL" | "GLO" | "9MOBILE";
 
-type DeveloperApiPlan = {
-  id: string;
-  service_type: ServiceType;
-  provider_source: ProviderSource;
-  network: string | null;
-  plan_name: string;
-  plan_id: string;
-  validation_id: string | null;
-  developer_price: number;
-  user_price: number;
-  reseller_price: number;
-  is_enabled: boolean;
-  is_hidden_from_users: boolean;
-  auto_hide_on_failure: boolean;
-  failure_count: number;
-  last_failure_reason: string | null;
-  sort_order: number;
-  updated_at: string;
-};
-
-const serviceTypes: ServiceType[] = ["data", "airtime", "cable", "electricity"];
-const providers: ProviderSource[] = ["subpadi", "flowpay", "smeplug"];
+const serviceTypes: ServiceType[] = ["data", "airtime", "cable", "electricity", "exam_pin", "recharge_card"];
+const providers: ProviderSource[] = ["subpadi", "flowpay", "smeplug", "clubkonnect"];
 const networks: NetworkType[] = ["MTN", "AIRTEL", "GLO", "9MOBILE"];
 
 const emptyForm = {
