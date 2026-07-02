@@ -17,6 +17,7 @@ import {
   Loader2,
   Phone,
   Plus,
+  RefreshCw,
   Search,
   ShieldAlert,
   Wallet,
@@ -86,6 +87,7 @@ const Developer = () => {
   const [newKey, setNewKey] = useState<string | null>(null);
   const [revealedKeys, setRevealedKeys] = useState<Record<string, boolean>>({});
   const [plans, setPlans] = useState<DeveloperPlan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(false);
   const [planSearch, setPlanSearch] = useState("");
   const [networkFilter, setNetworkFilter] = useState<string>("ALL");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
@@ -141,16 +143,37 @@ const Developer = () => {
     }, {});
   }, [filteredPlans]);
 
+  const loadPlans = async () => {
+    if (!user) return;
+    setPlansLoading(true);
+    try {
+      const { data: planRows, error } = await db
+        .from("developer_api_plans")
+        .select("id, service_type, provider_source, network, plan_name, plan_id, validation_id, developer_price, user_price, reseller_price, is_enabled, failure_count, is_hidden_from_users")
+        .eq("is_enabled", true)
+        .eq("is_hidden_from_users", false)
+        .order("service_type")
+        .order("network")
+        .order("sort_order")
+        .order("plan_name");
+      if (error) throw error;
+      setPlans((planRows as DeveloperPlan[]) ?? []);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not load developer plans");
+    } finally {
+      setPlansLoading(false);
+    }
+  };
+
   const loadData = async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: req }, { data: ks }, { data: w }, { data: ls }, { data: ledgerRows }, { data: planRows }] = await Promise.all([
+    const [{ data: req }, { data: ks }, { data: w }, { data: ls }, { data: ledgerRows }] = await Promise.all([
       supabase.from("api_access_requests").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("api_keys").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("api_wallets").select("balance").eq("user_id", user.id).maybeSingle(),
       supabase.from("api_request_logs").select("id, endpoint, method, status_code, success, response_time_ms, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
       supabase.from("api_wallet_ledger").select("id, amount, entry_type, reference, created_at, metadata").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
-      db.from("developer_api_plans").select("id, service_type, provider_source, network, plan_name, plan_id, validation_id, developer_price, user_price, reseller_price, is_enabled, failure_count, is_hidden_from_users").order("service_type").order("network").order("sort_order").order("plan_name"),
     ]);
 
     setAccessRequest((req as AccessRequest | null) ?? null);
@@ -158,13 +181,34 @@ const Developer = () => {
     setWallet({ balance: Number(w?.balance ?? 0) });
     setLogs((ls as ApiLog[]) ?? []);
     setWalletHistory((ledgerRows as WalletLedgerRow[]) ?? []);
-    setPlans(((planRows as DeveloperPlan[]) ?? []).filter((plan) => plan.is_enabled && !plan.is_hidden_from_users));
     setLoading(false);
   };
 
   useEffect(() => {
     loadData();
   }, [user?.id]);
+
+  // Auto-load active developer plans as soon as an approved developer opens the area,
+  // and keep the list live via realtime.
+  useEffect(() => {
+    if (!user || !isApproved) {
+      setPlans([]);
+      return;
+    }
+    loadPlans();
+    const channel = supabase
+      .channel(`developer-plans-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "developer_api_plans" },
+        () => loadPlans(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, isApproved]);
 
   // Auto-verify Paystack payment on return (?api_wallet_ref=...)
   useEffect(() => {
@@ -442,9 +486,15 @@ const Developer = () => {
               </div>
 
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Developer API Service Catalog</CardTitle>
-                  <CardDescription>Live plans managed from the admin dashboard, including provider routing metadata and developer pricing.</CardDescription>
+                <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg">Developer API Service Catalog</CardTitle>
+                    <CardDescription>Auto-loaded when you open the Developer area. Updates live as admins publish new plans.</CardDescription>
+                  </div>
+                  <Button size="sm" variant="outline" className="gap-2 shrink-0" onClick={loadPlans} disabled={plansLoading}>
+                    {plansLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    Refresh
+                  </Button>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex flex-col lg:flex-row gap-2">
@@ -466,8 +516,14 @@ const Developer = () => {
                     </Select>
                   </div>
 
-                  {Object.keys(planGroups).length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-8 text-center">No plans match your filters.</p>
+                  {plansLoading && plans.length === 0 ? (
+                    <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading active developer plans…
+                    </div>
+                  ) : Object.keys(planGroups).length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-8 text-center">
+                      {plans.length === 0 ? "No active developer plans available yet." : "No plans match your filters."}
+                    </p>
                   ) : (
                     Object.entries(planGroups).map(([service, servicePlans]) => (
                       <div key={service} className="rounded-lg border overflow-hidden">
