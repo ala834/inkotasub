@@ -142,16 +142,37 @@ const Developer = () => {
     }, {});
   }, [filteredPlans]);
 
+  const loadPlans = async () => {
+    if (!user) return;
+    setPlansLoading(true);
+    try {
+      const { data: planRows, error } = await db
+        .from("developer_api_plans")
+        .select("id, service_type, provider_source, network, plan_name, plan_id, validation_id, developer_price, user_price, reseller_price, is_enabled, failure_count, is_hidden_from_users")
+        .eq("is_enabled", true)
+        .eq("is_hidden_from_users", false)
+        .order("service_type")
+        .order("network")
+        .order("sort_order")
+        .order("plan_name");
+      if (error) throw error;
+      setPlans((planRows as DeveloperPlan[]) ?? []);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not load developer plans");
+    } finally {
+      setPlansLoading(false);
+    }
+  };
+
   const loadData = async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: req }, { data: ks }, { data: w }, { data: ls }, { data: ledgerRows }, { data: planRows }] = await Promise.all([
+    const [{ data: req }, { data: ks }, { data: w }, { data: ls }, { data: ledgerRows }] = await Promise.all([
       supabase.from("api_access_requests").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("api_keys").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("api_wallets").select("balance").eq("user_id", user.id).maybeSingle(),
       supabase.from("api_request_logs").select("id, endpoint, method, status_code, success, response_time_ms, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
       supabase.from("api_wallet_ledger").select("id, amount, entry_type, reference, created_at, metadata").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
-      db.from("developer_api_plans").select("id, service_type, provider_source, network, plan_name, plan_id, validation_id, developer_price, user_price, reseller_price, is_enabled, failure_count, is_hidden_from_users").order("service_type").order("network").order("sort_order").order("plan_name"),
     ]);
 
     setAccessRequest((req as AccessRequest | null) ?? null);
@@ -159,13 +180,34 @@ const Developer = () => {
     setWallet({ balance: Number(w?.balance ?? 0) });
     setLogs((ls as ApiLog[]) ?? []);
     setWalletHistory((ledgerRows as WalletLedgerRow[]) ?? []);
-    setPlans(((planRows as DeveloperPlan[]) ?? []).filter((plan) => plan.is_enabled && !plan.is_hidden_from_users));
     setLoading(false);
   };
 
   useEffect(() => {
     loadData();
   }, [user?.id]);
+
+  // Auto-load active developer plans as soon as an approved developer opens the area,
+  // and keep the list live via realtime.
+  useEffect(() => {
+    if (!user || !isApproved) {
+      setPlans([]);
+      return;
+    }
+    loadPlans();
+    const channel = supabase
+      .channel(`developer-plans-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "developer_api_plans" },
+        () => loadPlans(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, isApproved]);
 
   // Auto-verify Paystack payment on return (?api_wallet_ref=...)
   useEffect(() => {
