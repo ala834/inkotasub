@@ -13,8 +13,8 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Pencil, Plus, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
 
-type ServiceType = "data" | "airtime" | "cable" | "electricity";
-type ProviderSource = "subpadi" | "flowpay" | "smeplug";
+type ServiceType = "data" | "airtime" | "cable" | "electricity" | "exam_pin" | "recharge_card";
+type ProviderSource = "subpadi" | "flowpay" | "smeplug" | "clubkonnect";
 type NetworkType = "MTN" | "AIRTEL" | "GLO" | "9MOBILE";
 
 type DeveloperApiPlan = {
@@ -37,8 +37,8 @@ type DeveloperApiPlan = {
   updated_at: string;
 };
 
-const serviceTypes: ServiceType[] = ["data", "airtime", "cable", "electricity"];
-const providers: ProviderSource[] = ["subpadi", "flowpay", "smeplug"];
+const serviceTypes: ServiceType[] = ["data", "airtime", "cable", "electricity", "exam_pin", "recharge_card"];
+const providers: ProviderSource[] = ["subpadi", "flowpay", "smeplug", "clubkonnect"];
 const networks: NetworkType[] = ["MTN", "AIRTEL", "GLO", "9MOBILE"];
 
 const emptyForm = {
