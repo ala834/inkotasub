@@ -81,7 +81,7 @@ const allTabs: TabDef[] = [
   { value: "webhooks", label: "Webhooks", icon: Webhook, superOnly: true },
   { value: "activity", label: "Activity Log", icon: ClipboardList },
   { value: "devices", label: "Devices", icon: Shield, superOnly: true },
-  { value: "push", label: "Push (OneSignal)", icon: Bell, superOnly: true },
+  { value: "push", label: "Push (FCM)", icon: Bell, superOnly: true },
   { value: "kyc", label: "KYC", icon: ShieldCheck, superOnly: true },
   { value: "referrals", label: "Referrals", icon: Gift },
   { value: "cashback", label: "Cashback", icon: Gift, superOnly: true },

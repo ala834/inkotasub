@@ -21,9 +21,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
-  ONESIGNAL_APP_ID,
-  getStoredOneSignalDiagnostics,
-  type OneSignalDiagnostics,
+  getStoredPushDiagnostics,
+  type PushDiagnostics,
 } from "@/hooks/usePushNotifications";
 
 const REASONS = [
@@ -73,12 +72,11 @@ const StatusBadge = ({ ok, label }: { ok: boolean | null; label: string }) => {
 
 const NotificationPermission = () => {
   const navigate = useNavigate();
-  const [diag, setDiag] = useState<OneSignalDiagnostics>(() => getStoredOneSignalDiagnostics());
+  const [diag, setDiag] = useState<PushDiagnostics>(() => getStoredPushDiagnostics());
   const [requesting, setRequesting] = useState(false);
 
-  // Live-refresh diagnostics so the UI reflects the OneSignal hook's progress
   useEffect(() => {
-    const t = setInterval(() => setDiag(getStoredOneSignalDiagnostics()), 1500);
+    const t = setInterval(() => setDiag(getStoredPushDiagnostics()), 1500);
     return () => clearInterval(t);
   }, []);
 
@@ -91,17 +89,16 @@ const NotificationPermission = () => {
   const effectivePermission = isNative ? diag.permissionStatus : webPermission;
   const granted = effectivePermission === "granted";
   const denied = effectivePermission === "denied";
-  const subscribed = !!diag.subscriptionId && diag.optedIn !== false;
+  const subscribed = !!diag.fcmToken;
 
   const handleEnable = async () => {
     setRequesting(true);
     try {
       if (isNative) {
-        const mod: any = await import("onesignal-cordova-plugin");
-        const OneSignal: any = mod.default ?? mod.OneSignal ?? mod;
-        const accepted = await OneSignal.Notifications.requestPermission(true);
-        try { OneSignal.User?.pushSubscription?.optIn?.(); } catch {}
-        if (accepted) {
+        const { PushNotifications } = await import("@capacitor/push-notifications");
+        const perm = await PushNotifications.requestPermissions();
+        if (perm.receive === "granted") {
+          await PushNotifications.register();
           toast.success("Notifications enabled");
         } else {
           toast.error("Permission denied. Enable it in your device Settings.");
@@ -119,7 +116,7 @@ const NotificationPermission = () => {
       toast.error(e?.message || "Could not request permission");
     } finally {
       setRequesting(false);
-      setTimeout(() => setDiag(getStoredOneSignalDiagnostics()), 500);
+      setTimeout(() => setDiag(getStoredPushDiagnostics()), 500);
     }
   };
 
@@ -130,7 +127,6 @@ const NotificationPermission = () => {
 
   return (
     <div className="min-h-screen gradient-hero pb-10">
-      {/* Header */}
       <header className="sticky top-0 z-40 glass-card border-b border-border/40 px-4 py-3">
         <div className="flex items-center gap-3 max-w-2xl mx-auto">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
@@ -144,7 +140,6 @@ const NotificationPermission = () => {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 pt-6 space-y-5">
-        {/* Hero */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -161,7 +156,6 @@ const NotificationPermission = () => {
           </p>
         </motion.div>
 
-        {/* Reasons */}
         <div className="grid gap-3">
           {REASONS.map((r, i) => (
             <motion.div
@@ -185,7 +179,6 @@ const NotificationPermission = () => {
           ))}
         </div>
 
-        {/* Current status */}
         <Card className="glass-card border-0">
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -194,7 +187,7 @@ const NotificationPermission = () => {
                 size="icon"
                 variant="ghost"
                 className="h-7 w-7"
-                onClick={() => setDiag(getStoredOneSignalDiagnostics())}
+                onClick={() => setDiag(getStoredPushDiagnostics())}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
               </Button>
@@ -202,28 +195,28 @@ const NotificationPermission = () => {
 
             <div className="flex flex-wrap gap-2">
               <StatusBadge ok={isNative} label={isNative ? "Native app" : "Web preview"} />
-              <StatusBadge ok={diag.isInitialized} label={diag.isInitialized ? "OneSignal ready" : "Initializing"} />
+              <StatusBadge ok={diag.isInitialized} label={diag.isInitialized ? "FCM ready" : "Initializing"} />
               <StatusBadge ok={granted ? true : denied ? false : null} label={`Permission: ${effectivePermission}`} />
               <StatusBadge ok={subscribed} label={subscribed ? "Subscribed" : "Not subscribed"} />
             </div>
 
             <div className="rounded-lg bg-muted/40 p-3 text-xs space-y-1.5">
               <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">App ID</span>
-                <span className="font-mono truncate">{ONESIGNAL_APP_ID}</span>
+                <span className="text-muted-foreground">Provider</span>
+                <span className="font-mono truncate">Firebase Cloud Messaging</span>
               </div>
               <div className="flex justify-between gap-2">
                 <span className="text-muted-foreground">User binding</span>
-                <span className="font-mono truncate">{diag.externalId ?? "—"}</span>
+                <span className="font-mono truncate">{diag.userId ?? "—"}</span>
               </div>
               <div className="flex justify-between gap-2 items-center">
-                <span className="text-muted-foreground">Player ID</span>
-                {diag.subscriptionId ? (
+                <span className="text-muted-foreground">FCM Token</span>
+                {diag.fcmToken ? (
                   <button
-                    onClick={() => copy(diag.subscriptionId)}
+                    onClick={() => copy(diag.fcmToken)}
                     className="font-mono truncate inline-flex items-center gap-1 underline max-w-[60%]"
                   >
-                    <span className="truncate">{diag.subscriptionId}</span>
+                    <span className="truncate">{diag.fcmToken.substring(0, 24)}…</span>
                     <Copy className="h-3 w-3 shrink-0" />
                   </button>
                 ) : (
@@ -245,7 +238,6 @@ const NotificationPermission = () => {
           </CardContent>
         </Card>
 
-        {/* Primary action */}
         <div className="space-y-2">
           {granted && subscribed ? (
             <Button size="lg" className="w-full gradient-primary text-primary-foreground" disabled>
