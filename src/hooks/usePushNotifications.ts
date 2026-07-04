@@ -2,57 +2,53 @@ import { useEffect, useState, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 
-// OneSignal App ID — public identifier, safe in client code (like Supabase anon key)
-export const ONESIGNAL_APP_ID = "9e89422c-1fd5-42cf-865d-e7371ebd960c";
+/**
+ * Firebase Cloud Messaging (FCM) push notifications via @capacitor/push-notifications.
+ * Web builds are a no-op — push tokens only register inside the installed Android/iOS app.
+ */
 
-const DIAG_KEY = "inkota_onesignal_diag";
+const DIAG_KEY = "inkota_fcm_diag";
 
-export type OneSignalDiagnostics = {
-  appId: string;
+export type PushDiagnostics = {
   platform: string;
   isNative: boolean;
   isInitialized: boolean;
-  permissionStatus: string;
-  optedIn: boolean | null;
-  subscriptionId: string | null;
-  pushToken: string | null;
-  externalId: string | null;
+  permissionStatus: "prompt" | "granted" | "denied";
+  fcmToken: string | null;
+  userId: string | null;
   lastError: string | null;
   lastUpdated: number;
 };
 
-const defaultDiag = (): OneSignalDiagnostics => ({
-  appId: ONESIGNAL_APP_ID,
+const defaultDiag = (): PushDiagnostics => ({
   platform: Capacitor.getPlatform(),
   isNative: Capacitor.isNativePlatform(),
   isInitialized: false,
   permissionStatus: "prompt",
-  optedIn: null,
-  subscriptionId: null,
-  pushToken: null,
-  externalId: null,
+  fcmToken: null,
+  userId: null,
   lastError: null,
   lastUpdated: Date.now(),
 });
 
-const persist = (diag: OneSignalDiagnostics) => {
+const persist = (diag: PushDiagnostics) => {
   try {
     localStorage.setItem(DIAG_KEY, JSON.stringify(diag));
   } catch {}
 };
 
-export const getStoredOneSignalDiagnostics = (): OneSignalDiagnostics => {
+export const getStoredPushDiagnostics = (): PushDiagnostics => {
   try {
     const raw = localStorage.getItem(DIAG_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return { ...defaultDiag(), ...JSON.parse(raw) };
   } catch {}
   return defaultDiag();
 };
 
 export const usePushNotifications = () => {
-  const [diag, setDiag] = useState<OneSignalDiagnostics>(() => getStoredOneSignalDiagnostics());
+  const [diag, setDiag] = useState<PushDiagnostics>(() => getStoredPushDiagnostics());
 
-  const update = useCallback((patch: Partial<OneSignalDiagnostics>) => {
+  const update = useCallback((patch: Partial<PushDiagnostics>) => {
     setDiag((prev) => {
       const next = { ...prev, ...patch, lastUpdated: Date.now() };
       persist(next);
@@ -60,7 +56,6 @@ export const usePushNotifications = () => {
     });
   }, []);
 
-  // Initialize OneSignal on native platforms only
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) {
       update({ isNative: false, lastError: "Push only works on native Android/iOS builds" });
@@ -72,125 +67,85 @@ export const usePushNotifications = () => {
 
     const init = async () => {
       try {
-        // Cordova plugin attaches to window.plugins.OneSignal at deviceready;
-        // dynamic import is the documented v5 API for Capacitor.
-        const mod: any = await import("onesignal-cordova-plugin");
-        const OneSignal: any = mod.default ?? mod.OneSignal ?? mod;
+        const { PushNotifications } = await import("@capacitor/push-notifications");
 
-        if (!OneSignal || typeof OneSignal.initialize !== "function") {
-          throw new Error("OneSignal plugin not available — is the native build synced (npx cap sync)?");
-        }
+        // Register listeners BEFORE requesting permission
+        await PushNotifications.addListener("registration", async (token) => {
+          if (cancelled) return;
+          console.log("[FCM] token:", token.value.substring(0, 24) + "…");
+          update({ fcmToken: token.value, lastError: null });
 
-        // Verbose logs help diagnose registration in adb logcat
-        try { OneSignal.Debug?.setLogLevel?.(6); } catch {}
-        try { OneSignal.Debug?.setAlertLevel?.(0); } catch {}
-
-        OneSignal.initialize(ONESIGNAL_APP_ID);
-        console.log("[OneSignal] initialize() called with", ONESIGNAL_APP_ID);
-
-        // Bind to current Supabase user as external_id so we can target per-user pushes
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user?.id) {
-            OneSignal.login(user.id);
-            update({ externalId: user.id });
-            console.log("[OneSignal] login() ->", user.id);
-          }
-        } catch (e) {
-          console.warn("[OneSignal] could not bind external_id:", e);
-        }
-
-        // Subscription listener — fires when token/id becomes available
-        const readSubscription = () => {
+          // Persist token against the current user so backend can target pushes
           try {
-            const sub = OneSignal.User?.pushSubscription;
-            const id = sub?.id ?? sub?.getIdAsync?.() ?? null;
-            const token = sub?.token ?? null;
-            const optedIn = typeof sub?.optedIn === "boolean" ? sub.optedIn : null;
-            if (id || token || optedIn !== null) {
-              update({
-                subscriptionId: typeof id === "string" ? id : null,
-                pushToken: typeof token === "string" ? token : null,
-                optedIn,
-              });
-              if (id) console.log("[OneSignal] Player/Subscription ID:", id);
-              if (token) console.log("[OneSignal] Push Token:", String(token).substring(0, 24) + "…");
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.id) {
+              update({ userId: user.id });
+              await supabase.from("user_push_tokens").upsert(
+                {
+                  user_id: user.id,
+                  token: token.value,
+                  platform: Capacitor.getPlatform(),
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: "token" }
+              );
             }
           } catch (e) {
-            console.warn("[OneSignal] readSubscription error:", e);
+            console.warn("[FCM] token persist skipped:", e);
           }
-        };
+        });
 
-        try {
-          OneSignal.User?.pushSubscription?.addEventListener?.("change", (event: any) => {
-            console.log("[OneSignal] subscription change:", event);
-            const cur = event?.current ?? {};
-            update({
-              subscriptionId: cur.id ?? null,
-              pushToken: cur.token ?? null,
-              optedIn: typeof cur.optedIn === "boolean" ? cur.optedIn : null,
-            });
-          });
-        } catch (e) {
-          console.warn("[OneSignal] could not attach subscription listener:", e);
+        await PushNotifications.addListener("registrationError", (err) => {
+          console.error("[FCM] registration error:", err);
+          update({ lastError: err?.error ?? String(err) });
+        });
+
+        await PushNotifications.addListener("pushNotificationReceived", (n) => {
+          console.log("[FCM] foreground notification:", n);
+        });
+
+        await PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
+          console.log("[FCM] notification action:", action);
+          const route = (action?.notification?.data as any)?.route;
+          if (route) window.location.href = route;
+        });
+
+        // Ask permission (Android 13+ POST_NOTIFICATIONS handled by plugin)
+        let permission = await PushNotifications.checkPermissions();
+        if (permission.receive === "prompt" || permission.receive === "prompt-with-rationale") {
+          permission = await PushNotifications.requestPermissions();
         }
 
-        // Notification handlers
-        try {
-          OneSignal.Notifications?.addEventListener?.("foregroundWillDisplay", (event: any) => {
-            console.log("[OneSignal] foreground notification:", event?.notification);
-            event?.getNotification?.()?.display?.();
-          });
-          OneSignal.Notifications?.addEventListener?.("click", (event: any) => {
-            console.log("[OneSignal] notification clicked:", event);
-            const route = event?.notification?.additionalData?.route;
-            if (route) window.location.href = route;
-          });
-          OneSignal.Notifications?.addEventListener?.("permissionChange", (granted: boolean) => {
-            console.log("[OneSignal] permissionChange:", granted);
-            update({ permissionStatus: granted ? "granted" : "denied" });
-          });
-        } catch (e) {
-          console.warn("[OneSignal] could not attach notification listeners:", e);
+        if (permission.receive !== "granted") {
+          update({ permissionStatus: "denied", isInitialized: true });
+          return;
         }
 
-        // Request permission AFTER init so the prompt is owned by OneSignal
-        try {
-          const accepted = await OneSignal.Notifications.requestPermission(true);
-          if (cancelled) return;
-          update({ permissionStatus: accepted ? "granted" : "denied" });
-          console.log("[OneSignal] permission accepted:", accepted);
-          // Make sure the user is opted in (some Android flows leave it false)
-          try { OneSignal.User?.pushSubscription?.optIn?.(); } catch {}
-        } catch (e) {
-          console.warn("[OneSignal] requestPermission error:", e);
-        }
-
-        // Initial read + delayed retries — subscription id can take a few seconds
-        readSubscription();
-        const retries = [1000, 3000, 6000, 10000];
-        retries.forEach((ms) =>
-          setTimeout(() => {
-            if (!cancelled) readSubscription();
-          }, ms)
-        );
-
+        update({ permissionStatus: "granted" });
+        await PushNotifications.register();
         update({ isInitialized: true, lastError: null });
-        console.log("[OneSignal] initialization complete");
+        console.log("[FCM] initialization complete");
       } catch (error: any) {
         const msg = error?.message ?? String(error);
-        console.error("[OneSignal] init error:", msg);
+        console.error("[FCM] init error:", msg);
         update({ lastError: msg });
       }
     };
 
     init();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {
     ...diag,
-    playerId: diag.subscriptionId, // back-compat alias
+    playerId: diag.fcmToken, // back-compat alias
   };
 };
+
+// Back-compat aliases so any lingering imports keep compiling
+export const getStoredOneSignalDiagnostics = getStoredPushDiagnostics;
+export type OneSignalDiagnostics = PushDiagnostics;
+export const ONESIGNAL_APP_ID = "";

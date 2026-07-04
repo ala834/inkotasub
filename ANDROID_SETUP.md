@@ -107,51 +107,52 @@ npm install
 npx cap sync android
 ```
 
-## OneSignal Push Notifications Setup
+## Firebase Cloud Messaging (FCM) Push Notifications Setup
 
-### 1. Create a OneSignal Account & App
-1. Go to [OneSignal Dashboard](https://onesignal.com/)
-2. Create an account or log in
-3. Click **"New App/Website"** → name it (e.g., "INKOTA SUB")
-4. Select **Android** platform
-5. Enter your **Firebase Server Key** (from Firebase Console → Project Settings → Cloud Messaging)
-6. Copy your **OneSignal App ID**
+The app uses `@capacitor/push-notifications` which delivers pushes through FCM on Android.
 
-### 2. Update OneSignal App ID in Code
-1. Open `src/hooks/usePushNotifications.ts`
-2. Replace `YOUR_ONESIGNAL_APP_ID` with your actual OneSignal App ID
+### 1. Create a Firebase project
+1. Go to [Firebase Console](https://console.firebase.google.com/) → **Add project**
+2. Add an Android app with package: `app.lovable.ffadf645a240467b9613fa616c1f2eb6`
+3. Download `google-services.json` and place it in **`android/app/google-services.json`**
 
-### 3. Add OneSignal Gradle Plugin
-In `android/app/build.gradle`, add:
-```gradle
-plugins {
-    id 'com.onesignal.androidsdk.onesignal-gradle-plugin' version '0.14.0'
-}
-```
+### 2. Add the google-services Gradle plugin
 
-In `android/build.gradle` (project-level), ensure you have:
+`android/build.gradle` (project-level) — add the classpath:
 ```gradle
 buildscript {
     repositories {
-        gradlePluginPortal()
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.google.gms:google-services:4.4.2'
     }
 }
 ```
 
-### 4. Add google-services.json
-OneSignal still uses FCM under the hood for Android delivery:
-1. Go to [Firebase Console](https://console.firebase.google.com/) → Create/select project
-2. Add Android app with package: `app.lovable.ffadf645a240467b9613fa616c1f2eb6`
-3. Download `google-services.json` → place in `android/app/`
-4. Add Firebase dependencies as described in OneSignal docs
+`android/app/build.gradle` — apply the plugin at the **bottom** of the file:
+```gradle
+apply plugin: 'com.google.gms.google-services'
+```
 
-### 5. Sync & Run
+### 3. AndroidManifest.xml
+`@capacitor/push-notifications` auto-merges the required `<service>` and permissions. For Android 13+ the plugin already declares `POST_NOTIFICATIONS`. If you customize the manifest, keep:
+```xml
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+```
+
+### 4. Sync & run
 ```bash
+npm install
+npm run build
 npx cap sync android
 npx cap run android
 ```
 
-The app will automatically initialize OneSignal and request notification permission on launch.
+On first launch the app requests notification permission, registers with FCM, and stores the token in the `user_push_tokens` table so the backend can target the device. Test tokens via **Firebase Console → Cloud Messaging → Send test message**.
+
+
 
 ---
 
