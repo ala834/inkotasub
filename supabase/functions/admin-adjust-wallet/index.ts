@@ -75,26 +75,41 @@ serve(async (req) => {
     }
 
     const currentBalance = parseFloat(wallet.balance as unknown as string);
-    const newBalance = adjustment_type === 'credit'
-      ? currentBalance + amountNum
-      : currentBalance - amountNum;
 
-    if (newBalance < 0) {
-      return new Response(JSON.stringify({ error: 'Insufficient balance for debit' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    // Use atomic RPC to prevent race conditions
+    let newBalance: number;
+    if (adjustment_type === 'credit') {
+      const { data, error: rpcErr } = await supabase.rpc('atomic_wallet_credit', {
+        p_user_id: user_id, p_amount: amountNum,
       });
+      if (rpcErr) throw rpcErr;
+      newBalance = parseFloat(data as unknown as string);
+    } else {
+      const { data, error: rpcErr } = await supabase.rpc('atomic_wallet_debit', {
+        p_user_id: user_id, p_amount: amountNum,
+      });
+      if (rpcErr) {
+        const msg = rpcErr.message?.includes('insufficient_balance') ? 'Insufficient balance for debit' : rpcErr.message;
+        return new Response(JSON.stringify({ error: msg }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      newBalance = parseFloat(data as unknown as string);
     }
-
-    // Update wallet
-    const { error: updateError } = await supabase
-      .from('wallets')
-      .update({ balance: newBalance, updated_at: new Date().toISOString() })
-      .eq('id', wallet_id);
-
-    if (updateError) throw updateError;
 
     const reference = `ADJ_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const description = `Admin ${adjustment_type === 'credit' ? 'Credit' : 'Debit'}: ${reason}`;
+
+    // Ledger entry for auditability
+    await supabase.from('ledger_entries').insert({
+      user_id,
+      entry_type: adjustment_type === 'credit' ? 'credit' : 'debit',
+      amount: amountNum,
+      balance_before: currentBalance,
+      balance_after: newBalance,
+      reference,
+      metadata: { source: 'admin_adjustment', admin_id: user.id, reason },
+    });
 
     // Create transaction record
     const { data: txRecord, error: txError } = await supabase

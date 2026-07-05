@@ -44,6 +44,35 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Require authentication: service_role JWT or authenticated admin user
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData } = await adminSupabase.auth.getClaims(token);
+    const claims = claimsData?.claims as any;
+    const isServiceRole = claims?.role === "service_role";
+    let authorized = isServiceRole;
+    if (!authorized && claims?.sub) {
+      const { data: role } = await adminSupabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", claims.sub)
+        .eq("role", "admin")
+        .maybeSingle();
+      authorized = !!role;
+    }
+    if (!authorized) {
+      return new Response(JSON.stringify({ error: "Admin access required" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Optional body: { transaction_id?: string, max_age_minutes?: number }
     let body: any = {};
     try { body = req.method === "POST" ? await req.json() : {}; } catch { /* ignore */ }

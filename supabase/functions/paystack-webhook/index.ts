@@ -346,24 +346,31 @@ serve(async (req) => {
         .single();
 
       if (tx && tx.status !== "failed") {
-        const { data: wallet } = await supabase
-          .from("wallets")
-          .select("balance")
-          .eq("user_id", tx.user_id)
-          .single();
+        const { data: balBefore } = await supabase.rpc("get_wallet_balance", { p_user_id: tx.user_id });
+        const currentBalance = Number(balBefore ?? 0);
 
-        if (wallet) {
-          const currentBalance = parseFloat(wallet.balance as unknown as string);
-          const newBalance = currentBalance + amountInNaira;
+        const { data: newBal, error: creditErr } = await supabase.rpc("atomic_wallet_credit", {
+          p_user_id: tx.user_id,
+          p_amount: amountInNaira,
+        });
 
-          await supabase
-            .from("wallets")
-            .update({ balance: newBalance })
-            .eq("user_id", tx.user_id);
+        if (!creditErr) {
+          const newBalance = Number(newBal);
+
+          await supabase.from("ledger_entries").insert({
+            transaction_id: tx.id,
+            user_id: tx.user_id,
+            entry_type: "refund",
+            amount: amountInNaira,
+            balance_before: currentBalance,
+            balance_after: newBalance,
+            reference,
+            metadata: { source: "paystack_transfer_failed", reason },
+          });
 
           await supabase
             .from("transactions")
-            .update({ 
+            .update({
               status: "failed",
               metadata: { ...tx.metadata, failure_reason: reason }
             })
@@ -375,6 +382,8 @@ serve(async (req) => {
             message: `Your transfer of ₦${amountInNaira.toLocaleString()} failed. Amount has been refunded.`,
             type: "error",
           });
+        } else {
+          console.error("Transfer refund credit error:", creditErr);
         }
       }
     }
