@@ -2,23 +2,23 @@ import { useEffect } from "react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 /**
- * Invisible component that initializes OneSignal push notifications on native platforms.
- * Mount once at the app root level inside AuthProvider.
+ * Invisible component that initializes Firebase Cloud Messaging (FCM) push
+ * notifications on native platforms. Mount once at the app root inside AuthProvider.
  */
 const PushNotificationInit = () => {
-  const { playerId, isNative, isInitialized } = usePushNotifications();
+  const { fcmToken, isNative, isInitialized } = usePushNotifications();
 
   useEffect(() => {
-    if (playerId) {
-      console.log("[OneSignal] Device registered, Player ID:", playerId);
+    if (fcmToken) {
+      console.log("[FCM] Device registered, token:", fcmToken.substring(0, 24) + "…");
     }
-  }, [playerId]);
+  }, [fcmToken]);
 
   useEffect(() => {
-    if (isInitialized) {
-      console.log("[OneSignal] Push notifications initialized on native platform");
+    if (isInitialized && isNative) {
+      console.log("[FCM] Push notifications initialized on native platform");
     }
-  }, [isInitialized]);
+  }, [isInitialized, isNative]);
 
   return null;
 };

@@ -23,7 +23,7 @@ const config: CapacitorConfig = {
       splashFullScreen: true,
       splashImmersive: true,
     },
-    // OneSignal handles push notifications natively - no Capacitor plugin config needed
+    // Firebase Cloud Messaging via @capacitor/push-notifications — no extra plugin config needed
   },
 };
 

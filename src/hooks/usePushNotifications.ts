@@ -139,13 +139,5 @@ export const usePushNotifications = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return {
-    ...diag,
-    playerId: diag.fcmToken, // back-compat alias
-  };
+  return diag;
 };
-
-// Back-compat aliases so any lingering imports keep compiling
-export const getStoredOneSignalDiagnostics = getStoredPushDiagnostics;
-export type OneSignalDiagnostics = PushDiagnostics;
-export const ONESIGNAL_APP_ID = "";
