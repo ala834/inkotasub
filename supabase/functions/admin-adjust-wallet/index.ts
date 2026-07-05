@@ -97,16 +97,19 @@ serve(async (req) => {
       newBalance = parseFloat(data as unknown as string);
     }
 
-    // Update wallet
-    const { error: updateError } = await supabase
-      .from('wallets')
-      .update({ balance: newBalance, updated_at: new Date().toISOString() })
-      .eq('id', wallet_id);
-
-    if (updateError) throw updateError;
-
     const reference = `ADJ_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const description = `Admin ${adjustment_type === 'credit' ? 'Credit' : 'Debit'}: ${reason}`;
+
+    // Ledger entry for auditability
+    await supabase.from('ledger_entries').insert({
+      user_id,
+      entry_type: adjustment_type === 'credit' ? 'credit' : 'debit',
+      amount: amountNum,
+      balance_before: currentBalance,
+      balance_after: newBalance,
+      reference,
+      metadata: { source: 'admin_adjustment', admin_id: user.id, reason },
+    });
 
     // Create transaction record
     const { data: txRecord, error: txError } = await supabase
